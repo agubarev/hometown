@@ -24,7 +24,8 @@ func TestNewManager(t *testing.T) {
 	a.NotNil(store)
 	a.NoError(err)
 
-	m := user.NewDefaultManager(store)
+	m, err := user.NewDefaultManager(store)
+	a.NoError(err)
 	a.NotNil(m)
 }
 
@@ -40,7 +41,8 @@ func TestManagerCreate(t *testing.T) {
 	a.NotNil(store)
 	a.NoError(err)
 
-	m := user.NewDefaultManager(store)
+	m, err := user.NewDefaultManager(store)
+	a.NoError(err)
 	a.NotNil(m)
 
 	u := user.NewUser("testuser", "testuser@example.com")

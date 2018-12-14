@@ -9,58 +9,39 @@ import (
 
 // errors
 var (
-	ErrUserExists = errors.New("user already exists")
-	ErrNilUser    = errors.New("user is nil")
-	ErrNilStore   = errors.New("store is nil")
+	ErrUserExists    = errors.New("user already exists")
+	ErrNilUser       = errors.New("user is nil")
+	ErrNilStore      = errors.New("store is nil")
+	ErrUsernameTaken = errors.New("username is already taken")
+	ErrEmailTaken    = errors.New("email is already taken")
 )
 
 // Manager represents a User manager contract interface
 // TODO: add User data validation
 type Manager interface {
-	Exists(ctx context.Context, u *User) bool
 	Create(ctx context.Context, u *User) (*User, error)
 	GetByID(ctx context.Context, id ulid.ULID) (*User, error)
+	GetByUsername(ctx context.Context, username string) (*User, error)
+	GetByEmail(ctx context.Context, email string) (*User, error)
 	Update(ctx context.Context, u *User) (*User, error)
 	Delete(ctx context.Context, u *User) (*User, error)
 }
 
 // NewDefaultManager is a default user manager implementation
-func NewDefaultManager(s Store) Manager {
-	// user store must be set
+func NewDefaultManager(s Store) (Manager, error) {
 	if s == nil {
-		panic(ErrNilStore)
+		return nil, ErrNilStore
 	}
 
-	// default manager
-	return &manager{
-		store: s,
+	if err := s.Init(); err != nil {
+		return nil, err
 	}
+
+	return &manager{s}, nil
 }
 
 type manager struct {
 	store Store
-}
-
-// Exists checks whether a given user exists
-func (m *manager) Exists(ctx context.Context, u *User) bool {
-	var err error
-
-	_, err = m.store.GetByID(ctx, u.ID)
-	if err == nil {
-		return true
-	}
-
-	_, err = m.store.GetByIndex(ctx, "username", u.Username)
-	if err == nil {
-		return true
-	}
-
-	_, err = m.store.GetByIndex(ctx, "email", u.Email)
-	if err == nil {
-		return true
-	}
-
-	return false
 }
 
 // Create new user
@@ -69,12 +50,24 @@ func (m *manager) Create(ctx context.Context, u *User) (*User, error) {
 		return nil, ErrNilUser
 	}
 
-	// checking for existence
-	if m.Exists(ctx, u) {
+	// existence checks
+	_, err := m.store.GetByID(ctx, u.ID)
+	if err != ErrUserNotFound {
 		return nil, ErrUserExists
 	}
 
-	err := m.store.Put(ctx, u)
+	_, err = m.store.GetByIndex(ctx, "email", u.Email)
+	if err != ErrUserNotFound {
+		return nil, ErrEmailTaken
+	}
+
+	_, err = m.store.GetByIndex(ctx, "username", u.Username)
+	if err != ErrUserNotFound {
+		return nil, ErrUsernameTaken
+	}
+
+	// storing user
+	err = m.store.Put(ctx, u)
 	if err != nil {
 		return nil, err
 	}
@@ -85,6 +78,16 @@ func (m *manager) Create(ctx context.Context, u *User) (*User, error) {
 // Get existing user
 func (m *manager) GetByID(ctx context.Context, id ulid.ULID) (*User, error) {
 	return m.store.GetByID(ctx, id)
+}
+
+// GetByUsername returns a user by username
+func (m *manager) GetByUsername(ctx context.Context, username string) (*User, error) {
+	return m.store.GetByIndex(ctx, "username", username)
+}
+
+// GetByEmail returns a user by email
+func (m *manager) GetByEmail(ctx context.Context, email string) (*User, error) {
+	return m.store.GetByIndex(ctx, "email", email)
 }
 
 func (m *manager) Update(ctx context.Context, u *User) (*User, error) {
