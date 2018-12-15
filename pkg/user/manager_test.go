@@ -20,7 +20,7 @@ func TestNewManager(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := user.NewDefaultStore(db)
+	store, err := user.NewDefaultStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 
@@ -37,7 +37,7 @@ func TestManagerCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := user.NewDefaultStore(db)
+	store, err := user.NewDefaultStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 

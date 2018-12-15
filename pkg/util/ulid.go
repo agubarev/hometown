@@ -9,7 +9,7 @@ import (
 
 var ulidChannel chan ulid.ULID
 
-// initULIDChannel running a goroutine that pushes ulid.ULIDs into ULIDChannel
+// initULIDChannel running a goroutine that pushes ulid.ULIDs into ulidChannel
 // this goroutine is meant to run for as long as the app is working
 func initULIDChannel() {
 	if ulidChannel != nil {
@@ -17,7 +17,7 @@ func initULIDChannel() {
 	}
 
 	// initializing the channel and running a goroutine
-	ulidChannel = make(chan ulid.ULID, 10)
+	ulidChannel = make(chan ulid.ULID, 100)
 	go func() {
 		t := time.Now()
 		entropy := ulid.Monotonic(rand.New(rand.NewSource(t.UnixNano())), 0)

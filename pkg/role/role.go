@@ -1,16 +1,21 @@
 package role
 
-/*
+import (
+	"errors"
+
+	"gitlab.com/agubarev/hometown/pkg/user"
+)
+
 // package errors
 var (
-	ErrRoleIsNil     = errors.New("role is nil")
-	ErrEmptyRoleName = errors.New("empty role name")
+	ErrNilRole = errors.New("role is nil")
+	ErrNoName  = errors.New("empty role name")
 )
 
 // Role represents a user role
 type Role struct {
 	Name    string `json:"name"`
-	members map[string]*User
+	members map[string]*user.User
 }
 
 // NewRole initializing a new role struct
@@ -33,7 +38,7 @@ func (role *Role) IsMember(user *User) bool {
 // AddUser adding user to the group
 func (role *Role) AddUser(user *User) error {
 	if user == nil {
-		return ErrUserIsNil
+		return user.ErrNilUser
 	}
 
 	// add member to role
@@ -56,4 +61,3 @@ func (role *Role) RemoveUser(user *User) error {
 
 	return nil
 }
-*/

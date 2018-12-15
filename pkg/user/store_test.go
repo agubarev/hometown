@@ -21,7 +21,7 @@ func TestNewDefaultStore(t *testing.T) {
 	a.NoError(err)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
 	a.NotNil(s)
 	a.NoError(err)
 }
@@ -34,7 +34,7 @@ func TestStoreCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -61,7 +61,7 @@ func TestStorePut(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -80,7 +80,7 @@ func TestStoreGetters(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -126,7 +126,7 @@ func TestStoreDelete(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -192,8 +192,9 @@ func BenchmarkStorePut(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
 	var newuser *user.User
+
 	for n := 0; n < b.N; n++ {
 		newuser = user.NewUser("testuser", "test@example.com")
 		err = s.Put(context.Background(), newuser)
@@ -212,7 +213,7 @@ func BenchmarkStoreGetByID(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
 	newuser := user.NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
@@ -226,6 +227,28 @@ func BenchmarkStoreGetByID(b *testing.B) {
 	}
 }
 
+func BenchmarkStoreGetByIDWithCaching(b *testing.B) {
+	b.ReportAllocs()
+
+	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
+	newuser := user.NewUser("testuser", "test@example.com")
+	err = s.Put(context.Background(), newuser)
+	if err != nil {
+		panic(err)
+	}
+	for n := 0; n < b.N; n++ {
+		_, err = s.GetByID(context.Background(), newuser.ID)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
 func BenchmarkStoreGetByUsername(b *testing.B) {
 	b.ReportAllocs()
 
@@ -235,7 +258,30 @@ func BenchmarkStoreGetByUsername(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
+	newuser := user.NewUser("testuser", "test@example.com")
+	err = s.Put(context.Background(), newuser)
+	if err != nil {
+		panic(err)
+	}
+	for n := 0; n < b.N; n++ {
+		_, err = s.GetByIndex(context.Background(), "username", newuser.Username)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkStoreGetByUsernameWithCaching(b *testing.B) {
+	b.ReportAllocs()
+
+	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
 	newuser := user.NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
@@ -258,7 +304,30 @@ func BenchmarkStoreGetByEmail(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db)
+	s, err := user.NewDefaultStore(db, nil)
+	newuser := user.NewUser("testuser", "test@example.com")
+	err = s.Put(context.Background(), newuser)
+	if err != nil {
+		panic(err)
+	}
+	for n := 0; n < b.N; n++ {
+		_, err = s.GetByIndex(context.Background(), "email", newuser.Email)
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func BenchmarkStoreGetByEmailWithCaching(b *testing.B) {
+	b.ReportAllocs()
+
+	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	if err != nil {
+		panic(err)
+	}
+	defer db.Close()
+
+	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
 	newuser := user.NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {

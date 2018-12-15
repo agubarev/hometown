@@ -1,54 +1,43 @@
-package user
+package domain
 
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
-
 	"strings"
 
-	"go.etcd.io/bbolt"
-
 	"github.com/oklog/ulid"
+	"go.etcd.io/bbolt"
 )
 
-// errors
-var (
-	ErrNilDB          = errors.New("database is nil")
-	ErrIndexNotFound  = errors.New("index not found")
-	ErrUserNotFound   = errors.New("user not found")
-	ErrEmailNotFound  = errors.New("email not found")
-	ErrInvalidID      = errors.New("invalid ID")
-	ErrBucketNotFound = errors.New("bucket not found")
-)
-
-// Store represents a User storage contract
+// Store interface for the Dominion
 type Store interface {
 	Init() error
-	Put(ctx context.Context, u *User) error
-	GetByID(ctx context.Context, id ulid.ULID) (*User, error)
-	GetByIndex(ctx context.Context, index string, value string) (*User, error)
-	Delete(ctx context.Context, id ulid.ULID) error
+	Put(d *Domain) error
+	GetByID(id ulid.ULID) (*Domain, error)
+	Update(d *Domain) error
+	Delete(id ulid.ULID) error
 }
 
-// NewDefaultStore initializing a default User store
-func NewDefaultStore(db *bbolt.DB, sc StoreCache) (Store, error) {
+type store struct {
+	db *bbolt.DB
+}
+
+// NewDefaultStore initializing a default Domain store
+func NewDefaultStore(db *bbolt.DB) (Store, error) {
 	if db == nil {
 		return nil, ErrNilDB
 	}
 
 	s := &store{
-		db:        db,
-		userCache: sc,
+		db: db,
 	}
 
 	return s, s.Init()
 }
 
 type store struct {
-	db        *bbolt.DB
-	userCache StoreCache
+	db *bbolt.DB
 }
 
 // Init initializing the storage

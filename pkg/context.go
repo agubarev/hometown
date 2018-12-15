@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"gitlab.com/agubarev/hometown/pkg/user"
 	"go.etcd.io/bbolt"
 )
 
@@ -8,7 +9,7 @@ import (
 type Hometown struct {
 	db       *bbolt.DB
 	users    *user.Manager
-	sessions *user.SessionManager
-	groups   *user.GroupManager
-	roles    *user.RoleManager
+	sessions *session.SessionManager
+	roles    *role.RoleManager
+	groups   *group.GroupManager
 }
