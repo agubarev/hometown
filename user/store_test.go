@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"gitlab.com/agubarev/hometown/pkg/user"
-	"gitlab.com/agubarev/hometown/pkg/util"
+	"gitlab.com/agubarev/hometown/user/user"
+	"gitlab.com/agubarev/hometown/user/util"
 
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
@@ -38,14 +38,14 @@ func TestStoreCreate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	m, err := user.NewDefaultManager(s)
+	svc, err := user.NewDefaultService(s)
 	a.NoError(err)
-	a.NotNil(m)
+	a.NotNil(svc)
 
 	unsavedUser := user.NewUser("testuser", "test@example.com")
 	a.NotNil(unsavedUser)
 
-	newUser, err := m.Create(context.Background(), unsavedUser)
+	newUser, err := svc.Create(context.Background(), unsavedUser)
 	a.NoError(err)
 	a.NotNil(newUser)
 	a.Equal("testuser", newUser.Username)

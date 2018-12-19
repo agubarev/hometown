@@ -1,8 +1,8 @@
-package domain
+package user
 
 import (
 	"github.com/oklog/ulid"
-	ap "gitlab.com/agubarev/hometown/pkg/accesspolicy"
+	ap "gitlab.com/agubarev/hometown/accesspolicy"
 )
 
 type dominion struct {
@@ -11,7 +11,8 @@ type dominion struct {
 	store Store
 }
 
-// Domain represents a single organizational unit
+// Domain represents a single organizational entity which incorporates
+// organizations, users, roles, groups and teams
 type Domain struct {
 	ID         ulid.ULID        `json:"id"`
 	Parent     *Domain          `json:"-"`

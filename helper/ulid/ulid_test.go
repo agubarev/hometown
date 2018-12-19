@@ -1,17 +1,17 @@
-package util
+package ulid_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/secret-manager/pkg/util"
+	"gitlab.com/agubarev/hometown/helper/ulid"
 )
 
 func TestNewULID(t *testing.T) {
 	a := assert.New(t)
-	uid1 := util.NewULID()
-	uid2 := util.NewULID()
-	uid3 := util.NewULID()
+	uid1 := ulid.NewULID()
+	uid2 := ulid.NewULID()
+	uid3 := ulid.NewULID()
 
 	a.NotNil(uid1)
 	a.NotNil(uid2)

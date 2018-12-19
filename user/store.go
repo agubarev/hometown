@@ -1,47 +1,58 @@
-package domain
+package user
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+
 	"strings"
 
-	"github.com/oklog/ulid"
 	"go.etcd.io/bbolt"
+
+	"github.com/oklog/ulid"
 )
 
-// Store interface for the Dominion
+// errors
+var (
+	ErrNilDB          = errors.New("database is nil")
+	ErrIndexNotFound  = errors.New("index not found")
+	ErrUserNotFound   = errors.New("user not found")
+	ErrEmailNotFound  = errors.New("email not found")
+	ErrInvalidID      = errors.New("invalid ID")
+	ErrBucketNotFound = errors.New("bucket not found")
+)
+
+// Store represents a User storage contract
 type Store interface {
 	Init() error
-	Put(d *Domain) error
-	GetByID(id ulid.ULID) (*Domain, error)
-	Update(d *Domain) error
-	Delete(id ulid.ULID) error
+	Put(ctx context.Context, u *User) error
+	GetByID(ctx context.Context, id ulid.ULID) (*User, error)
+	GetByIndex(ctx context.Context, index string, value string) (*User, error)
+	Delete(ctx context.Context, id ulid.ULID) error
 }
 
-type store struct {
-	db *bbolt.DB
-}
-
-// NewDefaultStore initializing a default Domain store
-func NewDefaultStore(db *bbolt.DB) (Store, error) {
+// NewDefaultStore initializing a default User store
+func NewDefaultStore(db *bbolt.DB, sc StoreCache) (Store, error) {
 	if db == nil {
 		return nil, ErrNilDB
 	}
 
-	s := &store{
-		db: db,
+	s := &defaultStore{
+		db:        db,
+		userCache: sc,
 	}
 
 	return s, s.Init()
 }
 
-type store struct {
-	db *bbolt.DB
+type defaultStore struct {
+	db        *bbolt.DB
+	userCache StoreCache
 }
 
 // Init initializing the storage
-func (s *store) Init() error {
+func (s *defaultStore) Init() error {
 	// creating pre-defined buckets if they don't exist yet
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		// user bucket
@@ -77,7 +88,7 @@ func (s *store) Init() error {
 }
 
 // GetByID returns a User by ID
-func (s *store) GetByID(ctx context.Context, id ulid.ULID) (*User, error) {
+func (s *defaultStore) GetByID(ctx context.Context, id ulid.ULID) (*User, error) {
 	if len(id) == 0 {
 		return nil, ErrInvalidID
 	}
@@ -110,7 +121,7 @@ func (s *store) GetByID(ctx context.Context, id ulid.ULID) (*User, error) {
 }
 
 // GetByIndex lookup a user by an index
-func (s *store) GetByIndex(ctx context.Context, index string, value string) (*User, error) {
+func (s *defaultStore) GetByIndex(ctx context.Context, index string, value string) (*User, error) {
 	var user *User
 
 	// cache lookup
@@ -152,7 +163,7 @@ func (s *store) GetByIndex(ctx context.Context, index string, value string) (*Us
 }
 
 // Put stores a User
-func (s *store) Put(ctx context.Context, u *User) error {
+func (s *defaultStore) Put(ctx context.Context, u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
@@ -200,7 +211,7 @@ func (s *store) Put(ctx context.Context, u *User) error {
 
 		// renewing cache
 		if s.userCache != nil {
-			s.userCache.Delete(u.ID)
+			// doing only Put() because it'll reoccupy the existing space anyway
 			s.userCache.Put(u)
 		}
 
@@ -209,7 +220,7 @@ func (s *store) Put(ctx context.Context, u *User) error {
 }
 
 // Delete a user from the store
-func (s *store) Delete(ctx context.Context, id ulid.ULID) error {
+func (s *defaultStore) Delete(ctx context.Context, id ulid.ULID) error {
 	if len(id) == 0 {
 		return ErrInvalidID
 	}

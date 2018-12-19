@@ -3,7 +3,7 @@ package accesspolicy
 import (
 	"errors"
 
-	"gitlab.com/agubarev/hometown/user/user"
+	"gitlab.com/agubarev/hometown/user"
 )
 
 // package errors

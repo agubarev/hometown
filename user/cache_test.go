@@ -6,8 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/pkg/user"
-	"gitlab.com/agubarev/hometown/pkg/util"
+	"gitlab.com/agubarev/hometown/user/user"
+	"gitlab.com/agubarev/hometown/user/util"
 	"go.etcd.io/bbolt"
 )
 

@@ -8,11 +8,11 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/pkg/user"
-	"gitlab.com/agubarev/hometown/pkg/util"
+	"gitlab.com/agubarev/hometown/user/user"
+	"gitlab.com/agubarev/hometown/user/util"
 )
 
-func TestNewManager(t *testing.T) {
+func TestNewService(t *testing.T) {
 	a := assert.New(t)
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -24,12 +24,12 @@ func TestNewManager(t *testing.T) {
 	a.NotNil(store)
 	a.NoError(err)
 
-	m, err := user.NewDefaultManager(store)
+	m, err := user.NewDefaultService(store)
 	a.NoError(err)
 	a.NotNil(m)
 }
 
-func TestManagerCreate(t *testing.T) {
+func TestServiceCreate(t *testing.T) {
 	a := assert.New(t)
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -41,7 +41,7 @@ func TestManagerCreate(t *testing.T) {
 	a.NotNil(store)
 	a.NoError(err)
 
-	m, err := user.NewDefaultManager(store)
+	m, err := user.NewDefaultService(store)
 	a.NoError(err)
 	a.NotNil(m)
 

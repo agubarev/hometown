@@ -1,0 +1,29 @@
+- initial architecture and the code structure decisions
+- basic data entities and their relationship
+- how to organize and scope access policy
+- storage, caching, logging mechanisms.. the what/how
+- the limits; what the system should and should not take care of... IMO
+- the overall, internal decisions.
+
+I've decided to have the following basic data structure units (entities if you like):
+- user; the cornerstone, what's all the fuss is about :)
+- role; self-explanatory (only I'm not sure I want them to be hierarchical atm)
+- group; self-explanatory
+- team; like a mini-group but the users can be allowed.. well, be able to create them independently while groups must require some sort of authorization; the idea just came up yesterday and I haven't thought this through yet
+- organization; self-explanatory, the organizational unit and is optional
+- domain, a domain tree (not a hostname/network domain); think of it as a hierarchical, organizational unit, the top level scope/boundary which is always present (an implicit root level domain by default).
+
+In other words, I want users to be organized into teams/groups/organizations(optional), administered autonomously (managed by roles and access policy) and scoped by a domain tree. I want users are to be connected and authenticated by multiple trusted providers i.e. google, facebook, twitter, github, gitlab etc, custom providers for username/password, ldap bridges etc; a single user account with multiple linked identity providers. [https://github.com/golang/oauth2]
+
+I'm not sure about the domains and feel like I'm reaching a bit too far atm.. but I think this could be useful if done right "by design" AND simple. I want this system to be as simple as possible but still capable, gotta try hard to not overengineer and stick to reality :)
+
+For example in your case, you demand that the system must run on the GCP; Although I still haven't worked with the cloud (GCP, AWP, Azure, etc...) this shouldn't be a problem because I develop with the fixed/moving parts in mind, by providing only interfaces and a default implementation for any moving parts.
+
+I've started with bbolt [https://github.com/etcd-io/bbolt] (previously known as BoltDB) as a default storage backend, but this could change soon.
+
+... well, a lot of things like that, on and on ...
+
+ah and I want RESTful as primary, and gRPC (server to server) a secondary interface
+
+TL;DR;
+A a lot is happening in my mind about this project right now (btw, I gave it a codename: hometown); the ideas are boiling and I build this system empirically, it's fun :) I was unemployed for a long time but recently I've started looking for a job, so things might change soon but I will keep developing with that pace for as long as I have the time. Like I said I need this system primarily for myself and my own possible projects first but I can share some updates if you're interested.. kinda like that.
