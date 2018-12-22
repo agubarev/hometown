@@ -2,20 +2,19 @@ package accesspolicy
 
 import (
 	"errors"
-
-	"gitlab.com/agubarev/hometown/user"
+	"os/user"
 )
 
 // package errors
 var (
 	ErrAccessDenied   = errors.New("user access denied")
 	ErrNoViewRight    = errors.New("user is not allowed to view this")
-	ErrAssignorIsNil  = errors.New("assignor user is nil")
-	ErrAssigneeIsNil  = errors.New("assignee user is nil")
+	ErrNilAssignor    = errors.New("assignor user is nil")
+	ErrNilAssignee    = errors.New("assignee user is nil")
 	ErrExcessOfRights = errors.New("assignor is attempting to set the rights that excess his own")
 	ErrSameUser       = errors.New("assignor and assignee is the same user")
-	ErrUserIsNil      = errors.New("user is nil")
-	ErrParentIsNil    = errors.New("parent is nil")
+	ErrNilUser        = errors.New("user is nil")
+	ErrNilParent      = errors.New("parent is nil")
 )
 
 // AccessRight is a single
@@ -47,14 +46,14 @@ func (rr *RightsRoster) Summarize(u *user.User) AccessRight {
 	r := rr.Everyone
 
 	// calculating role rights
-	for _, ur := range u.Roles {
+	for _, ur := range u.Roles() {
 		if _, ok := rr.Role[ur.Name]; ok {
 			r |= rr.Role[ur.Name]
 		}
 	}
 
 	// same with groups
-	for _, ug := range u.Groups {
+	for _, ug := range u.Groups() {
 		if _, ok := rr.Group[ug.Name]; ok {
 			r |= rr.Group[ug.Name]
 		}
@@ -170,13 +169,13 @@ func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight)
 }
 
 // SetRoleRights setting rights for the role
-func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *user.Role, rights AccessRight) error {
+func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *Role, rights AccessRight) error {
 	if assignor == nil {
 		return ErrAssignorIsNil
 	}
 
 	if role == nil {
-		return user.ErrRoleIsNil
+		return ErrRoleIsNil
 	}
 
 	// checking whether the assignor has at least the assigned rights
@@ -190,13 +189,13 @@ func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *user.Role, righ
 }
 
 // SetGroupRights setting rights for specific user
-func (ap *AccessPolicy) SetGroupRights(assignor *user.User, group *user.Group, rights AccessRight) error {
+func (ap *AccessPolicy) SetGroupRights(assignor *user.User, group *Group, rights AccessRight) error {
 	if assignor == nil {
 		return ErrAssignorIsNil
 	}
 
 	if group == nil {
-		return user.ErrGroupIsNil
+		return ErrGroupIsNil
 	}
 
 	// checking whether the assignor has at least the assigned rights
@@ -247,12 +246,6 @@ func (ap *AccessPolicy) IsOwner(user *user.User) bool {
 func (ap *AccessPolicy) HasRights(user *user.User, rights AccessRight) bool {
 	if user == nil {
 		return false
-	}
-
-	// if user is in godmode then permission checking is irrelevant
-	// NOTE: this is an exceptional flag, users with godmode flag must be very scarce
-	if user.GodMode {
-		return true
 	}
 
 	// allow if this user is an owner

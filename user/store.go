@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 
 	"strings"
@@ -13,19 +12,8 @@ import (
 	"github.com/oklog/ulid"
 )
 
-// errors
-var (
-	ErrNilDB          = errors.New("database is nil")
-	ErrIndexNotFound  = errors.New("index not found")
-	ErrUserNotFound   = errors.New("user not found")
-	ErrEmailNotFound  = errors.New("email not found")
-	ErrInvalidID      = errors.New("invalid ID")
-	ErrBucketNotFound = errors.New("bucket not found")
-)
-
-// Store represents a User storage contract
+// Store represents a storage contract
 type Store interface {
-	Init() error
 	Put(ctx context.Context, u *User) error
 	GetByID(ctx context.Context, id ulid.ULID) (*User, error)
 	GetByIndex(ctx context.Context, index string, value string) (*User, error)

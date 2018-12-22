@@ -1,13 +1,10 @@
-package user_test
+package user
 
 import (
 	"context"
 	"fmt"
 	"reflect"
 	"testing"
-
-	"gitlab.com/agubarev/hometown/user/user"
-	"gitlab.com/agubarev/hometown/user/util"
 
 	"github.com/stretchr/testify/assert"
 	"go.etcd.io/bbolt"
@@ -21,7 +18,7 @@ func TestNewDefaultStore(t *testing.T) {
 	a.NoError(err)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
+	s, err := NewDefaultStore(db, nil)
 	a.NotNil(s)
 	a.NoError(err)
 }
@@ -34,22 +31,22 @@ func TestStoreCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
+	s, err := NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
-	svc, err := user.NewDefaultService(s)
+	svc, err := NewDefaultService(s)
 	a.NoError(err)
 	a.NotNil(svc)
 
-	unsavedUser := user.NewUser("testuser", "test@example.com")
+	unsavedUser := NewUser("testuser", "test@example.com")
 	a.NotNil(unsavedUser)
 
 	newUser, err := svc.Create(context.Background(), unsavedUser)
 	a.NoError(err)
 	a.NotNil(newUser)
-	a.Equal("testuser", newUser.Username)
-	a.Equal("test@example.com", newUser.Email)
+	a.Equal("testuser", newUsername)
+	a.Equal("test@example.com", newEmail)
 	a.True(reflect.DeepEqual(unsavedUser, newUser))
 }
 
@@ -61,11 +58,11 @@ func TestStorePut(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
+	s, err := NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser := user.NewUser("testuser", "test@example.com")
+	newuser := NewUser("testuser", "test@example.com")
 	a.NotNil(newuser)
 
 	err = s.Put(context.Background(), newuser)
@@ -80,11 +77,11 @@ func TestStoreGetters(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
+	s, err := NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser := user.NewUser("testuser", "test@example.com")
+	newuser := NewUser("testuser", "test@example.com")
 	a.NotNil(newuser)
 
 	// storing
@@ -92,7 +89,7 @@ func TestStoreGetters(t *testing.T) {
 	a.NoError(err)
 
 	// retrieving by ID
-	u, err := s.GetByID(context.Background(), newuser.ID)
+	u, err := s.GetByID(context.Background(), newID)
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
@@ -126,11 +123,11 @@ func TestStoreDelete(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
+	s, err := NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser := user.NewUser("testuser", "test@example.com")
+	newuser := NewUser("testuser", "test@example.com")
 	a.NotNil(newuser)
 
 	//---------------------------------------------------------------------------
@@ -140,7 +137,7 @@ func TestStoreDelete(t *testing.T) {
 	err = s.Put(context.Background(), newuser)
 	a.NoError(err)
 
-	u, err := s.GetByID(context.Background(), newuser.ID)
+	u, err := s.GetByID(context.Background(), newID)
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
@@ -166,16 +163,16 @@ func TestStoreDelete(t *testing.T) {
 	err = s.Delete(context.Background(), u.ID)
 	a.NoError(err)
 
-	u, err = s.GetByID(context.Background(), newuser.ID)
-	a.EqualError(err, user.ErrUserNotFound.Error())
+	u, err = s.GetByID(context.Background(), newID)
+	a.EqualError(err, ErrUserNotFound.Error())
 	a.Nil(u)
 
 	u, err = s.GetByIndex(context.Background(), "username", "testuser")
-	a.EqualError(err, user.ErrUserNotFound.Error())
+	a.EqualError(err, ErrUserNotFound.Error())
 	a.Nil(u)
 
 	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
-	a.EqualError(err, user.ErrUserNotFound.Error())
+	a.EqualError(err, ErrUserNotFound.Error())
 	a.Nil(u)
 }
 
@@ -192,11 +189,11 @@ func BenchmarkStorePut(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
-	var newuser *user.User
+	s, err := NewDefaultStore(db, NewDefaultStoreCache(1000))
+	var newuser *User
 
 	for n := 0; n < b.N; n++ {
-		newuser = user.NewUser("testuser", "test@example.com")
+		newuser = NewUser("testuser", "test@example.com")
 		err = s.Put(context.Background(), newuser)
 		if err != nil {
 			panic(err)
@@ -213,8 +210,8 @@ func BenchmarkStoreGetByID(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
-	newuser := user.NewUser("testuser", "test@example.com")
+	s, err := NewDefaultStore(db, nil)
+	newuser := NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
@@ -236,8 +233,8 @@ func BenchmarkStoreGetByIDWithCaching(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
-	newuser := user.NewUser("testuser", "test@example.com")
+	s, err := NewDefaultStore(db, NewDefaultStoreCache(1000))
+	newuser := NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
@@ -258,8 +255,8 @@ func BenchmarkStoreGetByUsername(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
-	newuser := user.NewUser("testuser", "test@example.com")
+	s, err := NewDefaultStore(db, nil)
+	newuser := NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
@@ -281,8 +278,8 @@ func BenchmarkStoreGetByUsernameWithCaching(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
-	newuser := user.NewUser("testuser", "test@example.com")
+	s, err := NewDefaultStore(db, NewDefaultStoreCache(1000))
+	newuser := NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
@@ -304,8 +301,8 @@ func BenchmarkStoreGetByEmail(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
-	newuser := user.NewUser("testuser", "test@example.com")
+	s, err := NewDefaultStore(db, nil)
+	newuser := NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
@@ -327,8 +324,8 @@ func BenchmarkStoreGetByEmailWithCaching(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, user.NewDefaultStoreCache(1000))
-	newuser := user.NewUser("testuser", "test@example.com")
+	s, err := NewDefaultStore(db, NewDefaultStoreCache(1000))
+	newuser := NewUser("testuser", "test@example.com")
 	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)

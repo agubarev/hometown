@@ -2,22 +2,11 @@ package user
 
 import (
 	"context"
-	"errors"
 
 	"github.com/oklog/ulid"
 )
 
-// errors
-var (
-	ErrUserExists    = errors.New("user already exists")
-	ErrNilUser       = errors.New("user is nil")
-	ErrNilStore      = errors.New("store is nil")
-	ErrUsernameTaken = errors.New("username is already taken")
-	ErrEmailTaken    = errors.New("email is already taken")
-)
-
 // Service represents a User manager contract interface
-// TODO: add User data validation
 type Service interface {
 	Create(ctx context.Context, u *User) (*User, error)
 	GetByID(ctx context.Context, id ulid.ULID) (*User, error)

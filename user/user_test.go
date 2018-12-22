@@ -1,14 +1,13 @@
-package user_test
+package user
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/user/user"
 )
 
 func TestNewUser(t *testing.T) {
 	a := assert.New(t)
-	u := user.NewUser("testuser", "test@example.com")
+	u := NewUser("testuser", "test@example.com")
 	a.NotNil(u)
 }

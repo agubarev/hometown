@@ -1,4 +1,4 @@
-package ulid
+package util
 
 import (
 	"math/rand"

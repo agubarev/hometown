@@ -1,4 +1,4 @@
-package user_test
+package user
 
 import (
 	"context"
@@ -8,8 +8,6 @@ import (
 	"go.etcd.io/bbolt"
 
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/user/user"
-	"gitlab.com/agubarev/hometown/user/util"
 )
 
 func TestNewService(t *testing.T) {
@@ -20,11 +18,11 @@ func TestNewService(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := user.NewDefaultStore(db, nil)
+	store, err := NewDefaultStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 
-	m, err := user.NewDefaultService(store)
+	m, err := NewDefaultService(store)
 	a.NoError(err)
 	a.NotNil(m)
 }
@@ -37,15 +35,15 @@ func TestServiceCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := user.NewDefaultStore(db, nil)
+	store, err := NewDefaultStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 
-	m, err := user.NewDefaultService(store)
+	m, err := NewDefaultService(store)
 	a.NoError(err)
 	a.NotNil(m)
 
-	u := user.NewUser("testuser", "testuser@example.com")
+	u := NewUser("testuser", "testuser@example.com")
 	a.NotNil(u)
 
 	// creating a new user

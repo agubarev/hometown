@@ -4,8 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	ap "gitlab.com/agubarev/hometown/internal/accesspolicy"
-	"gitlab.com/agubarev/secret-manager/pkg/user"
+	ap "gitlab.com/agubarev/hometown/accesspolicy"
 )
 
 func TestNewAccessPolicy(t *testing.T) {

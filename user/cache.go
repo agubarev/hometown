@@ -7,7 +7,7 @@ import (
 	"github.com/oklog/ulid"
 )
 
-// StoreCache is an internal caching for Store mechanism
+// StoreCache is an internal user caching mechanism for a Store
 type StoreCache interface {
 	GetByID(id ulid.ULID) *User
 	GetByIndex(index string, value string) *User
