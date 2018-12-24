@@ -22,10 +22,6 @@ func NewDefaultService(s Store) (Service, error) {
 		return nil, ErrNilStore
 	}
 
-	if err := s.Init(); err != nil {
-		return nil, err
-	}
-
 	return &service{s}, nil
 }
 

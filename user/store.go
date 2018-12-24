@@ -14,10 +14,10 @@ import (
 
 // Store represents a storage contract
 type Store interface {
-	Put(ctx context.Context, u *User) error
-	GetByID(ctx context.Context, id ulid.ULID) (*User, error)
-	GetByIndex(ctx context.Context, index string, value string) (*User, error)
-	Delete(ctx context.Context, id ulid.ULID) error
+	PutUser(ctx context.Context, u *User) error
+	GetUserByID(ctx context.Context, id ulid.ULID) (*User, error)
+	GetUserByIndex(ctx context.Context, index string, value string) (*User, error)
+	DeleteUser(ctx context.Context, id ulid.ULID) error
 }
 
 // NewDefaultStore initializing a default User store
@@ -75,8 +75,8 @@ func (s *defaultStore) Init() error {
 	})
 }
 
-// GetByID returns a User by ID
-func (s *defaultStore) GetByID(ctx context.Context, id ulid.ULID) (*User, error) {
+// GetUserByID returns a User by ID
+func (s *defaultStore) GetUserByID(ctx context.Context, id ulid.ULID) (*User, error) {
 	if len(id) == 0 {
 		return nil, ErrInvalidID
 	}
@@ -85,7 +85,7 @@ func (s *defaultStore) GetByID(ctx context.Context, id ulid.ULID) (*User, error)
 
 	// cache lookup
 	if s.userCache != nil {
-		if user = s.userCache.GetByID(id); user != nil {
+		if user = s.userCache.GetUserByID(id); user != nil {
 			return user, nil
 		}
 	}
@@ -93,7 +93,7 @@ func (s *defaultStore) GetByID(ctx context.Context, id ulid.ULID) (*User, error)
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		b := tx.Bucket([]byte("USER"))
 		if b == nil {
-			return fmt.Errorf("store.GetByID(%s): %s", id, ErrBucketNotFound)
+			return fmt.Errorf("store.GetUserByID(%s): %s", id, ErrBucketNotFound)
 		}
 
 		// lookup user by ID
@@ -108,13 +108,13 @@ func (s *defaultStore) GetByID(ctx context.Context, id ulid.ULID) (*User, error)
 	return user, err
 }
 
-// GetByIndex lookup a user by an index
-func (s *defaultStore) GetByIndex(ctx context.Context, index string, value string) (*User, error) {
+// GetUserByIndex lookup a user by an index
+func (s *defaultStore) GetUserByIndex(ctx context.Context, index string, value string) (*User, error) {
 	var user *User
 
 	// cache lookup
 	if s.userCache != nil {
-		if c := s.userCache.GetByIndex(index, value); c != nil {
+		if c := s.userCache.GetUserByIndex(index, value); c != nil {
 			// cache hit, returning
 			return c, nil
 		}
@@ -123,7 +123,7 @@ func (s *defaultStore) GetByIndex(ctx context.Context, index string, value strin
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		userBucket := tx.Bucket([]byte("USER"))
 		if userBucket == nil {
-			return fmt.Errorf("store.GetByIndex(%s): %s", index, ErrBucketNotFound)
+			return fmt.Errorf("store.GetUserByIndex(%s): %s", index, ErrBucketNotFound)
 		}
 
 		// retrieving the index bucket
@@ -150,8 +150,8 @@ func (s *defaultStore) GetByIndex(ctx context.Context, index string, value strin
 	return user, err
 }
 
-// Put stores a User
-func (s *defaultStore) Put(ctx context.Context, u *User) error {
+// PutUser stores a User
+func (s *defaultStore) PutUser(ctx context.Context, u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
@@ -163,7 +163,7 @@ func (s *defaultStore) Put(ctx context.Context, u *User) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		userBucket := tx.Bucket([]byte("USER"))
 		if userBucket == nil {
-			return fmt.Errorf("store.Put(): %s", ErrBucketNotFound)
+			return fmt.Errorf("store.PutUser(): %s", ErrBucketNotFound)
 		}
 
 		// marshaling and storing the user
@@ -172,7 +172,7 @@ func (s *defaultStore) Put(ctx context.Context, u *User) error {
 			return err
 		}
 
-		err = userBucket.Put(u.ID[:], data)
+		err = userBucket.PutUser(u.ID[:], data)
 		if err != nil {
 			return fmt.Errorf("failed to store user: %s", err)
 		}
@@ -180,42 +180,42 @@ func (s *defaultStore) Put(ctx context.Context, u *User) error {
 		// storing username index
 		b := userBucket.Bucket([]byte("USERNAME"))
 		if b == nil {
-			return fmt.Errorf("store.Put(username): %s", ErrBucketNotFound)
+			return fmt.Errorf("store.PutUser(username): %s", ErrBucketNotFound)
 		}
 
-		if err = b.Put([]byte(u.Username), u.ID[:]); err != nil {
+		if err = b.PutUser([]byte(u.Username), u.ID[:]); err != nil {
 			return err
 		}
 
 		// storing email index
 		b = userBucket.Bucket([]byte("EMAIL"))
 		if b == nil {
-			return fmt.Errorf("store.Put(email): %s", ErrBucketNotFound)
+			return fmt.Errorf("store.PutUser(email): %s", ErrBucketNotFound)
 		}
 
-		if err = b.Put([]byte(u.Email), u.ID[:]); err != nil {
+		if err = b.PutUser([]byte(u.Email), u.ID[:]); err != nil {
 			return err
 		}
 
 		// renewing cache
 		if s.userCache != nil {
-			// doing only Put() because it'll reoccupy the existing space anyway
-			s.userCache.Put(u)
+			// doing only PutUser() because it'll reoccupy the existing space anyway
+			s.userCache.PutUser(u)
 		}
 
 		return nil
 	})
 }
 
-// Delete a user from the store
-func (s *defaultStore) Delete(ctx context.Context, id ulid.ULID) error {
+// DeleteUser a user from the store
+func (s *defaultStore) DeleteUser(ctx context.Context, id ulid.ULID) error {
 	if len(id) == 0 {
 		return ErrInvalidID
 	}
 
 	// clearing cache
 	if s.userCache != nil {
-		s.userCache.Delete(id)
+		s.userCache.DeleteUser(id)
 	}
 
 	return s.db.Update(func(tx *bbolt.Tx) error {
@@ -224,6 +224,6 @@ func (s *defaultStore) Delete(ctx context.Context, id ulid.ULID) error {
 			return fmt.Errorf("failed to load users bucket: %s", ErrBucketNotFound)
 		}
 
-		return userBucket.Delete(id[:])
+		return userBucket.DeleteUser(id[:])
 	})
 }

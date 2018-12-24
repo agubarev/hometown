@@ -5,56 +5,98 @@ import (
 	"gitlab.com/agubarev/hometown/util"
 )
 
-// GroupContainer represents a group container and is responsible for all
-// group-related operations within its scope
-// TODO: add default groups which need not to be assigned
-type GroupContainer struct {
-	ID ulid.ULID `json:"id"`
-
-	domain    *Domain
-	groups    map[ulid.ULID]Group
-	nameIndex map[string]*Group
-	userIndex map[ulid.ULID][]*Group
-}
+type groupMembers []*User
 
 // Group represents a user group
 type Group struct {
 	ID     ulid.ULID `json:"id"`
-	Parent ulid.ULID `json:"parent"`
+	Parent *Group    `json:"parent"`
 	Name   string    `json:"name"`
 
-	container *GroupContainer
-}
-
-// NewGroupContainer initializing a new group container attached to domain
-func NewGroupContainer(d *Domain) (*GroupContainer, error) {
-	if domain == nil {
-		return nil, ErrNilDomain
-	}
-
-	c := &GroupContainer{
-		ID:        util.NewULID,
-		domain:    d,
-		groups:    make(map[ulid.ULID]Group),
-		nameIndex: make(map[string]*Group),
-		userIndex: make(map[ulid.ULID]*Group),
-	}
-
-	return c, nil
+	container   *GroupContainer
+	members     groupMembers
+	memberIndex map[ulid.ULID]bool
 }
 
 // NewGroup initializing a new group struct
-func NewGroup(name string, parent *Group) *Group {
-	return &Group{
-		ID:     util.NewULID(),
-		Parent: parent,
-		Name:   name,
+func NewGroup(name string, parent *Group, container *GroupContainer) (*Group, error) {
+	if container == nil {
+		return nil, ErrNilContainer
 	}
+
+	g := &Group{
+		ID:          util.NewULID(),
+		Parent:      parent,
+		Name:        name,
+		container:   container,
+		members:     make(groupMembers, 0),
+		memberIndex: make(map[ulid.ULID]bool),
+	}
+
+	return g, nil
 }
 
-// GetByUser returns a slice of groups to which a given user belongs
-func (gc *GroupContainer) GetByUser(u *User) []*Group {
-	groups := make([]*Group, 0)
+// IsMember tests whether a given user belongs to a given group
+func (g *Group) IsMember(u *User) bool {
+	if u == nil {
+		return false
+	}
 
-	return groups
+	g.container.RLock()
+	defer g.container.RUnlock()
+
+	if _, ok := g.memberIndex[u.ID]; ok {
+		return true
+	}
+
+	return false
+}
+
+// AddMember adding user to a group
+func (g *Group) AddMember(u *User) error {
+	if u == nil {
+		return ErrNilUser
+	}
+
+	if g.IsMember(u) {
+		return ErrAlreadyMember
+	}
+
+	g.container.Lock()
+	g.members = append(g.members, u)
+	g.memberIndex[u.ID] = true
+	g.container.Unlock()
+
+	return nil
+}
+
+// RemoveMember adding user to a group
+func (g *Group) RemoveMember(u *User) error {
+	if u == nil {
+		return ErrNilUser
+	}
+
+	if g.IsMember(u) {
+		return ErrUserNotFound
+	}
+
+	g.container.Lock()
+	defer g.container.Unlock()
+
+	// removing a member
+	var pos int
+	for i, m := range g.members {
+		if m.ID == u.ID {
+			pos = i
+			break
+		}
+	}
+
+	// deleting a group from the list
+	g.members = append(g.members[0:pos], g.members[pos+1:]...)
+
+	// removing user from the index
+	delete(g.memberIndex, u.ID)
+
+	return nil
 }

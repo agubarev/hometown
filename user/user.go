@@ -9,7 +9,7 @@ import (
 )
 
 // User represents a user account, a unique entity
-// TODO: workout the len restrictions (not set fixed lengths but need to be checked elsewhere)
+// TODO: workout the length restrictions (not set fixed lengths but need to be checked elsewhere)
 type User struct {
 	ID     ulid.ULID `json:"id"`
 	Domain *Domain   `json:"-"`

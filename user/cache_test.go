@@ -26,11 +26,11 @@ func TestCacheStorePut(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := user.NewDefaultStore(db, nil)
+	s, err := NewDefaultStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser := user.NewUser("testuser", "test@example.com")
+	newuser := NewUser("testuser", "test@example.com")
 	a.NotNil(newuser)
 
 	err = s.Put(context.Background(), newuser)

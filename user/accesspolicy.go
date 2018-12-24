@@ -1,23 +1,17 @@
-package accesspolicy
+package user
 
 import (
-	"errors"
-	"os/user"
+	"github.com/oklog/ulid"
 )
 
-// package errors
-var (
-	ErrAccessDenied   = errors.New("user access denied")
-	ErrNoViewRight    = errors.New("user is not allowed to view this")
-	ErrNilAssignor    = errors.New("assignor user is nil")
-	ErrNilAssignee    = errors.New("assignee user is nil")
-	ErrExcessOfRights = errors.New("assignor is attempting to set the rights that excess his own")
-	ErrSameUser       = errors.New("assignor and assignee is the same user")
-	ErrNilUser        = errors.New("user is nil")
-	ErrNilParent      = errors.New("parent is nil")
-)
+// Actor represents anything that can be an owner, assignor ar assignee
+type Actor interface {
+	ULID() ulid.ULID
+	Roles() []*Role
+	Groups() []*Group
+}
 
-// AccessRight is a single
+// AccessRight is a single permission set
 type AccessRight uint16
 
 // declaring discrete rights for all cases
@@ -42,7 +36,7 @@ type RightsRoster struct {
 }
 
 // Summarize summarizing the resulting access right flags
-func (rr *RightsRoster) Summarize(u *user.User) AccessRight {
+func (rr *RightsRoster) Summarize(u *User) AccessRight {
 	r := rr.Everyone
 
 	// calculating role rights
@@ -77,7 +71,7 @@ func (rr *RightsRoster) Summarize(u *user.User) AccessRight {
 // TODO: consider adding a mutex
 // TODO: consider making policy to be completely decoupled and agnostic about the subject types
 type AccessPolicy struct {
-	Owner        *user.User    `json:"owner"`
+	Owner        *User         `json:"owner"`
 	Parent       *AccessPolicy `json:"-"`
 	IsExtended   bool          `json:"is_extend"`
 	IsInherited  bool          `json:"is_inherited"`
@@ -88,7 +82,7 @@ type AccessPolicy struct {
 // NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 // because this allows to create independent policies in the middle of a chain and still
 // benefit from using parent's rights as default with it's own corrections/exclusions
-func NewAccessPolicy(owner *user.User, parent *AccessPolicy, isInherited bool, isExtended bool) *AccessPolicy {
+func NewAccessPolicy(owner *User, parent *AccessPolicy, isInherited bool, isExtended bool) *AccessPolicy {
 	ap := &AccessPolicy{
 		Owner:       owner,
 		Parent:      parent,
@@ -126,7 +120,7 @@ func (ap *AccessPolicy) SetParent(parent *AccessPolicy) error {
 }
 
 // UserAccess returns the user access bitmask
-func (ap *AccessPolicy) UserAccess(u *user.User) AccessRight {
+func (ap *AccessPolicy) UserAccess(u *User) AccessRight {
 	if u == nil {
 		return AccessRight(0)
 	}
@@ -153,9 +147,9 @@ func (ap *AccessPolicy) UserAccess(u *user.User) AccessRight {
 }
 
 // SetPublicRights setting rights for everyone
-func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight) error {
+func (ap *AccessPolicy) SetPublicRights(assignor *User, rights AccessRight) error {
 	if assignor == nil {
-		return ErrAssignorIsNil
+		return ErrNilAssignor
 	}
 
 	// checking whether the assignor has at least the assigned rights
@@ -169,13 +163,13 @@ func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight)
 }
 
 // SetRoleRights setting rights for the role
-func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *Role, rights AccessRight) error {
+func (ap *AccessPolicy) SetRoleRights(assignor *User, role *Role, rights AccessRight) error {
 	if assignor == nil {
-		return ErrAssignorIsNil
+		return ErrNilAssignor
 	}
 
 	if role == nil {
-		return ErrRoleIsNil
+		return ErrNilRole
 	}
 
 	// checking whether the assignor has at least the assigned rights
@@ -189,9 +183,9 @@ func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *Role, rights Ac
 }
 
 // SetGroupRights setting rights for specific user
-func (ap *AccessPolicy) SetGroupRights(assignor *user.User, group *Group, rights AccessRight) error {
+func (ap *AccessPolicy) SetGroupRights(assignor *User, group *Group, rights AccessRight) error {
 	if assignor == nil {
-		return ErrAssignorIsNil
+		return ErrNilAssignor
 	}
 
 	if group == nil {
@@ -209,13 +203,13 @@ func (ap *AccessPolicy) SetGroupRights(assignor *user.User, group *Group, rights
 }
 
 // SetUserRights setting rights for specific user
-func (ap *AccessPolicy) SetUserRights(assignor *user.User, assignee *user.User, rights AccessRight) error {
+func (ap *AccessPolicy) SetUserRights(assignor *User, assignee *User, rights AccessRight) error {
 	if assignor == nil {
-		return ErrAssignorIsNil
+		return ErrNilAssignor
 	}
 
 	if assignee == nil {
-		return ErrAssigneeIsNil
+		return ErrNilAssignee
 	}
 
 	// the assignor must have a right to set rights (APManageRights) and have all the
@@ -230,10 +224,10 @@ func (ap *AccessPolicy) SetUserRights(assignor *user.User, assignee *user.User, 
 }
 
 // IsOwner checks whether a given user is the owner of this policy
-func (ap *AccessPolicy) IsOwner(user *user.User) bool {
+func (ap *AccessPolicy) IsOwner(u *User) bool {
 	// owner of the policy (meaning: the main entity) has full rights on it
 	// TODO: username comparison is a very bad idea, e.g. username can be changed
-	if ap.Owner != nil && (ap.Owner.Username == user.Username) {
+	if ap.Owner != nil && (ap.Owner.Username == u.Username) {
 		return true
 	}
 
@@ -243,7 +237,7 @@ func (ap *AccessPolicy) IsOwner(user *user.User) bool {
 // HasRights checks whether the user has specific rights
 // NOTE: returns true only if the user has every of specified rights permitted
 // TODO: maybe add some sort of a calculated cache with a short livespan, like 100ms or something
-func (ap *AccessPolicy) HasRights(user *user.User, rights AccessRight) bool {
+func (ap *AccessPolicy) HasRights(user *User, rights AccessRight) bool {
 	if user == nil {
 		return false
 	}
