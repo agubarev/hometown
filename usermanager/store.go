@@ -12,16 +12,32 @@ import (
 	"github.com/oklog/ulid"
 )
 
-// Store represents a storage contract
-type Store interface {
+// UserStore represents a user storage contract
+type UserStore interface {
 	PutUser(ctx context.Context, u *User) error
 	GetUserByID(ctx context.Context, id ulid.ULID) (*User, error)
 	GetUserByIndex(ctx context.Context, index string, value string) (*User, error)
 	DeleteUser(ctx context.Context, id ulid.ULID) error
 }
 
+// GroupStore describes a storage contract for groups specifically
+// TODO add predicates for searching
+type GroupStore interface {
+	// groups
+	PutGroup(g *Group) error
+	GetGroup(id ulid.ULID) error
+	GetAllGroups() ([]*Group, error)
+	DeleteGroup(id ulid.ULID) error
+
+	// group relations
+	PutGroupRelation(g *Group, u *User) error
+	GetGroupRelation(groupID ulid.ULID, userID ulid.ULID) (bool, error)
+	GetGroupRelations(groupID ulid.ULID) ([]*Group, error)
+	DeleteGroupRelation(groupID ulid.ULID, userID ulid.ULID) error
+}
+
 // NewDefaultStore initializing a default User store
-func NewDefaultStore(db *bbolt.DB, sc StoreCache) (Store, error) {
+func NewDefaultStore(db *bbolt.DB, sc StoreCache) (UserStore, error) {
 	if db == nil {
 		return nil, ErrNilDB
 	}

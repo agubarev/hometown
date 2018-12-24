@@ -6,7 +6,7 @@ import (
 
 type dominion struct {
 	root  *Domain
-	index map[ulid.ULID]*Domain
+	idMap map[ulid.ULID]*Domain
 }
 
 // Domain represents a single organizational entity which incorporates
@@ -16,7 +16,6 @@ type Domain struct {
 	Parent       *Domain         `json:"-"`
 	Name         string          `json:"name"`
 	Groups       *GroupContainer `json:"-"`
-	Roles        *RoleContainer  `json:"-"`
 	Subdomains   []*Domain       `json:"subdomains"`
 	AccessPolicy *AccessPolicy   `json:"accesspolicy"`
 }
