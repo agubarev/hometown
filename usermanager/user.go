@@ -94,10 +94,20 @@ func NewMetadata() *Metadata {
 
 // Roles to which the user belongs
 func (u *User) Roles() []*Group {
-	return u.Domain.Groups.List(GKRole)
+	roleGroups, err := u.Domain.Groups.GetByUser(GKRole, u)
+	if err != nil {
+		return []*Group{}
+	}
+
+	return roleGroups
 }
 
 // Groups to which the user belongs
 func (u *User) Groups() []*Group {
-	return u.Domain.Groups.List(GKGroup)
+	groups, err := u.Domain.Groups.GetByUser(GKGroup, u)
+	if err != nil {
+		return []*Group{}
+	}
+
+	return groups
 }

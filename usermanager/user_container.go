@@ -22,7 +22,7 @@ type UserContainer struct {
 	usernameMap map[string]*User
 	emailMap    map[string]*User
 	store       UserStore
-	sync.RWMutex
+	m           sync.RWMutex
 }
 
 // NewUserContainer initializing a new user container
@@ -37,6 +37,7 @@ func NewUserContainer(d *Domain) (*UserContainer, error) {
 		users:       make([]*User, 0),
 		idMap:       make(map[ulid.ULID]*User),
 		usernameMap: make(map[string]*User),
+		m:           sync.RWMutex{},
 	}
 
 	return c, nil

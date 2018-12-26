@@ -30,11 +30,12 @@ func NewGroupContainer(d *Domain) (*GroupContainer, error) {
 	}
 
 	c := &GroupContainer{
-		ID:     util.NewULID(),
-		domain: d,
-		groups: make([]*Group, 0),
-		idMap:  make(map[ulid.ULID]*Group),
-		keyMap: make(map[string]*Group),
+		ID:      util.NewULID(),
+		domain:  d,
+		groups:  make([]*Group, 0),
+		idMap:   make(map[ulid.ULID]*Group),
+		keyMap:  make(map[string]*Group),
+		RWMutex: sync.RWMutex{},
 	}
 
 	return c, nil
@@ -92,15 +93,17 @@ func (c *GroupContainer) GetByKey(key string) (*Group, error) {
 }
 
 // GetByUser returns a slice of groups to which a given user belongs
-func (c *GroupContainer) GetByUser(u *User) ([]*Group, error) {
+func (c *GroupContainer) GetByUser(k GroupKind, u *User) ([]*Group, error) {
 	if u == nil {
 		return nil, ErrNilUser
 	}
 
 	gs := make([]*Group, 0)
 	for _, g := range c.groups {
-		if g.IsMember(u) {
-			gs = append(gs, g)
+		if g.Kind == k {
+			if g.IsMember(u) {
+				gs = append(gs, g)
+			}
 		}
 	}
 

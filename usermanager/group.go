@@ -1,6 +1,7 @@
 package usermanager
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -30,7 +31,7 @@ type Group struct {
 	Kind         GroupKind     `json:"kind"`
 	IsDefault    bool          `json:"is_default"`
 	Parent       *Group        `json:"-"`
-	Key          string        `json:"key" valid:"required,alphanum"`
+	Key          string        `json:"key" valid:"required,ascii"`
 	Name         string        `json:"name" valid:"required"`
 	Description  string        `json:"description" valid:"optional,length(0|200)"`
 	AccessPolicy *AccessPolicy `json:"-"`
@@ -102,7 +103,7 @@ func (g *Group) IsCircular() (bool, error) {
 	// moving up a parent tree until nil is reached or the signs of circulation are found
 	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
 	p := g.Parent
-	timeout := time.Now().Add(time.Millisecond)
+	timeout := time.Now().Add(100 * time.Millisecond)
 	for !time.Now().After(timeout) {
 		if p == nil {
 			// it's all good, reached a nil parent
@@ -164,7 +165,9 @@ func (g *Group) SetParent(p *Group) error {
 
 // Persist this group to storage
 func (g *Group) Persist() error {
-	panic("not implemented")
+	if err := g.container.store.PutGroup(context.Background(), g); err != nil {
+		return fmt.Errorf("Persist() failed to store a group: %s", err)
+	}
 
 	return nil
 }
@@ -195,6 +198,12 @@ func (g *Group) AddMember(u *User) error {
 		return ErrAlreadyMember
 	}
 
+	// storing the relation
+	if err := g.container.store.PutGroupRelation(context.Background(), g, u); err != nil {
+		return fmt.Errorf("AddMember() failed to store relation: %s", err)
+	}
+
+	// updating runtime data
 	g.container.Lock()
 	g.members = append(g.members, u)
 	g.memberMap[u.ID] = u
@@ -211,6 +220,11 @@ func (g *Group) RemoveMember(u *User) error {
 
 	if g.IsMember(u) {
 		return ErrUserNotFound
+	}
+
+	// deleting a stored relation
+	if err := g.container.store.DeleteGroupRelation(context.Background(), g.ID, u.ID); err != nil {
+		return fmt.Errorf("RemoveMember() failed to delete a stored relation: %s", err)
 	}
 
 	g.container.Lock()

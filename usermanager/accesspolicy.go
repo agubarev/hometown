@@ -70,11 +70,13 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
 // TODO: consider adding a mutex
 // TODO: consider making policy to be completely decoupled and agnostic about the subject types
+// TODO: add caching mechanism to skip rights summarization
 type AccessPolicy struct {
 	Owner        *User         `json:"owner"`
 	Parent       *AccessPolicy `json:"-"`
 	IsExtended   bool          `json:"is_extend"`
 	IsInherited  bool          `json:"is_inherited"`
+	IsLocked     bool          `json:"is_locked"`
 	RightsRoster *RightsRoster `json:"rights_roster"`
 }
 
@@ -102,6 +104,13 @@ func NewAccessPolicy(owner *User, parent *AccessPolicy, isInherited bool, isExte
 	}
 
 	return ap
+}
+
+// Seal the policy to prevent further changes
+func (ap *AccessPolicy) Seal() error {
+	panic("not implemented")
+
+	return nil
 }
 
 // SetParent setting a new parent policy
