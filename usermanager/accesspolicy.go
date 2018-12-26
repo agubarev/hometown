@@ -1,4 +1,4 @@
-package user
+package usermanager
 
 import (
 	"github.com/oklog/ulid"
@@ -7,7 +7,7 @@ import (
 // Actor represents anything that can be an owner, assignor ar assignee
 type Actor interface {
 	ULID() ulid.ULID
-	Roles() []*Role
+	Roles() []*Group
 	Groups() []*Group
 }
 
@@ -41,15 +41,15 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 
 	// calculating role rights
 	for _, ur := range u.Roles() {
-		if _, ok := rr.Role[ur.Name]; ok {
-			r |= rr.Role[ur.Name]
+		if _, ok := rr.Role[ur.Key]; ok {
+			r |= rr.Role[ur.Key]
 		}
 	}
 
 	// same with groups
 	for _, ug := range u.Groups() {
-		if _, ok := rr.Group[ug.Name]; ok {
-			r |= rr.Group[ug.Name]
+		if _, ok := rr.Group[ug.Key]; ok {
+			r |= rr.Group[ug.Key]
 		}
 	}
 
@@ -163,7 +163,7 @@ func (ap *AccessPolicy) SetPublicRights(assignor *User, rights AccessRight) erro
 }
 
 // SetRoleRights setting rights for the role
-func (ap *AccessPolicy) SetRoleRights(assignor *User, role *Role, rights AccessRight) error {
+func (ap *AccessPolicy) SetRoleRights(assignor *User, role *Group, rights AccessRight) error {
 	if assignor == nil {
 		return ErrNilAssignor
 	}
@@ -177,7 +177,7 @@ func (ap *AccessPolicy) SetRoleRights(assignor *User, role *Role, rights AccessR
 		return ErrExcessOfRights
 	}
 
-	ap.RightsRoster.Role[role.Name] = rights
+	ap.RightsRoster.Role[role.Key] = rights
 
 	return nil
 }
@@ -197,7 +197,7 @@ func (ap *AccessPolicy) SetGroupRights(assignor *User, group *Group, rights Acce
 		return ErrExcessOfRights
 	}
 
-	ap.RightsRoster.Group[group.Name] = rights
+	ap.RightsRoster.Group[group.Key] = rights
 
 	return nil
 }

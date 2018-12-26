@@ -1,8 +1,9 @@
-package user
+package usermanager
 
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/asaskevich/govalidator"
 
@@ -14,13 +15,12 @@ import (
 type GroupMembers []*User
 
 // GroupKind designates a group kind i.e. Group, Role etc...
-type GroupKind int
+type GroupKind string
 
 // group kinds
 const (
-	GKSystemGroup GroupKind = 1 << iota
-	GKStandardGroup
-	GKRole
+	GKGroup GroupKind = "group"
+	GKRole  GroupKind = "role"
 )
 
 // Group represents a user group
@@ -42,6 +42,22 @@ type Group struct {
 
 // NewGroup initializing a new group struct
 func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, error) {
+	if parent != nil {
+		if err := parent.Validate(); err != nil {
+			return nil, fmt.Errorf("NewGroup() parent validation failed: %s", err)
+		}
+
+		if isCircular, err := parent.IsCircular(); isCircular || (err != nil) {
+			if err != nil {
+				return nil, err
+			}
+
+			if isCircular {
+				return nil, ErrCircularParent
+			}
+		}
+	}
+
 	g := &Group{
 		ID:        util.NewULID(),
 		Parent:    parent,
@@ -54,15 +70,101 @@ func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, e
 	return g, g.Validate()
 }
 
+func (g *Group) String() string {
+	return fmt.Sprintf("%s[%s:%s:%s]", g.KindString(), g.ID, g.Key, g.Name)
+}
+
+// KindString returns a group kind as a string
+func (g *Group) KindString() string {
+	return string(g.Kind)
+}
+
 // Validate tells a group to perform self-check and return errors if something's wrong
+// TODO check for circular parenting
 func (g *Group) Validate() error {
 	if g == nil {
 		return ErrNilGroup
 	}
 
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
-		return fmt.Errorf("group [%s:%s] validation failed: %s", g.ID, err)
+		return fmt.Errorf("%s validation failed: %s", g, err)
 	}
+
+	return nil
+}
+
+// IsCircular tests whether the parents trace back to a nil
+func (g *Group) IsCircular() (bool, error) {
+	if g.Parent == nil {
+		return false, nil
+	}
+
+	// moving up a parent tree until nil is reached or the signs of circulation are found
+	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
+	p := g.Parent
+	timeout := time.Now().Add(time.Millisecond)
+	for !time.Now().After(timeout) {
+		if p == nil {
+			// it's all good, reached a nil parent
+			return false, nil
+		}
+
+		// next parent
+		p = p.Parent
+	}
+
+	return false, ErrCircularCheckTimeout
+}
+
+// HasParent tracing parents back to tell whether a given group
+// is already among this group's parents
+func (g *Group) HasParent(p *Group) bool {
+	// nil is not considered as a parent even though the top of a parent tree is nil
+	if p == nil {
+		return false
+	}
+
+	// tracing backwards until a nil parent is met; at this point only a
+	// requested parent is searched and not tested whether the relations
+	// are circulated among themselves
+	pg := g.Parent
+	for {
+		// testing equality by comparing each group's ID
+		if pg.ID == p.ID {
+			return true
+		}
+
+		// no more parents, returning
+		if pg.Parent == nil {
+			return false
+		}
+
+		// moving on to a parent's parent
+		pg = pg.Parent
+	}
+}
+
+// SetParent assigning a parent group, could be nil
+func (g *Group) SetParent(p *Group) error {
+	// checking whether new parent already is set somewhere along the parenthood
+	if g.HasParent(p) {
+		return ErrDuplicateParent
+	}
+
+	// group kind must be the same all the way back to the top
+	if g.Kind != p.Kind {
+		return ErrGroupKindMismatch
+	}
+
+	// assingning a new parent
+	g.Parent = p
+
+	return nil
+}
+
+// Persist this group to storage
+func (g *Group) Persist() error {
+	panic("not implemented")
 
 	return nil
 }

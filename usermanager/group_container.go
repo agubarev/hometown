@@ -1,4 +1,4 @@
-package user
+package usermanager
 
 import (
 	"sync"
@@ -16,7 +16,7 @@ type GroupContainer struct {
 	ID ulid.ULID `json:"id"`
 
 	domain *Domain
-	groups GroupList
+	groups []*Group
 	idMap  map[ulid.ULID]*Group
 	keyMap map[string]*Group
 	store  GroupStore
@@ -32,7 +32,7 @@ func NewGroupContainer(d *Domain) (*GroupContainer, error) {
 	c := &GroupContainer{
 		ID:     util.NewULID(),
 		domain: d,
-		groups: make(GroupList, 0),
+		groups: make([]*Group, 0),
 		idMap:  make(map[ulid.ULID]*Group),
 		keyMap: make(map[string]*Group),
 	}
@@ -40,16 +40,37 @@ func NewGroupContainer(d *Domain) (*GroupContainer, error) {
 	return c, nil
 }
 
+// Persist asks all contained groups to store itself
+func (c *GroupContainer) Persist() error {
+	panic("not implemented")
+
+	return nil
+}
+
+// AddGroup adding group to a container
+func (c *GroupContainer) AddGroup(g *Group) error {
+	panic("not implemented")
+
+	return nil
+}
+
+// RemoveGroup removing group from a container, by ID
+func (c *GroupContainer) RemoveGroup(id ulid.ULID) error {
+	panic("not implemented")
+
+	return nil
+}
+
 // List returns all groups inside a container
-func (c *GroupContainer) List(mask GroupKind) (GroupList, error) {
-	gl := make(GroupList, 0)
+func (c *GroupContainer) List(kind GroupKind) []*Group {
+	gs := make([]*Group, 0)
 	for _, g := range c.groups {
-		if (g.Kind & mask) == mask {
-			gl = append(gl, g)
+		if g.Kind == kind {
+			gs = append(gs, g)
 		}
 	}
 
-	return gl, nil
+	return gs
 }
 
 // GetByID returns a group by ID
@@ -79,7 +100,7 @@ func (c *GroupContainer) GetByUser(u *User) ([]*Group, error) {
 	gs := make([]*Group, 0)
 	for _, g := range c.groups {
 		if g.IsMember(u) {
-			gs = append(gs, &g)
+			gs = append(gs, g)
 		}
 	}
 

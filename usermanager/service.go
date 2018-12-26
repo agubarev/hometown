@@ -1,4 +1,4 @@
-package user
+package usermanager
 
 import (
 	"context"
@@ -17,7 +17,7 @@ type Service interface {
 }
 
 // NewDefaultService is a default user manager implementation
-func NewDefaultService(s Store) (Service, error) {
+func NewDefaultService(s UserStore) (Service, error) {
 	if s == nil {
 		return nil, ErrNilStore
 	}
@@ -26,7 +26,7 @@ func NewDefaultService(s Store) (Service, error) {
 }
 
 type service struct {
-	store Store
+	store UserStore
 }
 
 // Create new user
@@ -36,23 +36,23 @@ func (s *service) Create(ctx context.Context, u *User) (*User, error) {
 	}
 
 	// existence checks
-	_, err := s.store.GetByID(ctx, u.ID)
+	_, err := s.store.GetUserByID(ctx, u.ID)
 	if err != ErrUserNotFound {
 		return nil, ErrUserExists
 	}
 
-	_, err = s.store.GetByIndex(ctx, "email", u.Email)
+	_, err = s.store.GetUserByIndex(ctx, "email", u.Email)
 	if err != ErrUserNotFound {
 		return nil, ErrEmailTaken
 	}
 
-	_, err = s.store.GetByIndex(ctx, "username", u.Username)
+	_, err = s.store.GetUserByIndex(ctx, "username", u.Username)
 	if err != ErrUserNotFound {
 		return nil, ErrUsernameTaken
 	}
 
 	// storing user
-	err = s.store.Put(ctx, u)
+	err = s.store.PutUser(ctx, u)
 	if err != nil {
 		return nil, err
 	}
@@ -62,29 +62,29 @@ func (s *service) Create(ctx context.Context, u *User) (*User, error) {
 
 // Get existing user
 func (s *service) GetByID(ctx context.Context, id ulid.ULID) (*User, error) {
-	return s.store.GetByID(ctx, id)
+	return s.store.GetUserByID(ctx, id)
 }
 
 // GetByUsername returns a user by username
 func (s *service) GetByUsername(ctx context.Context, username string) (*User, error) {
-	return s.store.GetByIndex(ctx, "username", username)
+	return s.store.GetUserByIndex(ctx, "username", username)
 }
 
 // GetByEmail returns a user by email
 func (s *service) GetByEmail(ctx context.Context, email string) (*User, error) {
-	return s.store.GetByIndex(ctx, "email", email)
+	return s.store.GetUserByIndex(ctx, "email", email)
 }
 
 // SetUsername update username for an existing user
 // TODO: username validation
 func (s *service) SetUsername(ctx context.Context, id ulid.ULID, username string) error {
-	u, err := s.store.GetByID(ctx, id)
+	u, err := s.store.GetUserByID(ctx, id)
 	if err != nil {
 		return ErrUserNotFound
 	}
 
 	// lookup existing user by that username
-	eu, err := s.store.GetByIndex(ctx, "username", username)
+	eu, err := s.store.GetUserByIndex(ctx, "username", username)
 	if eu != nil {
 		return ErrUsernameTaken
 	}
@@ -93,7 +93,7 @@ func (s *service) SetUsername(ctx context.Context, id ulid.ULID, username string
 	u.Username = username
 
 	// updating
-	err = s.store.Put(ctx, u)
+	err = s.store.PutUser(ctx, u)
 	if err != nil {
 		return err
 	}
@@ -103,5 +103,5 @@ func (s *service) SetUsername(ctx context.Context, id ulid.ULID, username string
 
 // Delete user
 func (s *service) Delete(ctx context.Context, id ulid.ULID) error {
-	return s.store.Delete(ctx, id)
+	return s.store.DeleteUser(ctx, id)
 }

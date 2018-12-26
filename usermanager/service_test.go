@@ -1,16 +1,18 @@
-package user
+package usermanager
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
+	"gitlab.com/agubarev/hometown/util"
 	"go.etcd.io/bbolt"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewService(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -18,7 +20,7 @@ func TestNewService(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := NewDefaultStore(db, nil)
+	store, err := NewBoltStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 
@@ -28,6 +30,7 @@ func TestNewService(t *testing.T) {
 }
 
 func TestServiceCreate(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -35,7 +38,7 @@ func TestServiceCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := NewDefaultStore(db, nil)
+	store, err := NewBoltStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 
@@ -43,7 +46,8 @@ func TestServiceCreate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(m)
 
-	u := NewUser("testuser", "testuser@example.com")
+	u, err := NewUser("testuser", "testuser@example.com")
+	a.NoError(err)
 	a.NotNil(u)
 
 	// creating a new user

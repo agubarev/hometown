@@ -1,10 +1,11 @@
-package user
+package usermanager
 
 import (
 	"github.com/oklog/ulid"
 )
 
-type dominion struct {
+// Dominion is the top level structure, a domain container
+type Dominion struct {
 	root  *Domain
 	idMap map[ulid.ULID]*Domain
 }
@@ -14,8 +15,14 @@ type dominion struct {
 type Domain struct {
 	ID           ulid.ULID       `json:"id"`
 	Parent       *Domain         `json:"-"`
-	Name         string          `json:"name"`
+	Users        *UserContainer  `json:"-"`
 	Groups       *GroupContainer `json:"-"`
-	Subdomains   []*Domain       `json:"subdomains"`
 	AccessPolicy *AccessPolicy   `json:"accesspolicy"`
+}
+
+var dominion *Dominion
+
+// initializing the main domain structure
+func init() {
+	dominion = &Dominion{}
 }

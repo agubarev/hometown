@@ -1,4 +1,4 @@
-package user
+package usermanager
 
 import (
 	"sync"
@@ -7,20 +7,11 @@ import (
 	"github.com/oklog/ulid"
 )
 
-// StoreCache is an internal user caching mechanism for a Store
-type StoreCache interface {
-	GetByID(id ulid.ULID) *User
-	GetByIndex(index string, value string) *User
-	Put(u *User)
-	Delete(id ulid.ULID)
-	Cleanup() error
-}
-
-// NewDefaultStoreCache is an internal user cache for default implementation
+// NewUserStoreCache is an internal user cache for default implementation
 // a very simple mechanism, returning nil on cache misses
-func NewDefaultStoreCache(threshold int) StoreCache {
+func NewUserStoreCache(threshold int) UserStoreCache {
 	return &userCache{
-		users:     make(map[ulid.ULID]cachedItem),
+		users:     make(map[ulid.ULID]cachedUser),
 		usernames: make(map[string]ulid.ULID),
 		emails:    make(map[string]ulid.ULID),
 		counter:   0,
@@ -29,13 +20,13 @@ func NewDefaultStoreCache(threshold int) StoreCache {
 	}
 }
 
-type cachedItem struct {
+type cachedUser struct {
 	u         *User
 	expiresAt time.Time
 }
 
 type userCache struct {
-	users     map[ulid.ULID]cachedItem
+	users     map[ulid.ULID]cachedUser
 	usernames map[string]ulid.ULID
 	emails    map[string]ulid.ULID
 	len       int
@@ -47,7 +38,7 @@ type userCache struct {
 
 func (c *userCache) Put(u *User) {
 	c.Lock()
-	c.users[u.ID] = cachedItem{u, time.Now().Add(c.cacheTTL)}
+	c.users[u.ID] = cachedUser{u, time.Now().Add(c.cacheTTL)}
 	c.usernames[u.Username] = u.ID
 	c.emails[u.Email] = u.ID
 	c.len++

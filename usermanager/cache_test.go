@@ -1,24 +1,27 @@
-package user_test
+package usermanager_test
 
 import (
 	"context"
 	"fmt"
 	"testing"
 
+	"gitlab.com/agubarev/hometown/usermanager"
+
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/user"
 	"gitlab.com/agubarev/hometown/util"
 	"go.etcd.io/bbolt"
 )
 
 func TestNewDefaultStoreCache(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
-	c := user.NewDefaultStoreCache(1000)
+	c := usermanager.NewUserStoreCache(1000)
 	a.NotNil(c)
 }
 
 func TestCacheStorePut(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -26,13 +29,14 @@ func TestCacheStorePut(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := NewDefaultStore(db, nil)
+	s, err := usermanager.NewBoltStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser := NewUser("testuser", "test@example.com")
+	newuser, err := usermanager.NewUser("testuser", "test@example.com")
+	a.NoError(err)
 	a.NotNil(newuser)
 
-	err = s.Put(context.Background(), newuser)
+	err = s.PutUser(context.Background(), newuser)
 	a.NoError(err)
 }

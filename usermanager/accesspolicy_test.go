@@ -1,4 +1,4 @@
-package user
+package usermanager
 
 import (
 	"testing"
@@ -7,6 +7,7 @@ import (
 )
 
 func TestNewAccessPolicy(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
 	p := NewAccessPolicy(nil, nil, false, false)
@@ -17,7 +18,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.False(p.IsExtended)
 
 	// with owner
-	user, err := NewUser("testuser")
+	user, err := NewUser("testuser", "testuser@example.com")
 	a.NoError(err)
 
 	p = NewAccessPolicy(user, nil, false, false)
@@ -56,12 +57,13 @@ func TestNewAccessPolicy(t *testing.T) {
 }
 
 func TestSetPublicRights(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor")
+	assignor, err := NewUser("assignor", "testuser@example.com")
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser")
+	testuser, err := NewUser("testuser", "testuser@example.com")
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -100,21 +102,26 @@ func TestSetPublicRights(t *testing.T) {
 }
 
 func TestSetGroupRights(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor")
+	assignor, err := NewUser("assignor", "testuser@example.com")
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser")
+	testuser, err := NewUser("testuser", "testuser@example.com")
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
-	group1 := NewGroup("test group 1")
-	err = group1.AddUser(testuser)
+	group1, err := NewGroup(GKGroup, "test_group_1", "test group 1", nil)
 	a.NoError(err)
 
-	group2 := NewGroup("test group 2")
-	err = group2.AddUser(testuser)
+	err = group1.AddMember(testuser)
+	a.NoError(err)
+
+	group2, err := NewGroup(GKGroup, "test_group_2", "test group 2", nil)
+	a.NoError(err)
+
+	err = group2.AddMember(testuser)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -154,21 +161,26 @@ func TestSetGroupRights(t *testing.T) {
 }
 
 func TestSetRoleRights(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor")
+	assignor, err := NewUser("assignor", "testuser@example.com")
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser")
+	testuser, err := NewUser("testuser", "testuser@example.com")
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
-	role1 := NewRole("test role 1")
-	err = role1.AddUser(testuser)
+	role1, err := NewGroup(GKRole, "test_role_1", "test role 1", nil)
 	a.NoError(err)
 
-	role2 := NewRole("test role 2")
-	err = role2.AddUser(testuser)
+	err = role1.AddMember(testuser)
+	a.NoError(err)
+
+	role2, err := NewGroup(GKRole, "test_role_2", "test role 2", nil)
+	a.NoError(err)
+
+	err = role2.AddMember(testuser)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -208,12 +220,13 @@ func TestSetRoleRights(t *testing.T) {
 }
 
 func TestSetUserRights(t *testing.T) {
+	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor")
+	assignor, err := NewUser("assignor", "testuser@example.com")
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser")
+	testuser, err := NewUser("testuser", "testuser@example.com")
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -223,22 +236,22 @@ func TestSetUserRights(t *testing.T) {
 	p := NewAccessPolicy(assignor, nil, false, false)
 	err = p.SetUserRights(assignor, testuser, wantedRights)
 	a.NoError(err)
-	a.Equal(wantedRights, p.RightsRoster.User[testUsername])
+	a.Equal(wantedRights, p.RightsRoster.User[testuser.Username])
 	a.True(p.HasRights(testuser, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance := NewAccessPolicy(assignor, p, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
-	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.User[testUsername])
+	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.User[testuser.Username])
 	a.True(pWithInheritance.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
 	pExtendedNoOwn := NewAccessPolicy(assignor, p, false, true)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.User[testUsername])
-	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.User[testUsername])
+	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.User[testuser.Username])
+	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.User[testuser.Username])
 	a.True(pExtendedNoOwn.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights with it's own
@@ -247,8 +260,8 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedWithOwn := NewAccessPolicy(assignor, p, false, true)
 	pExtendedWithOwn.SetUserRights(assignor, testuser, APMove)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.User[testUsername])
-	a.Equal(APMove, pExtendedWithOwn.RightsRoster.User[testUsername])
+	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.User[testuser.Username])
+	a.Equal(APMove, pExtendedWithOwn.RightsRoster.User[testuser.Username])
 	a.True(pExtendedWithOwn.HasRights(testuser, wantedRights|APMove))
 }
 

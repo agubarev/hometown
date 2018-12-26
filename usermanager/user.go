@@ -1,9 +1,11 @@
-package user
+package usermanager
 
 import (
+	"fmt"
 	"net"
 	"time"
 
+	"github.com/asaskevich/govalidator"
 	"github.com/oklog/ulid"
 	"gitlab.com/agubarev/hometown/util"
 )
@@ -15,11 +17,19 @@ type User struct {
 	Domain *Domain   `json:"-"`
 
 	// Username and Email are the primary IDs associated with the user account
-	Username    string `json:"username"`
-	Email       string `json:"email"`
-	IsConfirmed bool   `json:"is_verified"`
-	IsSuspended bool   `json:"is_suspended"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
 
+	// the name
+	Firstname  string `json:"firstname"`
+	Lastname   string `json:"lastname"`
+	Middlename string `json:"middlename"`
+
+	// most common flags
+	IsConfirmed bool `json:"is_verified"`
+	IsSuspended bool `json:"is_suspended"`
+
+	// account metadata
 	Metadata *Metadata `json:"-"`
 }
 
@@ -44,18 +54,34 @@ type Metadata struct {
 }
 
 // NewUser initializing a new User
-func NewUser(domain *Domain, username string, email string, isConfirmed bool) *User {
-	// TODO: if given domain is nil then default domain must be used, domain must always be present
-
-	return &User{
-		Domain:      domain,
+// TODO consider attaching user to a user container instead of a domain, just like groups
+func NewUser(username string, email string) (*User, error) {
+	u := &User{
 		ID:          util.NewULID(),
 		Username:    username,
 		Email:       email,
-		IsConfirmed: isConfirmed,
 		IsSuspended: false,
 		Metadata:    NewMetadata(),
 	}
+
+	if err := u.Validate(); err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
+// Validate user object
+func (u *User) Validate() error {
+	if u == nil {
+		return ErrNilUser
+	}
+
+	if ok, err := govalidator.ValidateStruct(u); !ok || err != nil {
+		return fmt.Errorf("user [%s:%s] validation failed: %s", u.ID, u.Username, err)
+	}
+
+	return nil
 }
 
 // NewMetadata initializing user metadata
@@ -67,11 +93,11 @@ func NewMetadata() *Metadata {
 }
 
 // Roles to which the user belongs
-func (u *User) Roles() []*Role {
-	return u.Domain.RoleContainer().GetByUser(u)
+func (u *User) Roles() []*Group {
+	return u.Domain.Groups.List(GKRole)
 }
 
 // Groups to which the user belongs
 func (u *User) Groups() []*Group {
-	return u.Domain.GroupContainer().GetByUser(u)
+	return u.Domain.Groups.List(GKGroup)
 }
