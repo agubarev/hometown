@@ -6,6 +6,15 @@ import (
 	"github.com/oklog/ulid"
 )
 
+// DomainStore handles domain storage
+type DomainStore interface {
+	PutRootDomain(d *Domain) error
+	GetRootDomain() (*Domain, error)
+	PutDomain(d *Domain) error
+	GetAllDomains() ([]*Domain, error)
+	GetDomain(id ulid.ULID) (*Domain, error)
+}
+
 // UserStore represents a user storage contract
 type UserStore interface {
 	PutUser(ctx context.Context, u *User) error

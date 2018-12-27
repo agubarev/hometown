@@ -4,7 +4,6 @@ import "errors"
 
 // errors
 var (
-	// access policy
 	ErrAccessDenied         = errors.New("user access denied")
 	ErrNoViewRight          = errors.New("user is not allowed to view this")
 	ErrNilAssignor          = errors.New("assignor user is nil")
@@ -15,11 +14,10 @@ var (
 	ErrUserExists           = errors.New("user already exists")
 	ErrNilUser              = errors.New("user is nil")
 	ErrNilStore             = errors.New("store is nil")
+	ErrNilGroupStore        = errors.New("group store is nil")
 	ErrUsernameTaken        = errors.New("username is already taken")
 	ErrEmailTaken           = errors.New("email is already taken")
-	ErrGroupIsNil           = errors.New("group is nil")
 	ErrEmptyGroupName       = errors.New("empty group name")
-	ErrGroupUserIsNil       = errors.New("user is nil")
 	ErrDuplicateParent      = errors.New("duplicate parent")
 	ErrGroupKindMismatch    = errors.New("group kinds mismatch")
 	ErrNilRole              = errors.New("role is nil")
@@ -30,11 +28,17 @@ var (
 	ErrEmailNotFound        = errors.New("email not found")
 	ErrInvalidID            = errors.New("invalid ID")
 	ErrBucketNotFound       = errors.New("bucket not found")
+	ErrNilDominion          = errors.New("dominion is nil")
+	ErrNilDomainStore       = errors.New("domain store is nil")
 	ErrNilDomain            = errors.New("domain is nil")
+	ErrNilRootDomain        = errors.New("root domain is nil")
+	ErrDomainNotFound       = errors.New("domain not found")
 	ErrNilGroup             = errors.New("group is nil")
+	ErrNilGroupContainer    = errors.New("group container is nil")
 	ErrGroupNotFound        = errors.New("group not found")
 	ErrUnknownUser          = errors.New("unknown user")
 	ErrNilContainer         = errors.New("container is nil")
+	ErrNotMember            = errors.New("user is not a member")
 	ErrAlreadyMember        = errors.New("already a member")
 	ErrCircularParent       = errors.New("circular parenting")
 	ErrCircularCheckTimeout = errors.New("circular check has reached timeout")

@@ -1,7 +1,10 @@
 package usermanager
 
 import (
+	"errors"
 	"sync"
+
+	"github.com/golang/glog"
 
 	"github.com/oklog/ulid"
 	"gitlab.com/agubarev/hometown/util"
@@ -22,25 +25,49 @@ type UserContainer struct {
 	usernameMap map[string]*User
 	emailMap    map[string]*User
 	store       UserStore
-	m           sync.RWMutex
+	sync.RWMutex
 }
 
 // NewUserContainer initializing a new user container
-func NewUserContainer(d *Domain) (*UserContainer, error) {
-	if d == nil {
-		return nil, ErrNilDomain
+func NewUserContainer(s UserStore) (*UserContainer, error) {
+	if s == nil {
+		glog.Warningln("NewUserContainer: store isn't set")
 	}
 
 	c := &UserContainer{
 		ID:          util.NewULID(),
-		domain:      d,
 		users:       make([]*User, 0),
 		idMap:       make(map[ulid.ULID]*User),
 		usernameMap: make(map[string]*User),
-		m:           sync.RWMutex{},
+		store:       s,
 	}
 
 	return c, nil
+}
+
+// Validate this group container
+func (c *UserContainer) Validate() error {
+	if c.domain == nil {
+		return ErrNilDomain
+	}
+
+	if c.users == nil {
+		return errors.New("users slice is not initialized")
+	}
+
+	if c.idMap == nil {
+		return errors.New("id map is nil")
+	}
+
+	if c.usernameMap == nil {
+		return errors.New("username map is nil")
+	}
+
+	if c.emailMap == nil {
+		return errors.New("email map is nil")
+	}
+
+	return nil
 }
 
 // Persist asks all contained groups to store itself

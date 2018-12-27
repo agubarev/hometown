@@ -4,7 +4,10 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
+
+	"github.com/golang/glog"
 
 	"github.com/asaskevich/govalidator"
 
@@ -18,6 +21,10 @@ type GroupMembers []*User
 // GroupKind designates a group kind i.e. Group, Role etc...
 type GroupKind string
 
+func (k GroupKind) String() string {
+	return string(k)
+}
+
 // group kinds
 const (
 	GKGroup GroupKind = "group"
@@ -26,6 +33,7 @@ const (
 
 // Group represents a user group
 // TODO custom JSON marshalling
+// TODO add mutex and store to the group; store should be set implicitly upon addition to the container
 type Group struct {
 	ID           ulid.ULID     `json:"id"`
 	Kind         GroupKind     `json:"kind"`
@@ -37,30 +45,24 @@ type Group struct {
 	AccessPolicy *AccessPolicy `json:"-"`
 
 	container *GroupContainer
+	store     GroupStore
 	members   GroupMembers
 	memberMap map[ulid.ULID]*User
+	sync.RWMutex
 }
 
 // NewGroup initializing a new group struct
+// IMPORTANT: group kind is permanent and must never change
 func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, error) {
 	if parent != nil {
 		if err := parent.Validate(); err != nil {
 			return nil, fmt.Errorf("NewGroup() parent validation failed: %s", err)
 		}
-
-		if isCircular, err := parent.IsCircular(); isCircular || (err != nil) {
-			if err != nil {
-				return nil, err
-			}
-
-			if isCircular {
-				return nil, ErrCircularParent
-			}
-		}
 	}
 
 	g := &Group{
 		ID:        util.NewULID(),
+		Kind:      kind,
 		Parent:    parent,
 		Key:       strings.ToLower(key),
 		Name:      name,
@@ -71,24 +73,31 @@ func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, e
 	return g, g.Validate()
 }
 
-func (g *Group) String() string {
-	return fmt.Sprintf("%s[%s:%s:%s]", g.KindString(), g.ID, g.Key, g.Name)
-}
-
-// KindString returns a group kind as a string
-func (g *Group) KindString() string {
-	return string(g.Kind)
+// IDString returns short object info
+func (g *Group) IDString() string {
+	return fmt.Sprintf("%s(%s:%s:%s)", g.Kind, g.ID, g.Key, g.Name)
 }
 
 // Validate tells a group to perform self-check and return errors if something's wrong
-// TODO check for circular parenting
 func (g *Group) Validate() error {
 	if g == nil {
 		return ErrNilGroup
 	}
 
+	// checking for parent circulation
+	if isCircular, err := g.IsCircular(); isCircular || (err != nil) {
+		if err != nil {
+			return fmt.Errorf("%s validation failed: %s", g.Kind, err)
+		}
+
+		if isCircular {
+			return fmt.Errorf("%s validation failed: %s", g.Kind, ErrCircularParent)
+		}
+	}
+
+	// general field validations
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
-		return fmt.Errorf("%s validation failed: %s", g, err)
+		return fmt.Errorf("%s validation failed: %s", g.Kind, err)
 	}
 
 	return nil
@@ -165,6 +174,10 @@ func (g *Group) SetParent(p *Group) error {
 
 // Persist this group to storage
 func (g *Group) Persist() error {
+	if g.store == nil {
+		return ErrNilGroupStore
+	}
+
 	if err := g.container.store.PutGroup(context.Background(), g); err != nil {
 		return fmt.Errorf("Persist() failed to store a group: %s", err)
 	}
@@ -178,8 +191,8 @@ func (g *Group) IsMember(u *User) bool {
 		return false
 	}
 
-	g.container.RLock()
-	defer g.container.RUnlock()
+	g.RLock()
+	defer g.RUnlock()
 
 	if _, ok := g.memberMap[u.ID]; ok {
 		return true
@@ -198,16 +211,25 @@ func (g *Group) AddMember(u *User) error {
 		return ErrAlreadyMember
 	}
 
-	// storing the relation
-	if err := g.container.store.PutGroupRelation(context.Background(), g, u); err != nil {
-		return fmt.Errorf("AddMember() failed to store relation: %s", err)
+	// if store is set then storing new relation
+	if g.store != nil {
+		if err := g.store.PutGroupRelation(context.Background(), g, u); err != nil {
+			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
+		}
+	} else {
+		glog.Infof("adding %s member %s without storing\n", g.ID, u.IDString())
 	}
 
 	// updating runtime data
-	g.container.Lock()
+	g.Lock()
 	g.members = append(g.members, u)
 	g.memberMap[u.ID] = u
-	g.container.Unlock()
+	g.Unlock()
+
+	// updating group tracklist for this user
+	if err := u.TrackGroup(g); err != nil {
+		glog.Warningf("AddMember() user failed to track group(%s): %s\n", g.IDString(), err)
+	}
 
 	return nil
 }
@@ -219,7 +241,7 @@ func (g *Group) RemoveMember(u *User) error {
 	}
 
 	if g.IsMember(u) {
-		return ErrUserNotFound
+		return ErrNotMember
 	}
 
 	// deleting a stored relation
@@ -244,6 +266,11 @@ func (g *Group) RemoveMember(u *User) error {
 
 	// removing user from the index
 	delete(g.memberMap, u.ID)
+
+	// updating group tracklist for this user
+	if err := u.UntrackGroup(g.ID); err != nil {
+		glog.Warningf("RemoveMember() user failed to untrack group(%s): %s\n", g.IDString(), err)
+	}
 
 	return nil
 }

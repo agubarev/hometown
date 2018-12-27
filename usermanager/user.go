@@ -31,6 +31,9 @@ type User struct {
 
 	// account metadata
 	Metadata *Metadata `json:"-"`
+
+	// tracking all group kinds in one slice
+	groups []*Group
 }
 
 // Metadata information about the user account
@@ -53,8 +56,21 @@ type Metadata struct {
 	SuspensionReason    string    `json:"suspension_reason,omitempty"`
 }
 
+// IDString returns short info about the user
+func (u User) IDString() string {
+	return fmt.Sprintf("user[%s:%s]", u.ID, u.Username)
+}
+
+// Fullname returns full name of a user
+func (u User) Fullname(withMiddlename bool) string {
+	if withMiddlename {
+		return fmt.Sprintf("%s %s %s", u.Firstname, u.Middlename, u.Lastname)
+	}
+
+	return fmt.Sprintf("%s %s", u.Firstname, u.Lastname)
+}
+
 // NewUser initializing a new User
-// TODO consider attaching user to a user container instead of a domain, just like groups
 func NewUser(username string, email string) (*User, error) {
 	u := &User{
 		ID:          util.NewULID(),
@@ -62,6 +78,7 @@ func NewUser(username string, email string) (*User, error) {
 		Email:       email,
 		IsSuspended: false,
 		Metadata:    NewMetadata(),
+		groups:      make([]*Group, 0),
 	}
 
 	if err := u.Validate(); err != nil {
@@ -92,21 +109,55 @@ func NewMetadata() *Metadata {
 	}
 }
 
-// Roles to which the user belongs
-func (u *User) Roles() []*Group {
-	roleGroups, err := u.Domain.Groups.GetByUser(GKRole, u)
-	if err != nil {
-		return []*Group{}
+// TrackGroup tracking which groups this user is a member of
+func (u *User) TrackGroup(g *Group) error {
+	if g == nil {
+		return ErrNilGroup
 	}
 
-	return roleGroups
+	// safeguard in case this slice is not initialized
+	if u.groups == nil {
+		u.groups = make([]*Group, 0)
+	}
+
+	// appending group to slice for easier runtime access
+	u.groups = append(u.groups, g)
+
+	return nil
+}
+
+// UntrackGroup removing group from the tracklist
+func (u *User) UntrackGroup(id ulid.ULID) error {
+	if u.groups == nil {
+		// initializing just in case
+		u.groups = make([]*Group, 0)
+
+		return nil
+	}
+
+	// finding position
+	// TODO: extract to util function to delete slice items by something i.e. ID
+	var pos int
+	for i, g := range u.groups {
+		if g.ID == id {
+			pos = i
+			break
+		}
+	}
+
+	// removing group from the tracklist
+	u.groups = append(u.groups[0:pos], u.groups[pos+1:]...)
+
+	return ErrGroupNotFound
 }
 
 // Groups to which the user belongs
-func (u *User) Groups() []*Group {
-	groups, err := u.Domain.Groups.GetByUser(GKGroup, u)
-	if err != nil {
-		return []*Group{}
+func (u *User) Groups(kind GroupKind) []*Group {
+	groups := make([]*Group, 0)
+	for _, g := range u.groups {
+		if g.Kind == kind {
+			groups = append(groups, g)
+		}
 	}
 
 	return groups

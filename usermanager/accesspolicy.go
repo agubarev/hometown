@@ -1,6 +1,8 @@
 package usermanager
 
 import (
+	"sync"
+
 	"github.com/oklog/ulid"
 )
 
@@ -29,10 +31,10 @@ const (
 
 // RightsRoster denotes who has what rights
 type RightsRoster struct {
-	Everyone AccessRight            `json:"everyone"`
-	Role     map[string]AccessRight `json:"role"`
-	Group    map[string]AccessRight `json:"group"`
-	User     map[string]AccessRight `json:"user"`
+	Everyone AccessRight               `json:"everyone"`
+	Role     map[ulid.ULID]AccessRight `json:"role"`
+	Group    map[ulid.ULID]AccessRight `json:"group"`
+	User     map[ulid.ULID]AccessRight `json:"user"`
 }
 
 // Summarize summarizing the resulting access right flags
@@ -40,22 +42,22 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 	r := rr.Everyone
 
 	// calculating role rights
-	for _, ur := range u.Roles() {
-		if _, ok := rr.Role[ur.Key]; ok {
-			r |= rr.Role[ur.Key]
+	for _, ur := range u.Groups(GKRole) {
+		if _, ok := rr.Role[ur.ID]; ok {
+			r |= rr.Role[ur.ID]
 		}
 	}
 
 	// same with groups
-	for _, ug := range u.Groups() {
-		if _, ok := rr.Group[ug.Key]; ok {
-			r |= rr.Group[ug.Key]
+	for _, ug := range u.Groups(GKGroup) {
+		if _, ok := rr.Group[ug.ID]; ok {
+			r |= rr.Group[ug.ID]
 		}
 	}
 
 	// user-specific rights
-	if _, ok := rr.User[u.Username]; ok {
-		r |= rr.User[u.Username]
+	if _, ok := rr.User[u.ID]; ok {
+		r |= rr.User[u.ID]
 	}
 
 	return r
@@ -78,6 +80,7 @@ type AccessPolicy struct {
 	IsInherited  bool          `json:"is_inherited"`
 	IsLocked     bool          `json:"is_locked"`
 	RightsRoster *RightsRoster `json:"rights_roster"`
+	sync.RWMutex
 }
 
 // NewAccessPolicy create a new AccessPolicy object
@@ -92,9 +95,9 @@ func NewAccessPolicy(owner *User, parent *AccessPolicy, isInherited bool, isExte
 		IsExtended:  isExtended,
 		RightsRoster: &RightsRoster{
 			Everyone: APNoAccess,
-			Group:    make(map[string]AccessRight),
-			Role:     make(map[string]AccessRight),
-			User:     make(map[string]AccessRight),
+			Group:    make(map[ulid.ULID]AccessRight),
+			Role:     make(map[ulid.ULID]AccessRight),
+			User:     make(map[ulid.ULID]AccessRight),
 		},
 	}
 
@@ -118,12 +121,15 @@ func (ap *AccessPolicy) Seal() error {
 // i.e. policy of the secret's containing category
 // NOTE: if the parent is set to nil, then forcing IsInherited flag to false
 func (ap *AccessPolicy) SetParent(parent *AccessPolicy) error {
+	ap.Lock()
 	ap.Parent = parent
 
 	// disabling inheritance to avoid unexpected behaviour
 	if parent == nil {
 		ap.IsInherited = false
 	}
+
+	ap.Unlock()
 
 	return nil
 }
@@ -144,12 +150,14 @@ func (ap *AccessPolicy) UserAccess(u *User) AccessRight {
 	if ap.Parent != nil && ap.IsInherited {
 		rights = ap.Parent.UserAccess(u)
 	} else {
+		ap.RLock()
 		// if extend is true and parent exists, then using parent's rights as a base value
 		if ap.Parent != nil && ap.IsExtended {
 			rights = ap.Parent.RightsRoster.Summarize(u)
 		}
 
 		rights |= ap.RightsRoster.Summarize(u)
+		ap.RUnlock()
 	}
 
 	return rights
@@ -166,7 +174,9 @@ func (ap *AccessPolicy) SetPublicRights(assignor *User, rights AccessRight) erro
 		return ErrExcessOfRights
 	}
 
+	ap.Lock()
 	ap.RightsRoster.Everyone = rights
+	ap.Unlock()
 
 	return nil
 }
@@ -186,7 +196,9 @@ func (ap *AccessPolicy) SetRoleRights(assignor *User, role *Group, rights Access
 		return ErrExcessOfRights
 	}
 
-	ap.RightsRoster.Role[role.Key] = rights
+	ap.Lock()
+	ap.RightsRoster.Role[role.ID] = rights
+	ap.Unlock()
 
 	return nil
 }
@@ -198,7 +210,7 @@ func (ap *AccessPolicy) SetGroupRights(assignor *User, group *Group, rights Acce
 	}
 
 	if group == nil {
-		return ErrGroupIsNil
+		return ErrNilGroup
 	}
 
 	// checking whether the assignor has at least the assigned rights
@@ -206,7 +218,9 @@ func (ap *AccessPolicy) SetGroupRights(assignor *User, group *Group, rights Acce
 		return ErrExcessOfRights
 	}
 
-	ap.RightsRoster.Group[group.Key] = rights
+	ap.Lock()
+	ap.RightsRoster.Group[group.ID] = rights
+	ap.Unlock()
 
 	return nil
 }
@@ -227,7 +241,9 @@ func (ap *AccessPolicy) SetUserRights(assignor *User, assignee *User, rights Acc
 		return ErrExcessOfRights
 	}
 
-	ap.RightsRoster.User[assignee.Username] = rights
+	ap.Lock()
+	ap.RightsRoster.User[assignee.ID] = rights
+	ap.Unlock()
 
 	return nil
 }
@@ -235,8 +251,7 @@ func (ap *AccessPolicy) SetUserRights(assignor *User, assignee *User, rights Acc
 // IsOwner checks whether a given user is the owner of this policy
 func (ap *AccessPolicy) IsOwner(u *User) bool {
 	// owner of the policy (meaning: the main entity) has full rights on it
-	// TODO: username comparison is a very bad idea, e.g. username can be changed
-	if ap.Owner != nil && (ap.Owner.Username == u.Username) {
+	if ap.Owner != nil && (ap.Owner.ID == u.ID) {
 		return true
 	}
 
@@ -273,12 +288,16 @@ func (ap *AccessPolicy) HasRights(user *User, rights AccessRight) bool {
 		}
 
 		if ap.IsExtended {
+			ap.RLock()
 			cr = ap.Parent.RightsRoster.Summarize(user)
+			ap.RUnlock()
 		}
 	}
 
 	// merging with the actual policy's rights roster rights
+	ap.RLock()
 	cr |= ap.RightsRoster.Summarize(user)
+	ap.RUnlock()
 
 	return (cr & rights) == rights
 }

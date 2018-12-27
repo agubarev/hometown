@@ -127,26 +127,26 @@ func TestSetGroupRights(t *testing.T) {
 	wantedRights := APView | APChange
 
 	// no parent, not inheriting and not extending
-	// WARNING: [p] will be reused and inherited below in this function
+	// WARNING: "p" will be reused and inherited below in this function
 	p := NewAccessPolicy(assignor, nil, false, false)
 	err = p.SetGroupRights(assignor, group1, wantedRights)
 	a.NoError(err)
-	a.Equal(wantedRights, p.RightsRoster.Group[group1.Name])
+	a.Equal(wantedRights, p.RightsRoster.Group[group1.ID])
 	a.True(p.HasRights(testuser, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance := NewAccessPolicy(assignor, p, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
-	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.Group[group1.Name])
+	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.Group[group1.ID])
 	a.True(pWithInheritance.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
 	pExtendedNoOwn := NewAccessPolicy(assignor, p, false, true)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.Group[group1.Name])
-	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.Group[group1.Name])
+	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.Group[group1.ID])
+	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.Group[group1.ID])
 	a.True(pExtendedNoOwn.HasRights(testuser, wantedRights))
 
 	// with parent, inheritance false, extend true; using parent's rights with it's own
@@ -155,8 +155,8 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedWithOwn := NewAccessPolicy(assignor, p, false, true)
 	pExtendedWithOwn.SetGroupRights(assignor, group1, APMove)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.Group[group1.Name])
-	a.Equal(APMove, pExtendedWithOwn.RightsRoster.Group[group1.Name])
+	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.Group[group1.ID])
+	a.Equal(APMove, pExtendedWithOwn.RightsRoster.Group[group1.ID])
 	a.True(pExtendedWithOwn.HasRights(testuser, wantedRights|APMove))
 }
 
@@ -186,26 +186,26 @@ func TestSetRoleRights(t *testing.T) {
 	wantedRights := APView | APChange
 
 	// no parent, not inheriting and not extending
-	// WARNING: [p] will be reused and inherited below in this function
+	// NOTE: "p" will be reused and inherited below in this function
 	p := NewAccessPolicy(assignor, nil, false, false)
 	err = p.SetRoleRights(assignor, role1, wantedRights)
 	a.NoError(err)
-	a.Equal(wantedRights, p.RightsRoster.Role[role1.Name])
+	a.Equal(wantedRights, p.RightsRoster.Role[role1.ID])
 	a.True(p.HasRights(testuser, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance := NewAccessPolicy(assignor, p, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
-	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.Role[role1.Name])
+	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.Role[role1.ID])
 	a.True(pWithInheritance.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
 	pExtendedNoOwn := NewAccessPolicy(assignor, p, false, true)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.Role[role1.Name])
-	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.Role[role1.Name])
+	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.Role[role1.ID])
+	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.Role[role1.ID])
 	a.True(pExtendedNoOwn.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights with it's own
@@ -214,8 +214,8 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedWithOwn := NewAccessPolicy(assignor, p, false, true)
 	pExtendedWithOwn.SetRoleRights(assignor, role1, APMove)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.Role[role1.Name])
-	a.Equal(APMove, pExtendedWithOwn.RightsRoster.Role[role1.Name])
+	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.Role[role1.ID])
+	a.Equal(APMove, pExtendedWithOwn.RightsRoster.Role[role1.ID])
 	a.True(pExtendedWithOwn.HasRights(testuser, wantedRights|APMove))
 }
 
@@ -236,22 +236,22 @@ func TestSetUserRights(t *testing.T) {
 	p := NewAccessPolicy(assignor, nil, false, false)
 	err = p.SetUserRights(assignor, testuser, wantedRights)
 	a.NoError(err)
-	a.Equal(wantedRights, p.RightsRoster.User[testuser.Username])
+	a.Equal(wantedRights, p.RightsRoster.User[testuser.ID])
 	a.True(p.HasRights(testuser, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance := NewAccessPolicy(assignor, p, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
-	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.User[testuser.Username])
+	a.Equal(wantedRights, pWithInheritance.Parent.RightsRoster.User[testuser.ID])
 	a.True(pWithInheritance.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
 	pExtendedNoOwn := NewAccessPolicy(assignor, p, false, true)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.User[testuser.Username])
-	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.User[testuser.Username])
+	a.Equal(wantedRights, pExtendedNoOwn.Parent.RightsRoster.User[testuser.ID])
+	a.Equal(APNoAccess, pExtendedNoOwn.RightsRoster.User[testuser.ID])
 	a.True(pExtendedNoOwn.HasRights(testuser, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights with it's own
@@ -260,8 +260,8 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedWithOwn := NewAccessPolicy(assignor, p, false, true)
 	pExtendedWithOwn.SetUserRights(assignor, testuser, APMove)
 	a.NoError(err)
-	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.User[testuser.Username])
-	a.Equal(APMove, pExtendedWithOwn.RightsRoster.User[testuser.Username])
+	a.Equal(wantedRights, pExtendedWithOwn.Parent.RightsRoster.User[testuser.ID])
+	a.Equal(APMove, pExtendedWithOwn.RightsRoster.User[testuser.ID])
 	a.True(pExtendedWithOwn.HasRights(testuser, wantedRights|APMove))
 }
 
