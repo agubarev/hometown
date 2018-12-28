@@ -74,6 +74,11 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 // TODO: consider making policy to be completely decoupled and agnostic about the subject types
 // TODO: add caching mechanism to skip rights summarization
 type AccessPolicy struct {
+	// TODO: add ID
+	// TODO: add namespace
+	ID           ulid.ULID     `json:"id"`
+	Namespace    string        `json:"namespace"`
+	Target       interface{}   `json:"-"`
 	Owner        *User         `json:"owner"`
 	Parent       *AccessPolicy `json:"-"`
 	IsExtended   bool          `json:"is_extend"`

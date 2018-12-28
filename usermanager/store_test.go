@@ -11,21 +11,13 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func TestNewDefaultStore(t *testing.T) {
-	t.Parallel()
-	a := assert.New(t)
+func getUserStoreList() []UserStore {
+	stores := make([]UserStore, 0)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	a.NotNil(db)
-	a.NoError(err)
-	defer db.Close()
-
-	s, err := NewBoltStore(db, nil)
-	a.NotNil(s)
-	a.NoError(err)
+	return stores
 }
 
-func TestStoreCreate(t *testing.T) {
+func TestUserStoreCreate(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
@@ -38,7 +30,7 @@ func TestStoreCreate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	svc, err := NewDefaultService(s)
+	svc, err := NewUserService(s)
 	a.NoError(err)
 	a.NotNil(svc)
 
@@ -54,7 +46,7 @@ func TestStoreCreate(t *testing.T) {
 	a.True(reflect.DeepEqual(unsavedUser, newUser))
 }
 
-func TestStorePutUser(t *testing.T) {
+func TestUserStorePutUser(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
@@ -75,7 +67,7 @@ func TestStorePutUser(t *testing.T) {
 	a.NoError(err)
 }
 
-func TestStoreGetters(t *testing.T) {
+func TestUserStoreGetters(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
@@ -123,7 +115,7 @@ func TestStoreGetters(t *testing.T) {
 	a.Nil(u)
 }
 
-func TestStoreDelete(t *testing.T) {
+func TestUserStoreDelete(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
@@ -189,7 +181,7 @@ func TestStoreDelete(t *testing.T) {
 // benchmarks
 //---------------------------------------------------------------------------
 
-func BenchmarkStorePutUser(b *testing.B) {
+func BenchmarkUserStorePutUser(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -214,7 +206,7 @@ func BenchmarkStorePutUser(b *testing.B) {
 	}
 }
 
-func BenchmarkStoreGetByID(b *testing.B) {
+func BenchmarkUserStoreGetByID(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -237,7 +229,7 @@ func BenchmarkStoreGetByID(b *testing.B) {
 	}
 }
 
-func BenchmarkStoreGetByIDWithCaching(b *testing.B) {
+func BenchmarkUserStoreGetByIDWithCaching(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -259,7 +251,7 @@ func BenchmarkStoreGetByIDWithCaching(b *testing.B) {
 		}
 	}
 }
-func BenchmarkStoreGetByUsername(b *testing.B) {
+func BenchmarkUserStoreGetByUsername(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -282,7 +274,7 @@ func BenchmarkStoreGetByUsername(b *testing.B) {
 	}
 }
 
-func BenchmarkStoreGetByUsernameWithCaching(b *testing.B) {
+func BenchmarkUserStoreGetByUsernameWithCaching(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -305,7 +297,7 @@ func BenchmarkStoreGetByUsernameWithCaching(b *testing.B) {
 	}
 }
 
-func BenchmarkStoreGetByEmail(b *testing.B) {
+func BenchmarkUserStoreGetByEmail(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
@@ -328,7 +320,7 @@ func BenchmarkStoreGetByEmail(b *testing.B) {
 	}
 }
 
-func BenchmarkStoreGetByEmailWithCaching(b *testing.B) {
+func BenchmarkUserStoreGetByEmailWithCaching(b *testing.B) {
 	b.ReportAllocs()
 
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)

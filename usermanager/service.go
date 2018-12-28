@@ -16,10 +16,10 @@ type Service interface {
 	Delete(ctx context.Context, id ulid.ULID) error
 }
 
-// NewDefaultService is a default user manager implementation
-func NewDefaultService(s UserStore) (Service, error) {
+// NewUserService is a default user manager implementation
+func NewUserService(s UserStore) (Service, error) {
 	if s == nil {
-		return nil, ErrNilStore
+		return nil, ErrNilUserStore
 	}
 
 	return &service{s}, nil

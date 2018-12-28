@@ -13,7 +13,7 @@ import (
 // Domain represents a single organizational entity which incorporates
 // organizations, users, roles, groups and teams
 type Domain struct {
-	Dominion *Dominion `json:"-"`
+	Manager *UserManager `json:"-"`
 
 	ID           ulid.ULID       `json:"id"`
 	Parent       *Domain         `json:"-"`

@@ -24,7 +24,7 @@ func TestNewService(t *testing.T) {
 	a.NotNil(store)
 	a.NoError(err)
 
-	m, err := NewDefaultService(store)
+	m, err := NewUserService(store)
 	a.NoError(err)
 	a.NotNil(m)
 }
@@ -42,7 +42,7 @@ func TestServiceCreate(t *testing.T) {
 	a.NotNil(store)
 	a.NoError(err)
 
-	m, err := NewDefaultService(store)
+	m, err := NewUserService(store)
 	a.NoError(err)
 	a.NotNil(m)
 

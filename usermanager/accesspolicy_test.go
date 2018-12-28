@@ -266,5 +266,23 @@ func TestSetUserRights(t *testing.T) {
 }
 
 func TestIsOwner(t *testing.T) {
+	t.Parallel()
+	a := assert.New(t)
 
+	testuser, err := NewUser("testuser", "testuser@example.com")
+	a.NoError(err)
+
+	testuser2, err := NewUser("testuser2", "testuser@example.com")
+	a.NoError(err)
+
+	p := NewAccessPolicy(testuser, nil, false, false)
+	err = p.SetUserRights(testuser, testuser, APView)
+	a.NoError(err)
+	a.Equal(APView, p.RightsRoster.User[testuser.ID])
+	a.Equal(APNoAccess, p.RightsRoster.User[testuser2.ID])
+	a.True(p.HasRights(testuser, APFullAccess))
+	a.False(p.HasRights(testuser2, APView))
+	a.False(p.HasRights(testuser2, APFullAccess))
+	a.True(p.IsOwner(testuser))
+	a.False(p.IsOwner(testuser2))
 }

@@ -112,7 +112,7 @@ func (g *Group) IsCircular() (bool, error) {
 	// moving up a parent tree until nil is reached or the signs of circulation are found
 	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
 	p := g.Parent
-	timeout := time.Now().Add(100 * time.Millisecond)
+	timeout := time.Now().Add(10 * time.Millisecond)
 	for !time.Now().After(timeout) {
 		if p == nil {
 			// it's all good, reached a nil parent
@@ -178,7 +178,7 @@ func (g *Group) Persist() error {
 		return ErrNilGroupStore
 	}
 
-	if err := g.container.store.PutGroup(context.Background(), g); err != nil {
+	if err := g.container.store.Put(context.Background(), g); err != nil {
 		return fmt.Errorf("Persist() failed to store a group: %s", err)
 	}
 
@@ -213,7 +213,7 @@ func (g *Group) AddMember(u *User) error {
 
 	// if store is set then storing new relation
 	if g.store != nil {
-		if err := g.store.PutGroupRelation(context.Background(), g, u); err != nil {
+		if err := g.store.PutRelation(context.Background(), g, u); err != nil {
 			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
 		}
 	} else {
@@ -245,7 +245,7 @@ func (g *Group) RemoveMember(u *User) error {
 	}
 
 	// deleting a stored relation
-	if err := g.container.store.DeleteGroupRelation(context.Background(), g.ID, u.ID); err != nil {
+	if err := g.container.store.DeleteRelation(context.Background(), g.ID, u.ID); err != nil {
 		return fmt.Errorf("RemoveMember() failed to delete a stored relation: %s", err)
 	}
 
