@@ -12,7 +12,6 @@ import (
 )
 
 // GroupStore describes a storage contract for groups specifically
-// TODO add predicates for searching
 type GroupStore interface {
 	Put(ctx context.Context, g *Group) error
 	GetAll(ctx context.Context) ([]*Group, error)
@@ -20,6 +19,7 @@ type GroupStore interface {
 	Delete(ctx context.Context, id ulid.ULID) error
 	PutRelation(ctx context.Context, id ulid.ULID, userID ulid.ULID) error
 	GetAllRelation(ctx context.Context) (map[ulid.ULID]ulid.ULID, error)
+	GetRelationByGroupID(ctx context.Context, id ulid.ULID) (map[ulid.ULID]ulid.ULID, error)
 	HasRelation(ctx context.Context, id ulid.ULID, userID ulid.ULID) (bool, error)
 	DeleteRelation(ctx context.Context, id ulid.ULID, userID ulid.ULID) error
 	DeleteRelationByGroupID(ctx context.Context, id ulid.ULID) error
@@ -38,12 +38,12 @@ func groupRelationKey(groupID ulid.ULID, userID ulid.ULID) []byte {
 func NewDefaultGroupStore(db *bbolt.DB) (GroupStore, error) {
 	s := &DefaultGroupStore{db}
 	err := s.db.Update(func(tx *bbolt.Tx) error {
-		groupBucket, err := tx.CreateBucketIfNotExists([]byte("GROUP"))
+		_, err := tx.CreateBucketIfNotExists([]byte("GROUP"))
 		if err != nil {
 			return fmt.Errorf("failed to create a group bucket: %s", err)
 		}
 
-		if _, err = groupBucket.CreateBucketIfNotExists([]byte("GROUP_RELATION")); err != nil {
+		if _, err = tx.CreateBucketIfNotExists([]byte("GROUP_RELATION")); err != nil {
 			return fmt.Errorf("failed to create group relations bucket: %s", err)
 		}
 
@@ -242,15 +242,63 @@ func (s *DefaultGroupStore) GetAllRelation(ctx context.Context) (map[ulid.ULID]u
 	return ids, err
 }
 
+// GetRelationByGroupID returns a map of group id -> user id relations for a given group id
+func (s *DefaultGroupStore) GetRelationByGroupID(ctx context.Context, id ulid.ULID) (map[ulid.ULID]ulid.ULID, error) {
+	ids := make(map[ulid.ULID]ulid.ULID, 0)
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
+		if groupRelationBucket == nil {
+			return fmt.Errorf("GetRelationByGroupID() failed to load group relations bucket: %s", ErrBucketNotFound)
+		}
+
+		// key holds group and user ids as string of bytes separated by a hyphen
+		c := groupRelationBucket.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			if !bytes.HasPrefix(k, id[:]) {
+				continue
+			}
+
+			idpair := bytes.Split(k, []byte("-"))
+			if len(idpair) != 2 {
+				return fmt.Errorf(
+					"GetRelationByGroupID() failed to parse group relation key(%s), expecting 2 pieces, got %d",
+					string(k),
+					len(idpair),
+				)
+			}
+
+			// parsing ids
+			groupID, err := ulid.ParseStrict(string(idpair[0]))
+			if err != nil {
+				return fmt.Errorf("GetRelationByGroupID() failed to parse group id(%s): %s", string(idpair[0]), err)
+			}
+
+			userID, err := ulid.ParseStrict(string(idpair[1]))
+			if err != nil {
+				return fmt.Errorf("GetRelationByGroupID() failed to parse related user id(%s): %s", string(idpair[1]), err)
+			}
+
+			// paranoid check
+			if groupID == id {
+				ids[groupID] = userID
+			}
+		}
+
+		return nil
+	})
+
+	return ids, err
+}
+
 // DeleteRelation deletes a group-user relation
 func (s *DefaultGroupStore) DeleteRelation(ctx context.Context, id ulid.ULID, userID ulid.ULID) error {
 	return s.db.Update(func(tx *bbolt.Tx) error {
-		groupBucket := tx.Bucket([]byte("GROUP"))
-		if groupBucket == nil {
-			return fmt.Errorf("failed to load group bucket: %s", ErrBucketNotFound)
+		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
+		if groupRelationBucket == nil {
+			return fmt.Errorf("failed to load group relation bucket: %s", ErrBucketNotFound)
 		}
 
-		err := groupBucket.Delete(groupRelationKey(id, userID))
+		err := groupRelationBucket.Delete(groupRelationKey(id, userID))
 		if err != nil {
 			return fmt.Errorf("DeleteRelation() failed to delete group relation (%s -> %s): %s", id, userID, err)
 		}
@@ -261,5 +309,23 @@ func (s *DefaultGroupStore) DeleteRelation(ctx context.Context, id ulid.ULID, us
 
 // DeleteRelationByGroupID deletes all relations for a given group id
 func (s *DefaultGroupStore) DeleteRelationByGroupID(ctx context.Context, id ulid.ULID) error {
-	panic("not implemented")
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
+		if groupRelationBucket == nil {
+			return fmt.Errorf("failed to load group relation bucket: %s", ErrBucketNotFound)
+		}
+
+		c := groupRelationBucket.Cursor()
+		for k, _ := c.First(); k != nil; k, _ = c.Next() {
+			// testing by a prefix
+			if bytes.HasPrefix(k, id[:]) {
+				// found, deleting
+				if err := c.Delete(); err != nil {
+					return err
+				}
+			}
+		}
+
+		return nil
+	})
 }
