@@ -7,6 +7,15 @@ import (
 	"github.com/oklog/ulid"
 )
 
+// UserStoreCache is an internal user caching mechanism for a Store
+type UserStoreCache interface {
+	GetByID(id ulid.ULID) *User
+	GetByIndex(index string, value string) *User
+	Put(u *User)
+	Delete(id ulid.ULID)
+	Cleanup() error
+}
+
 // NewUserStoreCache is an internal user cache for default implementation
 // a very simple mechanism, returning nil on cache misses
 func NewUserStoreCache(threshold int) UserStoreCache {
@@ -86,5 +95,7 @@ func (c *userCache) Delete(id ulid.ULID) {
 }
 
 func (c *userCache) Cleanup() error {
+	// TODO: implement
+
 	return nil
 }

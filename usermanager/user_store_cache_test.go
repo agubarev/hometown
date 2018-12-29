@@ -29,7 +29,7 @@ func TestCacheStorePut(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := usermanager.NewBoltStore(db, nil)
+	s, err := usermanager.NewDefaultUserStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -37,6 +37,6 @@ func TestCacheStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(newuser)
 
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	a.NoError(err)
 }

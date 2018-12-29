@@ -213,7 +213,7 @@ func (g *Group) AddMember(u *User) error {
 
 	// if store is set then storing new relation
 	if g.store != nil {
-		if err := g.store.PutRelation(context.Background(), g, u); err != nil {
+		if err := g.store.PutRelation(context.Background(), g.ID, u.ID); err != nil {
 			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
 		}
 	} else {

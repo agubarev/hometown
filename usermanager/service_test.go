@@ -20,7 +20,7 @@ func TestNewService(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := NewBoltStore(db, nil)
+	store, err := NewDefaultUserStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 
@@ -38,7 +38,7 @@ func TestServiceCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	store, err := NewBoltStore(db, nil)
+	store, err := NewDefaultUserStore(db, nil)
 	a.NotNil(store)
 	a.NoError(err)
 

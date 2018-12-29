@@ -58,9 +58,6 @@ func NewUserManager(c *Config) (*UserManager, error) {
 		return nil, err
 	}
 
-	defer glog.Flush()
-
-	glog.Infoln("loading root domain")
 	root, err := c.s.ds.GetRootDomain()
 	if err != nil {
 		panic(fmt.Errorf("NewUserManager(): %s", err))
@@ -72,14 +69,12 @@ func NewUserManager(c *Config) (*UserManager, error) {
 		c:          c,
 	}
 
-	glog.Infoln("loading domains")
 	domains, err := c.s.ds.GetAllDomains()
 	if err != nil {
 		panic(fmt.Errorf("NewUserManager(): %s", err))
 	}
 
 	for _, d := range domains {
-		glog.Infof("adding domain [%s]\n", d.ID)
 		err = manager.AddDomain(d)
 		if err != nil {
 			panic(fmt.Errorf("NewUserManager(): %s", err))

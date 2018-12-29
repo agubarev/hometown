@@ -26,7 +26,7 @@ func TestUserStoreCreate(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -55,7 +55,7 @@ func TestUserStorePutUser(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -63,7 +63,7 @@ func TestUserStorePutUser(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(newuser)
 
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	a.NoError(err)
 }
 
@@ -76,7 +76,7 @@ func TestUserStoreGetters(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -85,32 +85,32 @@ func TestUserStoreGetters(t *testing.T) {
 	a.NotNil(newuser)
 
 	// storing
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	a.NoError(err)
 
 	// retrieving by ID
-	u, err := s.GetUserByID(context.Background(), newuser.ID)
+	u, err := s.GetByID(context.Background(), newuser.ID)
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
 	a.Equal("test@example.com", u.Email)
 
 	// retrieving by username index
-	u, err = s.GetUserByIndex(context.Background(), "username", "testuser")
+	u, err = s.GetByIndex(context.Background(), "username", "testuser")
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
 	a.Equal("test@example.com", u.Email)
 
 	// retrieving by email index
-	u, err = s.GetUserByIndex(context.Background(), "email", "test@example.com")
+	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
 	a.Equal("test@example.com", u.Email)
 
 	// retrieving by a non-existing index
-	u, err = s.GetUserByIndex(context.Background(), "no such index", "absent value")
+	u, err = s.GetByIndex(context.Background(), "no such index", "absent value")
 	a.Error(err)
 	a.Nil(u)
 }
@@ -124,7 +124,7 @@ func TestUserStoreDelete(t *testing.T) {
 	a.NotNil(db)
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -135,22 +135,22 @@ func TestUserStoreDelete(t *testing.T) {
 	// storing and retrieving to make sure it exists
 	//---------------------------------------------------------------------------
 
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	a.NoError(err)
 
-	u, err := s.GetUserByID(context.Background(), newuser.ID)
-	a.NoError(err)
-	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
-
-	u, err = s.GetUserByIndex(context.Background(), "username", "testuser")
+	u, err := s.GetByID(context.Background(), newuser.ID)
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
 	a.Equal("test@example.com", u.Email)
 
-	u, err = s.GetUserByIndex(context.Background(), "email", "test@example.com")
+	u, err = s.GetByIndex(context.Background(), "username", "testuser")
+	a.NoError(err)
+	a.NotNil(u)
+	a.Equal("testuser", u.Username)
+	a.Equal("test@example.com", u.Email)
+
+	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal("testuser", u.Username)
@@ -161,18 +161,18 @@ func TestUserStoreDelete(t *testing.T) {
 	// along with all its indexes
 	//---------------------------------------------------------------------------
 
-	err = s.DeleteUser(context.Background(), u.ID)
+	err = s.Delete(context.Background(), u.ID)
 	a.NoError(err)
 
-	u, err = s.GetUserByID(context.Background(), newuser.ID)
+	u, err = s.GetByID(context.Background(), newuser.ID)
 	a.EqualError(err, ErrUserNotFound.Error())
 	a.Nil(u)
 
-	u, err = s.GetUserByIndex(context.Background(), "username", "testuser")
+	u, err = s.GetByIndex(context.Background(), "username", "testuser")
 	a.EqualError(err, ErrUserNotFound.Error())
 	a.Nil(u)
 
-	u, err = s.GetUserByIndex(context.Background(), "email", "test@example.com")
+	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
 	a.EqualError(err, ErrUserNotFound.Error())
 	a.Nil(u)
 }
@@ -190,7 +190,7 @@ func BenchmarkUserStorePutUser(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, NewUserStoreCache(1000))
+	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	var newuser *User
 
 	for n := 0; n < b.N; n++ {
@@ -199,7 +199,7 @@ func BenchmarkUserStorePutUser(b *testing.B) {
 			panic(err)
 		}
 
-		err = s.PutUser(context.Background(), newuser)
+		err = s.Put(context.Background(), newuser)
 		if err != nil {
 			panic(err)
 		}
@@ -215,14 +215,14 @@ func BenchmarkUserStoreGetByID(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetUserByID(context.Background(), newuser.ID)
+		_, err = s.GetByID(context.Background(), newuser.ID)
 		if err != nil {
 			panic(err)
 		}
@@ -238,14 +238,14 @@ func BenchmarkUserStoreGetByIDWithCaching(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, NewUserStoreCache(1000))
+	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetUserByID(context.Background(), newuser.ID)
+		_, err = s.GetByID(context.Background(), newuser.ID)
 		if err != nil {
 			panic(err)
 		}
@@ -260,14 +260,14 @@ func BenchmarkUserStoreGetByUsername(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetUserByIndex(context.Background(), "username", newuser.Username)
+		_, err = s.GetByIndex(context.Background(), "username", newuser.Username)
 		if err != nil {
 			panic(err)
 		}
@@ -283,14 +283,14 @@ func BenchmarkUserStoreGetByUsernameWithCaching(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, NewUserStoreCache(1000))
+	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetUserByIndex(context.Background(), "username", newuser.Username)
+		_, err = s.GetByIndex(context.Background(), "username", newuser.Username)
 		if err != nil {
 			panic(err)
 		}
@@ -306,14 +306,14 @@ func BenchmarkUserStoreGetByEmail(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, nil)
+	s, err := NewDefaultUserStore(db, nil)
 	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetUserByIndex(context.Background(), "email", newuser.Email)
+		_, err = s.GetByIndex(context.Background(), "email", newuser.Email)
 		if err != nil {
 			panic(err)
 		}
@@ -329,14 +329,14 @@ func BenchmarkUserStoreGetByEmailWithCaching(b *testing.B) {
 	}
 	defer db.Close()
 
-	s, err := NewBoltStore(db, NewUserStoreCache(1000))
+	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.PutUser(context.Background(), newuser)
+	err = s.Put(context.Background(), newuser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetUserByIndex(context.Background(), "email", newuser.Email)
+		_, err = s.GetByIndex(context.Background(), "email", newuser.Email)
 		if err != nil {
 			panic(err)
 		}

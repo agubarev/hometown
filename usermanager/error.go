@@ -25,6 +25,7 @@ var (
 	ErrNilAccessPolicyStore = errors.New("access policy store is nil")
 	ErrNilDB                = errors.New("database is nil")
 	ErrIndexNotFound        = errors.New("index not found")
+	ErrRelationNotFound     = errors.New("relation not found")
 	ErrUserNotFound         = errors.New("user not found")
 	ErrEmailNotFound        = errors.New("email not found")
 	ErrInvalidID            = errors.New("invalid ID")
