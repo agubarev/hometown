@@ -116,7 +116,7 @@ func (g *Group) IsCircuited() (bool, error) {
 	// moving up a parent tree until nil is reached or the signs of circulation are found
 	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
 	p := g.Parent
-	timeout := time.Now().Add(10 * time.Millisecond)
+	timeout := time.Now().Add(5 * time.Millisecond)
 	for !time.Now().After(timeout) {
 		if p == nil {
 			// it's all good, reached a nil parent

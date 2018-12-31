@@ -294,3 +294,196 @@ func TestGroupStoreGetAllRelation(t *testing.T) {
 	a.Equal(rs[g.ID][1], u2.ID)
 	a.Equal(rs[g.ID][2], u3.ID)
 }
+
+func TestGroupStoreGetRelationByGroupID(t *testing.T) {
+	t.Parallel()
+	a := assert.New(t)
+
+	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	a.NoError(err)
+	a.NotNil(db)
+	defer os.Remove(db.Path())
+
+	ctx := context.Background()
+
+	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(err)
+	a.NotNil(s)
+
+	g, err := usermanager.NewGroup(usermanager.GKGroup, "test_group", "test group", nil)
+	a.NotNil(g)
+	a.NoError(err)
+
+	g2, err := usermanager.NewGroup(usermanager.GKGroup, "test_group_2", "test group 2", nil)
+	a.NotNil(g)
+	a.NoError(err)
+
+	u1, err := usermanager.NewUser("testuser1", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u1)
+
+	u2, err := usermanager.NewUser("testuser2", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u2)
+
+	u3, err := usermanager.NewUser("testuser3", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u3)
+
+	u4, err := usermanager.NewUser("testuser4", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u3)
+
+	u5, err := usermanager.NewUser("testuser5", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u3)
+
+	err = s.PutRelation(ctx, g.ID, u1.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g.ID, u2.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g.ID, u3.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g2.ID, u4.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g2.ID, u5.ID)
+	a.NoError(err)
+
+	// group 1
+	rs, err := s.GetRelationByGroupID(ctx, g.ID)
+	a.NoError(err)
+	a.Contains(rs, g.ID)
+	a.Equal(rs[g.ID][0], u1.ID)
+	a.Equal(rs[g.ID][1], u2.ID)
+	a.Equal(rs[g.ID][2], u3.ID)
+
+	// group 2
+	rs, err = s.GetRelationByGroupID(ctx, g2.ID)
+	a.NoError(err)
+	a.Contains(rs, g2.ID)
+	a.Equal(rs[g2.ID][0], u4.ID)
+	a.Equal(rs[g2.ID][1], u5.ID)
+}
+
+func TestGroupStoreDeleteRelation(t *testing.T) {
+	t.Parallel()
+	a := assert.New(t)
+
+	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	a.NoError(err)
+	a.NotNil(db)
+	defer os.Remove(db.Path())
+
+	ctx := context.Background()
+
+	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(err)
+	a.NotNil(s)
+
+	g, err := usermanager.NewGroup(usermanager.GKGroup, "test_group", "test group", nil)
+	a.NotNil(g)
+	a.NoError(err)
+
+	u, err := usermanager.NewUser("testuser", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u)
+
+	yes, err := s.HasRelation(ctx, g.ID, u.ID)
+	a.False(yes)
+	a.EqualError(err, usermanager.ErrRelationNotFound.Error())
+
+	err = s.Put(ctx, g)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g.ID, u.ID)
+	a.NoError(err)
+
+	yes, err = s.HasRelation(ctx, g.ID, u.ID)
+	a.True(yes)
+	a.NoError(err)
+
+	err = s.DeleteRelation(ctx, g.ID, u.ID)
+	a.NoError(err)
+
+	yes, err = s.HasRelation(ctx, g.ID, u.ID)
+	a.False(yes)
+	a.EqualError(err, usermanager.ErrRelationNotFound.Error())
+}
+
+func TestGroupStoreDeleteRelationByGroupID(t *testing.T) {
+	t.Parallel()
+	a := assert.New(t)
+
+	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	a.NoError(err)
+	a.NotNil(db)
+	defer os.Remove(db.Path())
+
+	ctx := context.Background()
+
+	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(err)
+	a.NotNil(s)
+
+	g, err := usermanager.NewGroup(usermanager.GKGroup, "test_group", "test group", nil)
+	a.NotNil(g)
+	a.NoError(err)
+
+	g2, err := usermanager.NewGroup(usermanager.GKGroup, "test_group_2", "test group 2", nil)
+	a.NotNil(g)
+	a.NoError(err)
+
+	u1, err := usermanager.NewUser("testuser1", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u1)
+
+	u2, err := usermanager.NewUser("testuser2", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u2)
+
+	u3, err := usermanager.NewUser("testuser3", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u3)
+
+	u4, err := usermanager.NewUser("testuser4", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u3)
+
+	u5, err := usermanager.NewUser("testuser5", "testuser@example.com")
+	a.NoError(err)
+	a.NotNil(u3)
+
+	err = s.PutRelation(ctx, g.ID, u1.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g.ID, u2.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g.ID, u3.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g2.ID, u4.ID)
+	a.NoError(err)
+
+	err = s.PutRelation(ctx, g2.ID, u5.ID)
+	a.NoError(err)
+
+	err = s.DeleteRelationByGroupID(ctx, g.ID)
+	a.NoError(err)
+
+	// group 1; should be absent now
+	rs, err := s.GetRelationByGroupID(ctx, g.ID)
+	a.NoError(err)
+	a.NotContains(rs, g.ID)
+
+	// group 2
+	rs, err = s.GetRelationByGroupID(ctx, g2.ID)
+	a.NoError(err)
+	a.Contains(rs, g2.ID)
+	a.Equal(rs[g2.ID][0], u4.ID)
+	a.Equal(rs[g2.ID][1], u5.ID)
+}
