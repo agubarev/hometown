@@ -1,6 +1,7 @@
 package usermanager
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -17,22 +18,30 @@ type UserManager struct {
 	// domain index map for faster runtime access
 	idMap map[ulid.ULID]*Domain
 
-	c *Config
+	c Config
 	sync.RWMutex
 }
 
 // Config main configuration for the user manager
 type Config struct {
-	s struct {
-		ds  DomainStore
-		us  UserStore
-		gs  GroupStore
-		aps AccessPolicyStore
+	ctx context.Context
+	s   Store
+}
+
+// NewConfig initializing a new user manager config
+func NewConfig(ctx context.Context, s Store) Config {
+	return Config{
+		ctx: ctx,
+		s:   s,
 	}
 }
 
 // Validate user manager config
 func (c *Config) Validate() error {
+	if c.ctx == nil {
+		return ErrNilRootContext
+	}
+
 	if c.s.ds == nil {
 		return ErrNilDomainStore
 	}
@@ -53,12 +62,12 @@ func (c *Config) Validate() error {
 }
 
 // NewUserManager initializing a new user manager
-func NewUserManager(c *Config) (*UserManager, error) {
+func NewUserManager(c Config) (*UserManager, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 
-	root, err := c.s.ds.GetRootDomain()
+	root, err := c.s.ds.GetRoot(c.ctx)
 	if err != nil {
 		panic(fmt.Errorf("NewUserManager(): %s", err))
 	}
@@ -69,7 +78,7 @@ func NewUserManager(c *Config) (*UserManager, error) {
 		c:          c,
 	}
 
-	domains, err := c.s.ds.GetAllDomains()
+	domains, err := c.s.ds.GetAll(c.ctx)
 	if err != nil {
 		panic(fmt.Errorf("NewUserManager(): %s", err))
 	}
@@ -96,9 +105,7 @@ func (manager *UserManager) CreateDomain(owner *User) (*Domain, error) {
 		return nil, ErrNilUser
 	}
 
-	//---------------------------------------------------------------------------
 	// initializing containers
-	//---------------------------------------------------------------------------
 	uc, err := NewUserContainer(manager.c.s.us)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)

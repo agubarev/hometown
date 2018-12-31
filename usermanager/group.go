@@ -18,16 +18,23 @@ import (
 type GroupMembers []*User
 
 // GroupKind designates a group kind i.e. Group, Role etc...
-type GroupKind string
+type GroupKind uint8
 
 func (k GroupKind) String() string {
-	return string(k)
+	switch k {
+	case 1:
+		return "group"
+	case 2:
+		return "role group"
+	default:
+		return "unknown group kind"
+	}
 }
 
 // group kinds
 const (
-	GKGroup GroupKind = "group"
-	GKRole  GroupKind = "role group"
+	GKGroup GroupKind = iota + 1
+	GKRole
 )
 
 // Group represents a user group

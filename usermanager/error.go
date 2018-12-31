@@ -4,6 +4,7 @@ import "errors"
 
 // errors
 var (
+	ErrNilRootContext       = errors.New("root context is nil")
 	ErrAccessDenied         = errors.New("user access denied")
 	ErrNoViewRight          = errors.New("user is not allowed to view this")
 	ErrNilAssignor          = errors.New("assignor user is nil")
