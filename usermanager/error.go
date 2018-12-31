@@ -42,6 +42,6 @@ var (
 	ErrNilContainer         = errors.New("container is nil")
 	ErrNotMember            = errors.New("user is not a member")
 	ErrAlreadyMember        = errors.New("already a member")
-	ErrCircularParent       = errors.New("circular parenting")
-	ErrCircularCheckTimeout = errors.New("circular check has reached timeout")
+	ErrCircuitedParent      = errors.New("circuited parenting")
+	ErrCircuitCheckTimeout  = errors.New("circuit check timed out")
 )

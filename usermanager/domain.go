@@ -2,9 +2,8 @@ package usermanager
 
 import (
 	"fmt"
+	"log"
 	"sync"
-
-	"github.com/golang/glog"
 
 	"github.com/oklog/ulid"
 	"gitlab.com/agubarev/hometown/util"
@@ -40,7 +39,7 @@ func NewDomain(owner *User, s DomainStore, uc *UserContainer, gc *GroupContainer
 
 	// just log warning if the store isn't set at this point, for now
 	if s == nil {
-		glog.Warning("NewDomain: store isn't set")
+		log.Println("WARNING: NewDomain() store isn't set")
 	}
 
 	// validating containers

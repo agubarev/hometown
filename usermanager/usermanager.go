@@ -2,9 +2,9 @@ package usermanager
 
 import (
 	"fmt"
+	"log"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/oklog/ulid"
 )
 
@@ -120,7 +120,7 @@ func (manager *UserManager) CreateDomain(owner *User) (*Domain, error) {
 		return nil, fmt.Errorf("CreateDomain() failed to add domain: %s", err)
 	}
 
-	glog.Infof("created new domain [%s]\n", domain.ID)
+	log.Printf("created new domain [%s]\n", domain.ID)
 
 	return domain, nil
 }
@@ -139,7 +139,7 @@ func (manager *UserManager) AddDomain(domain *Domain) error {
 		return fmt.Errorf("AddDomain(%s) failed: %s", domain, err)
 	}
 
-	glog.Infof("adding domain [%s]\n", domain.ID)
+	log.Printf("adding domain [%s]\n", domain.ID)
 
 	// TODO: add subdomain
 

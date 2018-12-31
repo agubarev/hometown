@@ -3,11 +3,10 @@ package usermanager
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/golang/glog"
 
 	"github.com/asaskevich/govalidator"
 
@@ -28,7 +27,7 @@ func (k GroupKind) String() string {
 // group kinds
 const (
 	GKGroup GroupKind = "group"
-	GKRole  GroupKind = "role"
+	GKRole  GroupKind = "role group"
 )
 
 // Group represents a user group
@@ -37,11 +36,13 @@ const (
 type Group struct {
 	ID           ulid.ULID     `json:"id"`
 	Kind         GroupKind     `json:"kind"`
-	IsDefault    bool          `json:"is_default"`
+	IsDefault    bool          `json:"def"`
+	HasParent    bool          `json:"hasp"`
+	ParentID     ulid.ULID     `json:"pid"`
 	Parent       *Group        `json:"-"`
 	Key          string        `json:"key" valid:"required,ascii"`
 	Name         string        `json:"name" valid:"required"`
-	Description  string        `json:"description" valid:"optional,length(0|200)"`
+	Description  string        `json:"desc" valid:"optional,length(0|200)"`
 	AccessPolicy *AccessPolicy `json:"-"`
 
 	container *GroupContainer
@@ -54,20 +55,23 @@ type Group struct {
 // NewGroup initializing a new group struct
 // IMPORTANT: group kind is permanent and must never change
 func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, error) {
+	g := &Group{
+		ID:        util.NewULID(),
+		Kind:      kind,
+		Key:       strings.ToLower(key),
+		Name:      name,
+		members:   make(GroupMembers, 0),
+		memberMap: make(map[ulid.ULID]*User),
+	}
+
 	if parent != nil {
 		if err := parent.Validate(); err != nil {
 			return nil, fmt.Errorf("NewGroup() parent validation failed: %s", err)
 		}
 	}
 
-	g := &Group{
-		ID:        util.NewULID(),
-		Kind:      kind,
-		Parent:    parent,
-		Key:       strings.ToLower(key),
-		Name:      name,
-		members:   make(GroupMembers, 0),
-		memberMap: make(map[ulid.ULID]*User),
+	if err := g.SetParent(parent); err != nil {
+		return nil, err
 	}
 
 	return g, g.Validate()
@@ -85,13 +89,13 @@ func (g *Group) Validate() error {
 	}
 
 	// checking for parent circulation
-	if isCircular, err := g.IsCircular(); isCircular || (err != nil) {
+	if isCircuited, err := g.IsCircuited(); isCircuited || (err != nil) {
 		if err != nil {
 			return fmt.Errorf("%s validation failed: %s", g.Kind, err)
 		}
 
-		if isCircular {
-			return fmt.Errorf("%s validation failed: %s", g.Kind, ErrCircularParent)
+		if isCircuited {
+			return fmt.Errorf("%s validation failed: %s", g.Kind, ErrCircuitedParent)
 		}
 	}
 
@@ -103,8 +107,8 @@ func (g *Group) Validate() error {
 	return nil
 }
 
-// IsCircular tests whether the parents trace back to a nil
-func (g *Group) IsCircular() (bool, error) {
+// IsCircuited tests whether the parents trace back to a nil
+func (g *Group) IsCircuited() (bool, error) {
 	if g.Parent == nil {
 		return false, nil
 	}
@@ -123,47 +127,46 @@ func (g *Group) IsCircular() (bool, error) {
 		p = p.Parent
 	}
 
-	return false, ErrCircularCheckTimeout
-}
-
-// HasParent tracing parents back to tell whether a given group
-// is already among this group's parents
-func (g *Group) HasParent(p *Group) bool {
-	// nil is not considered as a parent even though the top of a parent tree is nil
-	if p == nil {
-		return false
-	}
-
-	// tracing backwards until a nil parent is met; at this point only a
-	// requested parent is searched and not tested whether the relations
-	// are circulated among themselves
-	pg := g.Parent
-	for {
-		// testing equality by comparing each group's ID
-		if pg.ID == p.ID {
-			return true
-		}
-
-		// no more parents, returning
-		if pg.Parent == nil {
-			return false
-		}
-
-		// moving on to a parent's parent
-		pg = pg.Parent
-	}
+	return false, ErrCircuitCheckTimeout
 }
 
 // SetParent assigning a parent group, could be nil
 func (g *Group) SetParent(p *Group) error {
-	// checking whether new parent already is set somewhere along the parenthood
-	if g.HasParent(p) {
-		return ErrDuplicateParent
-	}
+	// since parent could be nil thus it's kind is irrelevant
+	if p != nil {
+		// checking whether new parent already is set somewhere along the parenthood
+		// by tracing backwards until a nil parent is met; at this point only a
+		// requested parent is searched and not tested whether the relations
+		// are circuited among themselves
+		pg := g.Parent
+		for {
+			// testing equality by comparing each group's ID
+			if pg.ID == p.ID {
+				return ErrDuplicateParent
+			}
 
-	// group kind must be the same all the way back to the top
-	if g.Kind != p.Kind {
-		return ErrGroupKindMismatch
+			// no more parents, breaking
+			if pg.Parent == nil {
+				break
+			}
+
+			// moving on to a parent's parent
+			pg = pg.Parent
+		}
+
+		// group kind must be the same all the way back to the top
+		if g.Kind != p.Kind {
+			return ErrGroupKindMismatch
+		}
+
+		// ParentID is used to rebuild parent-child connections after
+		// loading groups from the store
+		// HasParent flags whether this group has a parent because
+		// ULID can't be nil
+		g.HasParent = true
+		g.ParentID = p.ID
+	} else {
+		g.HasParent = false
 	}
 
 	// assingning a new parent
@@ -217,7 +220,7 @@ func (g *Group) AddMember(u *User) error {
 			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
 		}
 	} else {
-		glog.Infof("adding %s member %s without storing\n", g.ID, u.IDString())
+		log.Printf("WARNING: AddMember() adding %s member to %s without storing\n", u.IDString(), g.IDString())
 	}
 
 	// updating runtime data
@@ -228,7 +231,7 @@ func (g *Group) AddMember(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.TrackGroup(g); err != nil {
-		glog.Warningf("AddMember() user failed to track group(%s): %s\n", g.IDString(), err)
+		log.Printf("WARNING: AddMember() user failed to track group(%s): %s\n", g.IDString(), err)
 	}
 
 	return nil
@@ -269,7 +272,7 @@ func (g *Group) RemoveMember(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.UntrackGroup(g.ID); err != nil {
-		glog.Warningf("RemoveMember() user failed to untrack group(%s): %s\n", g.IDString(), err)
+		log.Printf("WARNING: RemoveMember() user failed to untrack group(%s): %s\n", g.IDString(), err)
 	}
 
 	return nil

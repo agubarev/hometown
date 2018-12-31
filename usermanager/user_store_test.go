@@ -3,6 +3,7 @@ package usermanager
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"testing"
 
@@ -11,12 +12,6 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-func getUserStoreList() []UserStore {
-	stores := make([]UserStore, 0)
-
-	return stores
-}
-
 func TestUserStoreCreate(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
@@ -24,7 +19,7 @@ func TestUserStoreCreate(t *testing.T) {
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
 	a.NoError(err)
 	a.NotNil(db)
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
@@ -53,7 +48,7 @@ func TestUserStorePutUser(t *testing.T) {
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
 	a.NoError(err)
 	a.NotNil(db)
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
@@ -74,7 +69,7 @@ func TestUserStoreGetters(t *testing.T) {
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
 	a.NoError(err)
 	a.NotNil(db)
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
@@ -122,7 +117,7 @@ func TestUserStoreDelete(t *testing.T) {
 	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
 	a.NoError(err)
 	a.NotNil(db)
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	a.NoError(err)
@@ -188,7 +183,7 @@ func BenchmarkUserStorePutUser(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	var newuser *User
@@ -213,7 +208,7 @@ func BenchmarkUserStoreGetByID(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	newuser, err := NewUser("testuser", "test@example.com")
@@ -236,7 +231,7 @@ func BenchmarkUserStoreGetByIDWithCaching(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	newuser, err := NewUser("testuser", "test@example.com")
@@ -258,7 +253,7 @@ func BenchmarkUserStoreGetByUsername(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	newuser, err := NewUser("testuser", "test@example.com")
@@ -281,7 +276,7 @@ func BenchmarkUserStoreGetByUsernameWithCaching(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	newuser, err := NewUser("testuser", "test@example.com")
@@ -304,7 +299,7 @@ func BenchmarkUserStoreGetByEmail(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, nil)
 	newuser, err := NewUser("testuser", "test@example.com")
@@ -327,7 +322,7 @@ func BenchmarkUserStoreGetByEmailWithCaching(b *testing.B) {
 	if err != nil {
 		panic(err)
 	}
-	defer db.Close()
+	defer os.Remove(db.Path())
 
 	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	newuser, err := NewUser("testuser", "test@example.com")

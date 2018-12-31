@@ -2,9 +2,9 @@ package usermanager
 
 import (
 	"errors"
+	"log"
 	"sync"
 
-	"github.com/golang/glog"
 	"github.com/oklog/ulid"
 	"gitlab.com/agubarev/hometown/util"
 )
@@ -28,7 +28,7 @@ type GroupContainer struct {
 // NewGroupContainer initializing a new group container attached to domain
 func NewGroupContainer(s GroupStore) (*GroupContainer, error) {
 	if s == nil {
-		glog.Warningln("NewGroupContainer: store isn't set")
+		log.Println("NewGroupContainer: store isn't set")
 	}
 
 	c := &GroupContainer{

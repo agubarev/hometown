@@ -58,7 +58,7 @@ type Metadata struct {
 
 // IDString returns short info about the user
 func (u User) IDString() string {
-	return fmt.Sprintf("user[%s:%s]", u.ID, u.Username)
+	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
 }
 
 // Fullname returns full name of a user

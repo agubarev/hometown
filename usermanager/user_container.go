@@ -2,9 +2,8 @@ package usermanager
 
 import (
 	"errors"
+	"log"
 	"sync"
-
-	"github.com/golang/glog"
 
 	"github.com/oklog/ulid"
 	"gitlab.com/agubarev/hometown/util"
@@ -31,7 +30,7 @@ type UserContainer struct {
 // NewUserContainer initializing a new user container
 func NewUserContainer(s UserStore) (*UserContainer, error) {
 	if s == nil {
-		glog.Warningln("NewUserContainer: store isn't set")
+		log.Println("WARNING: NewUserContainer() store isn't set")
 	}
 
 	c := &UserContainer{
