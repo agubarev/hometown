@@ -5,6 +5,7 @@ import "errors"
 // errors
 var (
 	ErrNilRootContext       = errors.New("root context is nil")
+	ErrNilAccessPolicy      = errors.New("access policy is nil")
 	ErrAccessDenied         = errors.New("user access denied")
 	ErrNoViewRight          = errors.New("user is not allowed to view this")
 	ErrNilAssignor          = errors.New("assignor user is nil")
@@ -24,6 +25,7 @@ var (
 	ErrNilRole              = errors.New("role is nil")
 	ErrNoName               = errors.New("empty role name")
 	ErrNilAccessPolicyStore = errors.New("access policy store is nil")
+	ErrAccessPolicyNotFound = errors.New("access policy not found")
 	ErrNilDB                = errors.New("database is nil")
 	ErrIndexNotFound        = errors.New("index not found")
 	ErrRelationNotFound     = errors.New("relation not found")

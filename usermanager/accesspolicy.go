@@ -69,22 +69,21 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
+// NOTE: policy ID must be equal to the target's ID
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
 // TODO: consider adding a mutex
 // TODO: consider making policy to be completely decoupled and agnostic about the subject types
 // TODO: add caching mechanism to skip rights summarization
 type AccessPolicy struct {
-	// TODO: add ID
-	// TODO: add namespace
 	ID           ulid.ULID     `json:"id"`
-	Namespace    string        `json:"namespace"`
-	Target       interface{}   `json:"-"`
-	Owner        *User         `json:"owner"`
+	Namespace    string        `json:"ns"`
+	OwnerID      ulid.ULID     `json:"oid"`
+	Owner        *User         `json:"-"`
+	ParentID     ulid.ULID     `json:"pid"`
 	Parent       *AccessPolicy `json:"-"`
-	IsExtended   bool          `json:"is_extend"`
-	IsInherited  bool          `json:"is_inherited"`
-	IsLocked     bool          `json:"is_locked"`
-	RightsRoster *RightsRoster `json:"rights_roster"`
+	IsExtended   bool          `json:"ie"`
+	IsInherited  bool          `json:"ii"`
+	RightsRoster *RightsRoster `json:"-"`
 	sync.RWMutex
 }
 
@@ -106,15 +105,24 @@ func NewAccessPolicy(owner *User, parent *AccessPolicy, isInherited bool, isExte
 		},
 	}
 
-	// just using a pointer to parent rights
-	if ap.IsInherited && parent != nil {
-		ap.RightsRoster = parent.RightsRoster
+	if owner != nil {
+		ap.OwnerID = owner.ID
+	}
+
+	if parent != nil {
+		ap.ParentID = parent.ID
+
+		if ap.IsInherited {
+			// just using a pointer to parent rights
+			ap.RightsRoster = parent.RightsRoster
+		}
 	}
 
 	return ap
 }
 
 // Seal the policy to prevent further changes
+// TODO: do I really want this?
 func (ap *AccessPolicy) Seal() error {
 	panic("not implemented")
 
@@ -169,6 +177,12 @@ func (ap *AccessPolicy) UserAccess(u *User) AccessRight {
 }
 
 // SetPublicRights setting rights for everyone
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
 func (ap *AccessPolicy) SetPublicRights(assignor *User, rights AccessRight) error {
 	if assignor == nil {
 		return ErrNilAssignor

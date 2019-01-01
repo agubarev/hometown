@@ -21,6 +21,7 @@ func NewStore(ds DomainStore, us UserStore, gs GroupStore, aps AccessPolicyStore
 }
 
 // GroupRelationKey is a shorthand for convenience
+// TODO: rename to just RelationKey
 func GroupRelationKey(groupID ulid.ULID, userID ulid.ULID) []byte {
 	key := make([]byte, 32)
 	copy(key[0:16], groupID[0:16])
