@@ -15,6 +15,7 @@ type UserFilterFunc func(u []*User) []*User
 // UserContainer is a container responsible for all operations within its scope
 // TODO add default groups which need not to be assigned
 // TODO add contexts for cancellation
+// TODO: use radix tree for id, username and email indexing
 type UserContainer struct {
 	ID ulid.ULID `json:"id"`
 

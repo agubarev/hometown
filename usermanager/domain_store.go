@@ -76,7 +76,7 @@ func (s *DefaultDomainStore) GetRoot(ctx context.Context) (*Domain, error) {
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		domainBucket := tx.Bucket([]byte("DOMAIN"))
 		if domainBucket == nil {
-			return fmt.Errorf("GetRoot(%s) failed to load domain bucket: %s", ErrBucketNotFound)
+			return fmt.Errorf("GetRoot() failed to load domain bucket: %s", ErrBucketNotFound)
 		}
 
 		data := domainBucket.Get([]byte("ROOT_DOMAIN"))

@@ -10,16 +10,12 @@ import (
 )
 
 // AccessPolicyStore is a storage contract interface for the AccessPolicy objects
+// TODO: keep rights separate and segregated by it's kind i.e. Public, Group, Role, User etc.
 type AccessPolicyStore interface {
-	Put(ctx context.Context, p *AccessPolicy)
-	GetByID(ctx context.Context, id ulid.ULID) *AccessPolicy
-	GetByUser(ctx context.Context, userID ulid.ULID) []*AccessPolicy
-	GetByNamespace(ctx context.Context, ns string) []*AccessPolicy
-	GetRightByUserID(ctx context.Context, userID ulid.ULID) []*RightsRoster
-	GetAll(ctx context.Context) []*AccessPolicy
+	Put(ctx context.Context, p *AccessPolicy) error
+	GetByID(ctx context.Context, id ulid.ULID) (*AccessPolicy, error)
+	GetAll(ctx context.Context) ([]*AccessPolicy, error)
 	Delete(ctx context.Context, id ulid.ULID) error
-	DeleteRight(ctx context.Context, policyID ulid.ULID, userID ulid.ULID) error
-	DeleteRightByPolicyID(ctx context.Context, policyID ulid.ULID) error
 }
 
 // DefaultAccessPolicyStore is a default access policy store implementation
@@ -53,6 +49,7 @@ func (s *DefaultAccessPolicyStore) Put(ctx context.Context, ap *AccessPolicy) er
 		return ErrNilAccessPolicy
 	}
 
+	// storing a policy and all of its rights
 	return s.db.Update(func(tx *bbolt.Tx) error {
 		apBucket := tx.Bucket([]byte("ACCESSPOLICY"))
 		if apBucket == nil {
@@ -119,9 +116,9 @@ func (s *DefaultAccessPolicyStore) GetAll(ctx context.Context) ([]*AccessPolicy,
 	return aps, err
 }
 
-// Delete from the store by access policy ID
+// Delete access policy
 func (s *DefaultAccessPolicyStore) Delete(ctx context.Context, id ulid.ULID) error {
-	err := s.db.Update(func(tx *bbolt.Tx) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
 		apBucket := tx.Bucket([]byte("ACCESSPOLICY"))
 		if apBucket == nil {
 			return fmt.Errorf("failed to load access policy bucket: %s", ErrBucketNotFound)
@@ -135,15 +132,6 @@ func (s *DefaultAccessPolicyStore) Delete(ctx context.Context, id ulid.ULID) err
 
 		return nil
 	})
-	if err != nil {
-		return fmt.Errorf("Delete() failed to delete a access policy(%s): %s", id, err)
-	}
-
-	// deleting all of this access policy's relations
-	err = s.DeleteRightByPolicyID(ctx, id)
-	if err != nil {
-		return fmt.Errorf("Delete() failed to delete access policy relations: %s", err)
-	}
 
 	return nil
 }

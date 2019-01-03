@@ -2,7 +2,6 @@ package usermanager
 
 import (
 	"fmt"
-	"log"
 	"sync"
 
 	"github.com/oklog/ulid"
@@ -31,24 +30,10 @@ func (d *Domain) String() string {
 }
 
 // NewDomain initializing new domain
-func NewDomain(owner *User, s DomainStore, uc *UserContainer, gc *GroupContainer) (*Domain, error) {
+func NewDomain(owner *User) (*Domain, error) {
 	// each new domain must have an owner user assigned
 	if owner == nil {
 		return nil, fmt.Errorf("NewDomain() failed to set owner: %s", ErrNilUser)
-	}
-
-	// just log warning if the store isn't set at this point, for now
-	if s == nil {
-		log.Println("WARNING: NewDomain() store isn't set")
-	}
-
-	// validating containers
-	if err := uc.Validate(); err != nil {
-		return nil, fmt.Errorf("NewDomain() failed to validate user container: %s", err)
-	}
-
-	if err := gc.Validate(); err != nil {
-		return nil, fmt.Errorf("NewDomain() failed to validate group container: %s", err)
 	}
 
 	domain := &Domain{
@@ -59,6 +44,7 @@ func NewDomain(owner *User, s DomainStore, uc *UserContainer, gc *GroupContainer
 
 		// subdomains are reserved for the future iterations because
 		// I haven't thought this through, whether I want a deeper nesting
+		// TODO: do I really need this?
 		Subdomains: make([]*Domain, 0),
 
 		// TODO think through the default initial state of an AccessPolicy
@@ -68,6 +54,25 @@ func NewDomain(owner *User, s DomainStore, uc *UserContainer, gc *GroupContainer
 	}
 
 	return domain, nil
+}
+
+// Init the domain
+func (d *Domain) Init(s DomainStore, uc *UserContainer, gc *GroupContainer) error {
+	// domain store must be set during initialization
+	if s == nil {
+		return ErrNilDomainStore
+	}
+
+	// validating containers
+	if err := uc.Validate(); err != nil {
+		return fmt.Errorf("Domain.Init() failed to validate user container: %s", err)
+	}
+
+	if err := gc.Validate(); err != nil {
+		return fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
+	}
+
+	return nil
 }
 
 // SetParent domain

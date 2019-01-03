@@ -69,7 +69,7 @@ func NewUserManager(c Config) (*UserManager, error) {
 
 	root, err := c.s.ds.GetRoot(c.ctx)
 	if err != nil {
-		panic(fmt.Errorf("NewUserManager(): %s", err))
+		return nil, fmt.Errorf("NewUserManager(): %s", err)
 	}
 
 	// initializing the main struct
@@ -117,7 +117,13 @@ func (manager *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	}
 
 	// initializing new domain
-	domain, err := NewDomain(owner, manager.c.s.ds, uc, gc)
+	domain, err := NewDomain(owner)
+	if err != nil {
+		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
+	}
+
+	// initializing new domain
+	err = domain.Init(manager.c.s.ds, uc, gc)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}

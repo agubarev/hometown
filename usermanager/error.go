@@ -6,6 +6,7 @@ import "errors"
 var (
 	ErrNilRootContext       = errors.New("root context is nil")
 	ErrNilAccessPolicy      = errors.New("access policy is nil")
+	ErrNilRightsRoster      = errors.New("rights roster is nil")
 	ErrAccessDenied         = errors.New("user access denied")
 	ErrNoViewRight          = errors.New("user is not allowed to view this")
 	ErrNilAssignor          = errors.New("assignor user is nil")
@@ -22,6 +23,7 @@ var (
 	ErrEmptyGroupName       = errors.New("empty group name")
 	ErrDuplicateParent      = errors.New("duplicate parent")
 	ErrGroupKindMismatch    = errors.New("group kinds mismatch")
+	ErrInvalidGroupKind     = errors.New("invalid group kind")
 	ErrNilRole              = errors.New("role is nil")
 	ErrNoName               = errors.New("empty role name")
 	ErrNilAccessPolicyStore = errors.New("access policy store is nil")

@@ -286,3 +286,7 @@ func TestIsOwner(t *testing.T) {
 	a.True(p.IsOwner(testuser))
 	a.False(p.IsOwner(testuser2))
 }
+
+func TestAccessPolicyCreateSnapshot(t *testing.T) {
+
+}

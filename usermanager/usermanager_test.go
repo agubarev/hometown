@@ -21,17 +21,32 @@ func TestUserManagerTestNew(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	s := usermanager.NewStore(
-		usermanager.NewDefaultDomainStore(db),
-		usermanager.NewDefaultUserStore(db),
-		usermanager.NewDefaultGroupStore(db),
-		usermanager.NewDefaultAccessPolicyStore(db),
-	)
+	rootUser, err := usermanager.NewUser("root", "root@example.com")
+	a.NoError(err)
+	a.NotNil(rootUser)
 
-	c := usermanager.NewConfig(
-		context.Background(),
-		s,
-	)
+	rootDomain, err := usermanager.NewDomain(rootUser)
+	a.NoError(err)
+	a.NotNil(rootDomain)
+
+	ds, err := usermanager.NewDefaultDomainStore(db)
+	a.NoError(err)
+	a.NotNil(ds)
+
+	us, err := usermanager.NewDefaultUserStore(db, usermanager.NewUserStoreCache(1000))
+	a.NoError(err)
+	a.NotNil(us)
+
+	gs, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(err)
+	a.NotNil(gs)
+
+	aps, err := usermanager.NewDefaultAccessPolicyStore(db)
+	a.NoError(err)
+	a.NotNil(aps)
+
+	s := usermanager.NewStore(ds, us, gs, aps)
+	c := usermanager.NewConfig(context.Background(), s)
 
 	m, err := usermanager.NewUserManager(c)
 	a.NoError(err)

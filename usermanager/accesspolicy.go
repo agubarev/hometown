@@ -7,6 +7,7 @@ import (
 )
 
 // Actor represents anything that can be an owner, assignor ar assignee
+// TODO: develop the idea
 type Actor interface {
 	ULID() ulid.ULID
 	Roles() []*Group
@@ -35,6 +36,16 @@ type RightsRoster struct {
 	Role     map[ulid.ULID]AccessRight `json:"role"`
 	Group    map[ulid.ULID]AccessRight `json:"group"`
 	User     map[ulid.ULID]AccessRight `json:"user"`
+}
+
+// NewRightsRoster is a shorthand initializer function
+func NewRightsRoster() *RightsRoster {
+	return &RightsRoster{
+		Everyone: APNoAccess,
+		Group:    make(map[ulid.ULID]AccessRight),
+		Role:     make(map[ulid.ULID]AccessRight),
+		User:     make(map[ulid.ULID]AccessRight),
+	}
 }
 
 // Summarize summarizing the resulting access right flags
@@ -69,20 +80,18 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
-// NOTE: policy ID must be equal to the target's ID
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
-// TODO: consider adding a mutex
-// TODO: consider making policy to be completely decoupled and agnostic about the subject types
 // TODO: add caching mechanism to skip rights summarization
+// TODO: disable inheritance if anything is changed about the current policy and create its own rights roster and enable extension by default
 type AccessPolicy struct {
 	ID           ulid.ULID     `json:"id"`
-	Namespace    string        `json:"ns"`
-	OwnerID      ulid.ULID     `json:"oid"`
+	Namespace    string        `json:"namespace"`
+	OwnerID      ulid.ULID     `json:"owner_id"`
 	Owner        *User         `json:"-"`
-	ParentID     ulid.ULID     `json:"pid"`
+	ParentID     ulid.ULID     `json:"parent_id"`
 	Parent       *AccessPolicy `json:"-"`
-	IsExtended   bool          `json:"ie"`
-	IsInherited  bool          `json:"ii"`
+	IsExtended   bool          `json:"is_extended"`
+	IsInherited  bool          `json:"is_inherited"`
 	RightsRoster *RightsRoster `json:"-"`
 	sync.RWMutex
 }
@@ -93,16 +102,11 @@ type AccessPolicy struct {
 // benefit from using parent's rights as default with it's own corrections/exclusions
 func NewAccessPolicy(owner *User, parent *AccessPolicy, isInherited bool, isExtended bool) *AccessPolicy {
 	ap := &AccessPolicy{
-		Owner:       owner,
-		Parent:      parent,
-		IsInherited: isInherited,
-		IsExtended:  isExtended,
-		RightsRoster: &RightsRoster{
-			Everyone: APNoAccess,
-			Group:    make(map[ulid.ULID]AccessRight),
-			Role:     make(map[ulid.ULID]AccessRight),
-			User:     make(map[ulid.ULID]AccessRight),
-		},
+		Owner:        owner,
+		Parent:       parent,
+		IsInherited:  isInherited,
+		IsExtended:   isExtended,
+		RightsRoster: NewRightsRoster(),
 	}
 
 	if owner != nil {
@@ -122,11 +126,50 @@ func NewAccessPolicy(owner *User, parent *AccessPolicy, isInherited bool, isExte
 }
 
 // Seal the policy to prevent further changes
+// the idea is to make it modifiable only by its owner
 // TODO: do I really want this?
 func (ap *AccessPolicy) Seal() error {
 	panic("not implemented")
 
 	return nil
+}
+
+// CreateSnapshot returns a snapshot copy of the access rights roster for this policy
+func (ap *AccessPolicy) CreateSnapshot() (*RightsRoster, error) {
+	if ap == nil {
+		return nil, ErrNilAccessPolicy
+	}
+
+	// must be unforgiving and explicit, returning an error
+	if ap.RightsRoster == nil {
+		return nil, ErrNilRightsRoster
+	}
+
+	// initializing new roster
+	ss := NewRightsRoster()
+
+	// copying roster values
+	ap.RLock()
+	ss.Everyone = ap.RightsRoster.Everyone
+
+	// copying group rights
+	for gid, right := range ap.RightsRoster.Group {
+		ss.Group[gid] = right
+	}
+
+	// copying role rights
+	for rid, right := range ap.RightsRoster.Role {
+		ss.Role[rid] = right
+	}
+
+	// copying user rights
+	for uid, right := range ap.RightsRoster.User {
+		ss.User[uid] = right
+	}
+
+	ap.RUnlock()
+
+	return ss, nil
 }
 
 // SetParent setting a new parent policy
@@ -138,6 +181,7 @@ func (ap *AccessPolicy) SetParent(parent *AccessPolicy) error {
 	ap.Parent = parent
 
 	// disabling inheritance to avoid unexpected behaviour
+	// TODO: think it through, is it really obvious to disable inheritance if parent is nil'ed?
 	if parent == nil {
 		ap.IsInherited = false
 	}
@@ -155,7 +199,7 @@ func (ap *AccessPolicy) UserAccess(u *User) AccessRight {
 
 	// if this u is the owner, then returning maximum possible value for AccessRight type
 	if ap.IsOwner(u) {
-		return ^AccessRight(0)
+		return APFullAccess
 	}
 
 	var rights AccessRight
@@ -166,6 +210,8 @@ func (ap *AccessPolicy) UserAccess(u *User) AccessRight {
 		ap.RLock()
 		// if extend is true and parent exists, then using parent's rights as a base value
 		if ap.Parent != nil && ap.IsExtended {
+			// addressing the parent because it traces back until it finds
+			// the first uninherited, actual policy
 			rights = ap.Parent.RightsRoster.Summarize(u)
 		}
 
@@ -210,6 +256,11 @@ func (ap *AccessPolicy) SetRoleRights(assignor *User, role *Group, rights Access
 		return ErrNilRole
 	}
 
+	// making sure it's group kind is Role
+	if role.Kind != GKRole {
+		return ErrInvalidGroupKind
+	}
+
 	// checking whether the assignor has at least the assigned rights
 	if !ap.HasRights(assignor, rights) {
 		return ErrExcessOfRights
@@ -232,6 +283,11 @@ func (ap *AccessPolicy) SetGroupRights(assignor *User, group *Group, rights Acce
 		return ErrNilGroup
 	}
 
+	// making sure it's group kind is Group
+	if group.Kind != GKGroup {
+		return ErrInvalidGroupKind
+	}
+
 	// checking whether the assignor has at least the assigned rights
 	if !ap.HasRights(assignor, rights) {
 		return ErrExcessOfRights
@@ -245,6 +301,7 @@ func (ap *AccessPolicy) SetGroupRights(assignor *User, group *Group, rights Acce
 }
 
 // SetUserRights setting rights for specific user
+// TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each access policy instance
 func (ap *AccessPolicy) SetUserRights(assignor *User, assignee *User, rights AccessRight) error {
 	if assignor == nil {
 		return ErrNilAssignor
