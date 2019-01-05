@@ -1,4 +1,4 @@
-.PHONY: build run proto
+.PHONY: build run proto clean deploy
 MAKEFLAGS += --silent
 
 proto:
@@ -12,8 +12,8 @@ proto:
 		--grpc-gateway_out=logtostderr=true:$(GOPATH)/src \
 		gitlab.com/agubarev/hometown/rpc/user/userservice.proto
 
-build: proto 
-	go install
+build: 
+	go build -o $(PWD)/bin/hometown
 
-run: proto
-	go run main.go
+run: build
+	./bin/hometown --config config/config.yaml

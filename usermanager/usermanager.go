@@ -6,10 +6,15 @@ import (
 	"log"
 	"sync"
 
+	"github.com/spf13/viper"
+
 	"github.com/oklog/ulid"
 )
 
 // UserManager is the top level structure, a domain container
+// TODO: consider naming first release `Lidia`
+// TODO: consider naming first release `Lidia`
+// TODO: consider naming first release `Lidia`
 type UserManager struct {
 	// rootDomain domain is a default Domain, all new fresh domains must
 	// use rootDomain as a parent
@@ -61,15 +66,15 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// NewUserManager initializing a new user manager
-func NewUserManager(c Config) (*UserManager, error) {
+// New initializing a new user manager
+func New(c Config) (*UserManager, error) {
 	if err := c.Validate(); err != nil {
 		return nil, err
 	}
 
 	root, err := c.s.ds.GetRoot(c.ctx)
 	if err != nil {
-		return nil, fmt.Errorf("NewUserManager(): %s", err)
+		return nil, fmt.Errorf("New(): %s", err)
 	}
 
 	// initializing the main struct
@@ -80,17 +85,22 @@ func NewUserManager(c Config) (*UserManager, error) {
 
 	domains, err := c.s.ds.GetAll(c.ctx)
 	if err != nil {
-		panic(fmt.Errorf("NewUserManager(): %s", err))
+		panic(fmt.Errorf("New(): %s", err))
 	}
 
 	for _, d := range domains {
 		err = manager.AddDomain(d)
 		if err != nil {
-			panic(fmt.Errorf("NewUserManager(): %s", err))
+			panic(fmt.Errorf("New(): %s", err))
 		}
 	}
 
 	return manager, nil
+}
+
+// Init loads stored instance if exists, otherwise creates new user manager
+func Load(c *viper.Viper) (*UserManager, error) {
+
 }
 
 // CreateDomain creating new root subdomain
