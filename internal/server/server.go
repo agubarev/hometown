@@ -11,6 +11,12 @@ import (
 	"github.com/spf13/viper"
 )
 
+type contextKey string
+
+func (ck contextKey) String() string {
+	return string(ck)
+}
+
 // StartHometownServer starts the main server
 func StartHometownServer() error {
 	log.Println("loading instance configuration")

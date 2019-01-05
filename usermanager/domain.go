@@ -12,6 +12,7 @@ import (
 // organizations, users, roles, groups and teams
 type Domain struct {
 	Manager *UserManager `json:"-"`
+	IsRoot  bool         `json:"is_root"`
 
 	ID           ulid.ULID       `json:"id"`
 	Parent       *Domain         `json:"-"`

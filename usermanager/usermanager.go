@@ -6,8 +6,6 @@ import (
 	"log"
 	"sync"
 
-	"github.com/spf13/viper"
-
 	"github.com/oklog/ulid"
 )
 
@@ -85,13 +83,13 @@ func New(c Config) (*UserManager, error) {
 
 	domains, err := c.s.ds.GetAll(c.ctx)
 	if err != nil {
-		panic(fmt.Errorf("New(): %s", err))
+		return nil, fmt.Errorf("New(): %s", err)
 	}
 
 	for _, d := range domains {
 		err = manager.AddDomain(d)
 		if err != nil {
-			panic(fmt.Errorf("New(): %s", err))
+			return nil, fmt.Errorf("New(): %s", err)
 		}
 	}
 
@@ -99,7 +97,7 @@ func New(c Config) (*UserManager, error) {
 }
 
 // Init loads stored instance if exists, otherwise creates new user manager
-func Load(c *viper.Viper) (*UserManager, error) {
+func Init() (*UserManager, error) {
 
 }
 
