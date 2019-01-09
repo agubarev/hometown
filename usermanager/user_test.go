@@ -14,3 +14,9 @@ func TestNewUser(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u)
 }
+
+func BenchmarkCreateUsers(t *testing.B) {
+	for i := 0; i <= t.N; i++ {
+
+	}
+}

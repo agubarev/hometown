@@ -1,7 +1,6 @@
 package usermanager_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -25,9 +24,9 @@ func TestUserManagerTestNew(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(rootUser)
 
-	rootDomain, err := usermanager.NewDomain(rootUser)
+	domain, err := usermanager.NewDomain(rootUser)
 	a.NoError(err)
-	a.NotNil(rootDomain)
+	a.NotNil(domain)
 
 	ds, err := usermanager.NewDefaultDomainStore(db)
 	a.NoError(err)
@@ -45,10 +44,11 @@ func TestUserManagerTestNew(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(aps)
 
-	s := usermanager.NewStore(ds, us, gs, aps)
-	c := usermanager.NewConfig(context.Background(), s)
+	c := usermanager.NewConfig(usermanager.NewStore(ds, us, gs, aps))
+	a.NoError(c.Validate())
 
-	m, err := usermanager.NewUserManager(c)
-	a.NoError(err)
+	m := usermanager.New()
 	a.NotNil(m)
+
+	a.NoError(m.Init(c))
 }

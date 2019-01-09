@@ -43,7 +43,6 @@ const (
 type Group struct {
 	ID           ulid.ULID     `json:"id"`
 	Kind         GroupKind     `json:"kind"`
-	IsDefault    bool          `json:"def"`
 	HasParent    bool          `json:"hasp"`
 	ParentID     ulid.ULID     `json:"pid"`
 	Parent       *Group        `json:"-"`

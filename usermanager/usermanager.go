@@ -1,7 +1,6 @@
 package usermanager
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"sync"
@@ -9,42 +8,33 @@ import (
 	"github.com/oklog/ulid"
 )
 
-// UserManager is the top level structure, a domain container
-// TODO: consider naming first release `Lidia`
-// TODO: consider naming first release `Lidia`
+// UserManager is the super structure, a domain container
+// this is considered a dominion, a structure that manages
+// everything which is user-related
 // TODO: consider naming first release `Lidia`
 type UserManager struct {
-	// rootDomain domain is a default Domain, all new fresh domains must
-	// use rootDomain as a parent
-	rootDomain *Domain
+	c           Config
+	superDomain *Domain
+	domains     map[ulid.ULID]*Domain
 
-	// domain index map for faster runtime access
-	idMap map[ulid.ULID]*Domain
-
-	c Config
 	sync.RWMutex
 }
 
 // Config main configuration for the user manager
+// TODO: consider moving stores out of config
 type Config struct {
-	ctx context.Context
-	s   Store
+	s Store
 }
 
 // NewConfig initializing a new user manager config
-func NewConfig(ctx context.Context, s Store) Config {
+func NewConfig(s Store) Config {
 	return Config{
-		ctx: ctx,
-		s:   s,
+		s: s,
 	}
 }
 
 // Validate user manager config
 func (c *Config) Validate() error {
-	if c.ctx == nil {
-		return ErrNilRootContext
-	}
-
 	if c.s.ds == nil {
 		return ErrNilDomainStore
 	}
@@ -64,62 +54,60 @@ func (c *Config) Validate() error {
 	return nil
 }
 
-// New initializing a new user manager
-func New(c Config) (*UserManager, error) {
-	if err := c.Validate(); err != nil {
-		return nil, err
-	}
-
-	root, err := c.s.ds.GetRoot(c.ctx)
-	if err != nil {
-		return nil, fmt.Errorf("New(): %s", err)
-	}
-
+// New returns a new user manager instance
+func New() *UserManager {
 	// initializing the main struct
-	manager := &UserManager{
-		rootDomain: root,
-		c:          c,
+	// doing just that for now
+	return &UserManager{
+		domains: make(map[ulid.ULID]*Domain, 0),
+	}
+}
+
+// Init initializes the user manager instance
+// loads existing domains
+func (m *UserManager) Init(c Config) error {
+	if err := c.Validate(); err != nil {
+		return err
 	}
 
-	domains, err := c.s.ds.GetAll(c.ctx)
+	// retrieving existing domains
+	domains, err := c.s.ds.GetAll()
 	if err != nil {
-		return nil, fmt.Errorf("New(): %s", err)
+		return fmt.Errorf("New(): %s", err)
 	}
 
+	// preliminary checks
+	// NOTE: there must always be a super administrator (root) user present
+	// NOTE: there must always be a super domain to which all system administrators belong
+	if len(domains) == 0 {
+		return ErrEmptyDominion
+	}
+
+	// adding found domains to the dominion
 	for _, d := range domains {
-		err = manager.AddDomain(d)
+		err = m.AddDomain(d)
 		if err != nil {
-			return nil, fmt.Errorf("New(): %s", err)
+			return fmt.Errorf("New(): %s", err)
 		}
 	}
 
-	return manager, nil
-}
-
-// Init loads stored instance if exists, otherwise creates new user manager
-func Init() (*UserManager, error) {
-
+	return nil
 }
 
 // CreateDomain creating new root subdomain
-func (manager *UserManager) CreateDomain(owner *User) (*Domain, error) {
-	// root domain must be initialized by now
-	if manager.rootDomain == nil {
-		return nil, ErrNilRootDomain
-	}
-
+func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	// domain must have an owner
 	if owner == nil {
 		return nil, ErrNilUser
 	}
 
 	// initializing containers
-	uc, err := NewUserContainer(manager.c.s.us)
+	uc, err := NewUserContainer(m.c.s.us)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}
 
-	gc, err := NewGroupContainer(manager.c.s.gs)
+	gc, err := NewGroupContainer(m.c.s.gs)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}
@@ -131,13 +119,13 @@ func (manager *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	}
 
 	// initializing new domain
-	err = domain.Init(manager.c.s.ds, uc, gc)
+	err = domain.Init(m.c.s.ds, uc, gc)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}
 
 	// adding new domain to the root tree
-	if err = manager.AddDomain(domain); err != nil {
+	if err = m.AddDomain(domain); err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed to add domain: %s", err)
 	}
 
@@ -146,43 +134,38 @@ func (manager *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	return domain, nil
 }
 
-// AddDomain to the dominion
-func (manager *UserManager) AddDomain(domain *Domain) error {
+// DestroyDomain destroy the domain and everything which is safely associated with it
+func (m *UserManager) DestroyDomain(domain *Domain) error {
+
+	return nil
+}
+
+// AddDomain existing domain to the dominion
+func (m *UserManager) AddDomain(domain *Domain) error {
 	if domain == nil {
 		return ErrNilDomain
 	}
 
-	if manager.rootDomain == nil {
-		return ErrNilRootDomain
-	}
-
-	if _, err := manager.GetDomain(domain.ID); err != ErrDomainNotFound {
+	if _, err := m.GetDomain(domain.ID); err != ErrDomainNotFound {
 		return fmt.Errorf("AddDomain(%s) failed: %s", domain, err)
 	}
 
 	log.Printf("adding domain [%s]\n", domain.ID)
 
-	// TODO: add subdomain
-
 	// adding domain to ID map for faster access
-	manager.Lock()
-	manager.idMap[domain.ID] = domain
-
-	// assigning parent domain
-	// for now all domains belong to the top domain
-	// TODO: add SetParent() method to Domain
-	domain.Parent = manager.rootDomain
-	manager.Unlock()
+	m.Lock()
+	m.domains[domain.ID] = domain
+	m.Unlock()
 
 	return nil
 }
 
 // GetDomain by ID
-func (manager *UserManager) GetDomain(id ulid.ULID) (*Domain, error) {
-	manager.RLock()
-	defer manager.RUnlock()
+func (m *UserManager) GetDomain(id ulid.ULID) (*Domain, error) {
+	m.RLock()
+	defer m.RUnlock()
 
-	if domain, ok := manager.idMap[id]; ok {
+	if domain, ok := m.domains[id]; ok {
 		return domain, nil
 	}
 

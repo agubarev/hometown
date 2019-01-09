@@ -70,22 +70,15 @@ func (c *UserContainer) Validate() error {
 	return nil
 }
 
-// Persist asks all contained groups to store itself
-func (c *UserContainer) Persist() error {
+// Add user to the container
+func (c *UserContainer) Add(u *User) error {
 	panic("not implemented")
 
 	return nil
 }
 
-// AddUser to the container
-func (c *UserContainer) AddUser(g *User) error {
-	panic("not implemented")
-
-	return nil
-}
-
-// RemoveUser from the container
-func (c *UserContainer) RemoveUser(id ulid.ULID) error {
+// Remove user from the container
+func (c *UserContainer) Remove(id ulid.ULID) error {
 	panic("not implemented")
 
 	return nil

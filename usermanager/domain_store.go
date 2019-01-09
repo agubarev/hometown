@@ -1,7 +1,6 @@
 package usermanager
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -10,12 +9,11 @@ import (
 )
 
 // DomainStore handles domain storage
-// TODO: rework the whole idea; this is too stupid and too duplicative
 type DomainStore interface {
-	Put(ctx context.Context, d *Domain) error
-	GetByID(ctx context.Context, id ulid.ULID) (*Domain, error)
-	GetAll(ctx context.Context) ([]*Domain, error)
-	Delete(ctx context.Context, id ulid.ULID) error
+	Put(d *Domain) error
+	GetByID(id ulid.ULID) (*Domain, error)
+	GetAll() ([]*Domain, error)
+	Delete(id ulid.ULID) error
 }
 
 // DefaultDomainStore is the default domain store implementation
@@ -43,7 +41,7 @@ func NewDefaultDomainStore(db *bbolt.DB) (DomainStore, error) {
 }
 
 // Put storing domain
-func (s *DefaultDomainStore) Put(ctx context.Context, g *Domain) error {
+func (s *DefaultDomainStore) Put(g *Domain) error {
 	if g == nil {
 		return ErrNilDomain
 	}
@@ -69,7 +67,7 @@ func (s *DefaultDomainStore) Put(ctx context.Context, g *Domain) error {
 }
 
 // GetByID retrieving a domain by ID
-func (s *DefaultDomainStore) GetByID(ctx context.Context, id ulid.ULID) (*Domain, error) {
+func (s *DefaultDomainStore) GetByID(id ulid.ULID) (*Domain, error) {
 	var g *Domain
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		domainBucket := tx.Bucket([]byte("DOMAIN"))
@@ -89,7 +87,7 @@ func (s *DefaultDomainStore) GetByID(ctx context.Context, id ulid.ULID) (*Domain
 }
 
 // GetAll retrieving all domains
-func (s *DefaultDomainStore) GetAll(ctx context.Context) ([]*Domain, error) {
+func (s *DefaultDomainStore) GetAll() ([]*Domain, error) {
 	var domains []*Domain
 	err := s.db.View(func(tx *bbolt.Tx) error {
 		domainBucket := tx.Bucket([]byte("DOMAIN"))
@@ -115,7 +113,7 @@ func (s *DefaultDomainStore) GetAll(ctx context.Context) ([]*Domain, error) {
 }
 
 // Delete from the store by domain ID
-func (s *DefaultDomainStore) Delete(ctx context.Context, id ulid.ULID) error {
+func (s *DefaultDomainStore) Delete(id ulid.ULID) error {
 	err := s.db.Update(func(tx *bbolt.Tx) error {
 		domainBucket := tx.Bucket([]byte("DOMAIN"))
 		if domainBucket == nil {

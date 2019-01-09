@@ -1,4 +1,4 @@
-package server
+package handlers
 
 import (
 	"context"
@@ -35,11 +35,15 @@ func MiddlewareAuth(next http.Handler) http.Handler {
 		}
 
 		// passing just the test user for now
-		user := usermanager.NewUser("testauthuser", "testme@example.com")
+		user, err := usermanager.NewUser("testauthuser", "testme@example.com")
+		if err != nil {
+			http.Error(w, "failed to initialize test user", http.StatusInternalServerError)
+			return
+		}
 
 		// extending request context
 		ctx := context.WithValue(r.Context(), contextKeyUser, user)
 
-		next(w, r.WithContext(ctx))
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

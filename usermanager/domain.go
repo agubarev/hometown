@@ -3,26 +3,36 @@ package usermanager
 import (
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/oklog/ulid"
 	"gitlab.com/agubarev/hometown/util"
 )
 
+// Metadata holds common attributes
+type Metadata struct {
+	// general timestamps
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at,omitempty"`
+	ConfirmedAt time.Time `json:"confirmed_at,omitempty"`
+}
+
 // Domain represents a single organizational entity which incorporates
 // organizations, users, roles, groups and teams
+// IMPORTANT: any operations related to a protected super domain require
+// extreme caution because it contains all system level user administrators
 type Domain struct {
-	Manager *UserManager `json:"-"`
-	IsRoot  bool         `json:"is_root"`
-
 	ID           ulid.ULID       `json:"id"`
-	Parent       *Domain         `json:"-"`
+	Name         string          `json:"name"`
 	Owner        *User           `json:"-"`
 	Users        *UserContainer  `json:"-"`
 	Groups       *GroupContainer `json:"-"`
-	Subdomains   []*Domain       `json:"subdomains"`
 	AccessPolicy *AccessPolicy   `json:"-"`
+	Metadata     *Metadata       `json:"metadata"`
 
-	store DomainStore
+	// TODO: add database file (storage) per domain
+	isSuperDomain bool // for paranoidal assurance checks
+	store         DomainStore
 	sync.RWMutex
 }
 
@@ -43,14 +53,10 @@ func NewDomain(owner *User) (*Domain, error) {
 		// initial domain owner, full access to this domain
 		Owner: owner,
 
-		// subdomains are reserved for the future iterations because
-		// I haven't thought this through, whether I want a deeper nesting
-		// TODO: do I really need this?
-		Subdomains: make([]*Domain, 0),
-
-		// TODO think through the default initial state of an AccessPolicy
 		// at this moment each policy is independent by default
 		// it doesn't have a parent by default, doesn't inherit nor extends anything
+		// TODO think through the default initial state of an AccessPolicy
+		// TODO: add domain ID as policy ID
 		AccessPolicy: NewAccessPolicy(owner, nil, false, false),
 	}
 
@@ -72,20 +78,6 @@ func (d *Domain) Init(s DomainStore, uc *UserContainer, gc *GroupContainer) erro
 	if err := gc.Validate(); err != nil {
 		return fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
 	}
-
-	return nil
-}
-
-// SetParent domain
-func (d *Domain) SetParent(p *Domain) error {
-	panic("not implemented")
-
-	return nil
-}
-
-// Destroy this domain and everything which is safely associated with it
-func (d *Domain) Destroy() error {
-	panic("not implemented")
 
 	return nil
 }

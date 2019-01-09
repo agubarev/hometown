@@ -11,7 +11,7 @@ import (
 )
 
 // User represents a user account, a unique entity
-// TODO: workout the length restrictions (not set fixed lengths but need to be checked elsewhere)
+// TODO: workout the length restrictions
 type User struct {
 	ID     ulid.ULID `json:"id"`
 	Domain *Domain   `json:"-"`
@@ -25,23 +25,12 @@ type User struct {
 	Lastname   string `json:"lastname"`
 	Middlename string `json:"middlename"`
 
-	// most common flags
+	// account related flags
 	IsConfirmed bool `json:"is_verified"`
 	IsSuspended bool `json:"is_suspended"`
 
-	// account metadata
-	Metadata *Metadata `json:"-"`
-
-	// tracking all group kinds in one slice
-	groups []*Group
-}
-
-// Metadata information about the user account
-type Metadata struct {
-	// general timestamps
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at,omitempty"`
-	ConfirmedAt time.Time `json:"confirmed_at,omitempty"`
+	// creation, modification time
+	Metadata *Metadata
 
 	// the most recent authentication information
 	LoginAt       time.Time  `json:"login_at,omitempty"`
@@ -54,6 +43,9 @@ type Metadata struct {
 	SuspendedAt         time.Time `json:"suspended_at,omitempty"`
 	SuspensionExpiresAt time.Time `json:"suspension_expires_at,omitempty"`
 	SuspensionReason    string    `json:"suspension_reason,omitempty"`
+
+	// tracking all group kinds in one slice
+	groups []*Group
 }
 
 // IDString returns short info about the user
@@ -77,7 +69,6 @@ func NewUser(username string, email string) (*User, error) {
 		Username:    username,
 		Email:       email,
 		IsSuspended: false,
-		Metadata:    NewMetadata(),
 		groups:      make([]*Group, 0),
 	}
 

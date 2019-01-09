@@ -4,7 +4,8 @@ import "errors"
 
 // errors
 var (
-	ErrNilRootContext       = errors.New("root context is nil")
+	ErrEmptyDominion        = errors.New("no domains were found")
+	ErrSuperuserNotFound    = errors.New("super user does not exist")
 	ErrNilAccessPolicy      = errors.New("access policy is nil")
 	ErrNilRightsRoster      = errors.New("rights roster is nil")
 	ErrAccessDenied         = errors.New("user access denied")
@@ -38,7 +39,6 @@ var (
 	ErrNilDominion          = errors.New("dominion is nil")
 	ErrNilDomainStore       = errors.New("domain store is nil")
 	ErrNilDomain            = errors.New("domain is nil")
-	ErrNilRootDomain        = errors.New("root domain is nil")
 	ErrDomainNotFound       = errors.New("domain not found")
 	ErrNilGroup             = errors.New("group is nil")
 	ErrNilGroupContainer    = errors.New("group container is nil")
