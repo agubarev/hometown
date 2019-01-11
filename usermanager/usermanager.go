@@ -13,83 +13,88 @@ import (
 // everything which is user-related
 // TODO: consider naming first release `Lidia`
 type UserManager struct {
-	c           Config
+	c Config
+	// TODO: if I keep domains, perhaps I could still live without super domains?
 	superDomain *Domain
 	domains     map[ulid.ULID]*Domain
 
+	s Store
 	sync.RWMutex
 }
 
 // Config main configuration for the user manager
 // TODO: consider moving stores out of config
 type Config struct {
-	s Store
 }
 
 // NewConfig initializing a new user manager config
-func NewConfig(s Store) Config {
-	return Config{
-		s: s,
-	}
+func NewConfig() Config {
+	return Config{}
 }
 
 // Validate user manager config
 func (c *Config) Validate() error {
-	if c.s.ds == nil {
-		return ErrNilDomainStore
-	}
-
-	if c.s.us == nil {
-		return ErrNilUserStore
-	}
-
-	if c.s.gs == nil {
-		return ErrNilGroupStore
-	}
-
-	if c.s.aps == nil {
-		return ErrNilAccessPolicyStore
-	}
 
 	return nil
 }
 
 // New returns a new user manager instance
-func New() *UserManager {
+func New(s Store, c *Config) (*UserManager, error) {
 	// initializing the main struct
-	// doing just that for now
-	return &UserManager{
+	m := &UserManager{
 		domains: make(map[ulid.ULID]*Domain, 0),
 	}
-}
 
-// Init initializes the user manager instance
-// loads existing domains
-func (m *UserManager) Init(c Config) error {
-	if err := c.Validate(); err != nil {
-		return err
+	//---------------------------------------------------------------------------
+	// validating the store
+	//---------------------------------------------------------------------------
+	if s.ds == nil {
+		return nil, ErrNilDomainStore
 	}
 
+	if s.us == nil {
+		return nil, ErrNilUserStore
+	}
+
+	if s.gs == nil {
+		return nil, ErrNilGroupStore
+	}
+
+	if s.aps == nil {
+		return nil, ErrNilAccessPolicyStore
+	}
+
+	//---------------------------------------------------------------------------
+	// initializing the user manager
+	// loading domains and users from the store
+	//---------------------------------------------------------------------------
 	// retrieving existing domains
-	domains, err := c.s.ds.GetAll()
+	domains, err := s.ds.GetAll()
 	if err != nil {
-		return fmt.Errorf("New(): %s", err)
+		return nil, fmt.Errorf("New(): %s", err)
 	}
 
 	// preliminary checks
 	// NOTE: there must always be a super administrator (root) user present
 	// NOTE: there must always be a super domain to which all system administrators belong
 	if len(domains) == 0 {
-		return ErrEmptyDominion
+		return nil, ErrEmptyDominion
 	}
 
 	// adding found domains to the dominion
 	for _, d := range domains {
 		err = m.AddDomain(d)
 		if err != nil {
-			return fmt.Errorf("New(): %s", err)
+			return nil, fmt.Errorf("New(): %s", err)
 		}
 	}
+
+	return m, nil
+}
+
+// Init initializes the user manager instance
+// loads existing domains
+func (m *UserManager) Init(c Config) error {
 
 	return nil
 }
