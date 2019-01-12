@@ -4,42 +4,37 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
+
+	"github.com/spf13/viper"
+
+	"go.etcd.io/bbolt"
 
 	"github.com/oklog/ulid"
 )
+
+// Config is a structure stored inside the main datafile
+// it contains settings that wouldn't be go inside a configuration file
+type Config struct {
+	// TODO: do I really need this?
+}
 
 // UserManager is the super structure, a domain container
 // this is considered a dominion, a structure that manages
 // everything which is user-related
 // TODO: consider naming first release `Lidia`
 type UserManager struct {
-	c Config
-	// TODO: if I keep domains, perhaps I could still live without super domains?
 	superDomain *Domain
 	domains     map[ulid.ULID]*Domain
 
 	s Store
 	sync.RWMutex
-}
-
-// Config main configuration for the user manager
-// TODO: consider moving stores out of config
-type Config struct {
-}
-
-// NewConfig initializing a new user manager config
-func NewConfig() Config {
-	return Config{}
-}
-
-// Validate user manager config
-func (c *Config) Validate() error {
-
-	return nil
+	db *bbolt.DB
 }
 
 // New returns a new user manager instance
-func New(s Store, c *Config) (*UserManager, error) {
+// also initializing by loading necessary data from a given store
+func New(s Store) (*UserManager, error) {
 	// initializing the main struct
 	m := &UserManager{
 		domains: make(map[ulid.ULID]*Domain, 0),
@@ -68,6 +63,18 @@ func New(s Store, c *Config) (*UserManager, error) {
 	// initializing the user manager
 	// loading domains and users from the store
 	//---------------------------------------------------------------------------
+	// initializing manager specific database
+	if viper.GetString("instance.datafile") == "" {
+		return nil, ErrDatafileNotSpecified
+	}
+
+	db, err := bbolt.Open(viper.GetString("instance.datafile"), 0600, &bbolt.Options{Timeout: 1 * time.Second})
+	if err != nil {
+		return nil, fmt.Errorf("New(): failed to open datafile: %s", err)
+	}
+
+	// loading super domain
+
 	// retrieving existing domains
 	domains, err := s.ds.GetAll()
 	if err != nil {
@@ -92,13 +99,6 @@ func New(s Store, c *Config) (*UserManager, error) {
 	return m, nil
 }
 
-// Init initializes the user manager instance
-// loads existing domains
-func (m *UserManager) Init(c Config) error {
-
-	return nil
-}
-
 // CreateDomain creating new root subdomain
 func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	// domain must have an owner
@@ -107,12 +107,12 @@ func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	}
 
 	// initializing containers
-	uc, err := NewUserContainer(m.c.s.us)
+	uc, err := NewUserContainer(m.s.us)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}
 
-	gc, err := NewGroupContainer(m.c.s.gs)
+	gc, err := NewGroupContainer(m.s.gs)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}
@@ -124,7 +124,7 @@ func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	}
 
 	// initializing new domain
-	err = domain.Init(m.c.s.ds, uc, gc)
+	err = domain.Init(m.s.ds, uc, gc)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}

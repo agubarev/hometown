@@ -4,6 +4,7 @@ import "errors"
 
 // errors
 var (
+	ErrDatafileNotSpecified = errors.New("main datafile is not specified")
 	ErrEmptyDominion        = errors.New("no domains were found")
 	ErrSuperuserNotFound    = errors.New("super user does not exist")
 	ErrNilAccessPolicy      = errors.New("access policy is nil")
@@ -38,6 +39,7 @@ var (
 	ErrBucketNotFound       = errors.New("bucket not found")
 	ErrNilDominion          = errors.New("dominion is nil")
 	ErrNilDomainStore       = errors.New("domain store is nil")
+	ErrNilSuperDomain       = errors.New("super domain is nil")
 	ErrNilDomain            = errors.New("domain is nil")
 	ErrDomainNotFound       = errors.New("domain not found")
 	ErrNilGroup             = errors.New("group is nil")

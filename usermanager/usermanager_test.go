@@ -44,11 +44,7 @@ func TestUserManagerTestNew(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(aps)
 
-	c := usermanager.NewConfig(usermanager.NewStore(ds, us, gs, aps))
-	a.NoError(c.Validate())
-
-	m := usermanager.New()
+	m, err := usermanager.New(usermanager.NewStore(ds, us, gs, aps))
+	a.NoError(err)
 	a.NotNil(m)
-
-	a.NoError(m.Init(c))
 }
