@@ -1,7 +1,6 @@
 package usermanager
 
 import (
-	"context"
 	"fmt"
 	"log"
 	"strings"
@@ -187,7 +186,7 @@ func (g *Group) Persist() error {
 		return ErrNilGroupStore
 	}
 
-	if err := g.container.store.Put(context.Background(), g); err != nil {
+	if err := g.container.store.Put(g); err != nil {
 		return fmt.Errorf("Persist() failed to store a group: %s", err)
 	}
 
@@ -222,7 +221,7 @@ func (g *Group) AddMember(u *User) error {
 
 	// if store is set then storing new relation
 	if g.store != nil {
-		if err := g.store.PutRelation(context.Background(), g.ID, u.ID); err != nil {
+		if err := g.store.PutRelation(g.ID, u.ID); err != nil {
 			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
 		}
 	} else {
@@ -254,7 +253,7 @@ func (g *Group) RemoveMember(u *User) error {
 	}
 
 	// deleting a stored relation
-	if err := g.container.store.DeleteRelation(context.Background(), g.ID, u.ID); err != nil {
+	if err := g.container.store.DeleteRelation(g.ID, u.ID); err != nil {
 		return fmt.Errorf("RemoveMember() failed to delete a stored relation: %s", err)
 	}
 

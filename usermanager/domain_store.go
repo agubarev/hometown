@@ -10,15 +10,6 @@ import (
 
 // DomainStore handles domain storage
 type DomainStore interface {
-	// PutSuper is responsible for storing only the super domain
-	// having a discrete storing method is to make it easier to
-	// implement possible security measures i.e. stored data encryption
-	PutSuper(d *Domain) error
-
-	// GetSuper returns only a super domain like with PutSuper this method
-	// is separate to highlight its importance when implementing a domain store
-	GetSuper() (*Domain, error)
-
 	Put(d *Domain) error
 	GetByID(id ulid.ULID) (*Domain, error)
 	GetAll() ([]*Domain, error)
@@ -53,52 +44,6 @@ func NewDefaultDomainStore(db *bbolt.DB) (DomainStore, error) {
 	})
 
 	return s, err
-}
-
-// PutSuper stores a given domain as a super domain in a separate bucket
-func (s *DefaultDomainStore) PutSuper(d *Domain) error {
-	if d == nil {
-		return ErrNilSuperDomain
-	}
-
-	return s.db.Update(func(tx *bbolt.Tx) error {
-		superDomainBucket := tx.Bucket([]byte("SUPER_DOMAIN"))
-		if superDomainBucket == nil {
-			return fmt.Errorf("PutSuper() failed to open super domain bucket: %s", ErrBucketNotFound)
-		}
-
-		data, err := json.Marshal(d)
-		if err != nil {
-			return err
-		}
-
-		err = superDomainBucket.Put([]byte("SUPERDOMAIN"), data)
-		if err != nil {
-			return fmt.Errorf("failed to store super domain: %s", err)
-		}
-
-		return nil
-	})
-}
-
-// GetSuper returns a super domain which should be stored in a separate bucket
-func (s *DefaultDomainStore) GetSuper() (*Domain, error) {
-	var d *Domain
-	err := s.db.View(func(tx *bbolt.Tx) error {
-		superDomainBucket := tx.Bucket([]byte("SUPER_DOMAIN"))
-		if superDomainBucket == nil {
-			return fmt.Errorf("GetSuper(%s) failed to load a super domain bucket: %s", ErrBucketNotFound)
-		}
-
-		data := superDomainBucket.Get([]byte("SUPER_DOMAIN"))
-		if data == nil {
-			return fmt.Errorf("GetSuper() failed to get a super domain: %s", ErrDomainNotFound)
-		}
-
-		return json.Unmarshal(data, &d)
-	})
-
-	return d, err
 }
 
 // Put storing domain

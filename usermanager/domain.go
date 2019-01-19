@@ -9,30 +9,24 @@ import (
 	"gitlab.com/agubarev/hometown/util"
 )
 
-// Metadata holds common attributes
-type Metadata struct {
-	// general timestamps
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at,omitempty"`
-	ConfirmedAt time.Time `json:"confirmed_at,omitempty"`
-}
-
 // Domain represents a single organizational entity which incorporates
 // organizations, users, roles, groups and teams
 // IMPORTANT: any operations related to a protected super domain require
 // extreme caution because it contains all system level user administrators
 type Domain struct {
-	ID           ulid.ULID       `json:"id"`
-	Name         string          `json:"name"`
-	Owner        *User           `json:"-"`
-	Users        *UserContainer  `json:"-"`
-	Groups       *GroupContainer `json:"-"`
-	AccessPolicy *AccessPolicy   `json:"-"`
-	Metadata     *Metadata       `json:"metadata"`
+	ID            ulid.ULID       `json:"id"`
+	Name          string          `json:"n"`
+	Owner         *User           `json:"-"`
+	Users         *UserContainer  `json:"-"`
+	Groups        *GroupContainer `json:"-"`
+	AccessPolicy  *AccessPolicy   `json:"-"`
+	IsSuperDomain bool            `json:"isd"`
 
-	// TODO: add database file (storage) per domain
-	isSuperDomain bool // for paranoidal assurance checks
-	store         DomainStore
+	CreatedAt   time.Time `json:"t_cr"`
+	UpdatedAt   time.Time `json:"t_up,omitempty"`
+	ConfirmedAt time.Time `json:"t_co,omitempty"`
+
+	store DomainStore
 	sync.RWMutex
 }
 

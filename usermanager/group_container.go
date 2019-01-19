@@ -2,6 +2,7 @@ package usermanager
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 
@@ -65,21 +66,55 @@ func (c *GroupContainer) Validate() error {
 
 // Persist asks all contained groups to store itself
 func (c *GroupContainer) Persist() error {
-	panic("not implemented")
 
 	return nil
 }
 
-// AddGroup adding group to a container
-func (c *GroupContainer) AddGroup(g *Group) error {
-	panic("not implemented")
+// Register adding group to a container
+func (c *GroupContainer) Register(g *Group) error {
+	_, err := c.GetByID(g.ID)
+	if err != ErrGroupNotFound {
+		return ErrGroupAlreadyRegistered
+	}
+
+	// check if the group is in store, otherwise create
+	if _, err := c.store.GetByID(g.ID); err == ErrGroupNotFound {
+		if err = c.store.Put(g); err != nil {
+			return fmt.Errorf("failed to register group [%s]: %s", g.ID, err)
+		}
+	}
+
+	c.Lock()
+	c.groups = append(c.groups, g)
+	c.idMap[g.ID] = g
+	c.keyMap[g.Key] = g
+	c.Unlock()
 
 	return nil
 }
 
-// RemoveGroup removing group from a container, by ID
-func (c *GroupContainer) RemoveGroup(id ulid.ULID) error {
-	panic("not implemented")
+// Unregister removing group from a container by ID
+func (c *GroupContainer) Unregister(id ulid.ULID) error {
+	// a bit pedantic but consistent, returning an error if the group isn't
+	// already registered
+	g, err := c.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	// removing group from index maps and a main slice
+	c.Lock()
+	delete(c.idMap, g.ID)
+	delete(c.keyMap, g.Key)
+
+	for i, fg := range c.groups {
+		if g.ID == fg.ID {
+			c.groups = append(c.groups[:i], c.groups[i+1:]...)
+			break
+		}
+	}
+
+	c.Unlock()
 
 	return nil
 }

@@ -29,8 +29,10 @@ type User struct {
 	IsConfirmed bool `json:"is_verified"`
 	IsSuspended bool `json:"is_suspended"`
 
-	// creation, modification time
-	Metadata *Metadata
+	// general timestamps
+	CreatedAt   time.Time `json:"t_cr"`
+	UpdatedAt   time.Time `json:"t_up,omitempty"`
+	ConfirmedAt time.Time `json:"t_co,omitempty"`
 
 	// the most recent authentication information
 	LoginAt       time.Time  `json:"login_at,omitempty"`
@@ -90,14 +92,6 @@ func (u *User) Validate() error {
 	}
 
 	return nil
-}
-
-// NewMetadata initializing user metadata
-func NewMetadata() *Metadata {
-	return &Metadata{
-		CreatedAt:   time.Now(),
-		ConfirmedAt: time.Now(),
-	}
 }
 
 // TrackGroup tracking which groups this user is a member of

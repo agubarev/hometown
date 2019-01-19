@@ -71,15 +71,56 @@ func (c *UserContainer) Validate() error {
 }
 
 // Add user to the container
-func (c *UserContainer) Add(u *User) error {
-	panic("not implemented")
+func (c *UserContainer) Add(user *User) error {
+	if user == nil {
+		return ErrNilUser
+	}
+
+	if _, err := c.GetByID(user.ID); err != ErrUserNotFound {
+		return ErrUserExists
+	}
+
+	if _, err := c.GetByUsername(user.Username); err != ErrUserNotFound {
+		return ErrUsernameTaken
+	}
+
+	if _, err := c.GetByEmail(user.Email); err != ErrUserNotFound {
+		return ErrEmailTaken
+	}
+
+	c.Lock()
+	c.users = append(c.users, user)
+	c.Unlock()
 
 	return nil
 }
 
 // Remove user from the container
 func (c *UserContainer) Remove(id ulid.ULID) error {
-	panic("not implemented")
+	// just being explicit about the error for consistency
+	// not returning just nil if the user isn't found
+	if _, err := c.GetByID(id); err != nil {
+		return err
+	}
+
+	c.Lock()
+	var pos int
+	for i, user := range c.users {
+		if user.ID == id {
+			pos = i
+			break
+		}
+	}
+
+	// clearing out index maps
+	delete(c.idMap, c.users[pos].ID)
+	delete(c.usernameMap, c.users[pos].Username)
+	delete(c.emailMap, c.users[pos].Email)
+
+	// removing user from the main slice
+	c.users = append(c.users[0:pos], c.users[pos+1:]...)
+
+	c.Unlock()
 
 	return nil
 }
@@ -93,17 +134,17 @@ func (c *UserContainer) List() []*User {
 
 // GetByID returns a group by ID
 func (c *UserContainer) GetByID(id ulid.ULID) (*User, error) {
-	if g, ok := c.idMap[id]; ok {
-		return g, nil
+	if user, ok := c.idMap[id]; ok {
+		return user, nil
 	}
 
-	return nil, ErrGroupNotFound
+	return nil, ErrUserNotFound
 }
 
 // GetByUsername return user by username
 func (c *UserContainer) GetByUsername(username string) (*User, error) {
-	if u, ok := c.usernameMap[username]; ok {
-		return u, nil
+	if user, ok := c.usernameMap[username]; ok {
+		return user, nil
 	}
 
 	return nil, ErrUserNotFound
@@ -111,8 +152,8 @@ func (c *UserContainer) GetByUsername(username string) (*User, error) {
 
 // GetByEmail return user by email
 func (c *UserContainer) GetByEmail(email string) (*User, error) {
-	if u, ok := c.emailMap[email]; ok {
-		return u, nil
+	if user, ok := c.emailMap[email]; ok {
+		return user, nil
 	}
 
 	return nil, ErrUserNotFound

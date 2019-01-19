@@ -4,20 +4,9 @@ import (
 	"fmt"
 	"log"
 	"sync"
-	"time"
-
-	"github.com/spf13/viper"
-
-	"go.etcd.io/bbolt"
 
 	"github.com/oklog/ulid"
 )
-
-// Config is a structure stored inside the main datafile
-// it contains settings that wouldn't be go inside a configuration file
-type Config struct {
-	// TODO: do I really need this?
-}
 
 // UserManager is the super structure, a domain container
 // this is considered a dominion, a structure that manages
@@ -29,17 +18,11 @@ type UserManager struct {
 
 	s Store
 	sync.RWMutex
-	db *bbolt.DB
 }
 
 // New returns a new user manager instance
 // also initializing by loading necessary data from a given store
 func New(s Store) (*UserManager, error) {
-	// initializing the main struct
-	m := &UserManager{
-		domains: make(map[ulid.ULID]*Domain, 0),
-	}
-
 	//---------------------------------------------------------------------------
 	// validating the store
 	//---------------------------------------------------------------------------
@@ -63,19 +46,6 @@ func New(s Store) (*UserManager, error) {
 	// initializing the user manager
 	// loading domains and users from the store
 	//---------------------------------------------------------------------------
-	// initializing manager specific database
-	if viper.GetString("instance.datafile") == "" {
-		return nil, ErrDatafileNotSpecified
-	}
-
-	db, err := bbolt.Open(viper.GetString("instance.datafile"), 0600, &bbolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
-		return nil, fmt.Errorf("New(): failed to open datafile: %s", err)
-	}
-
-	// loading super domain
-
-	// retrieving existing domains
 	domains, err := s.ds.GetAll()
 	if err != nil {
 		return nil, fmt.Errorf("New(): %s", err)
@@ -88,9 +58,19 @@ func New(s Store) (*UserManager, error) {
 		return nil, ErrEmptyDominion
 	}
 
+	// initializing the main struct
+	m := &UserManager{
+		domains: make(map[ulid.ULID]*Domain, 0),
+	}
+
 	// adding found domains to the dominion
 	for _, d := range domains {
-		err = m.AddDomain(d)
+		// checking whether its already registered
+		if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
+			return nil, ErrDuplicateDomain
+		}
+
+		err = m.RegisterDomain(d)
 		if err != nil {
 			return nil, fmt.Errorf("New(): %s", err)
 		}
@@ -130,7 +110,7 @@ func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
 	}
 
 	// adding new domain to the root tree
-	if err = m.AddDomain(domain); err != nil {
+	if err = m.RegisterDomain(domain); err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed to add domain: %s", err)
 	}
 
@@ -145,8 +125,8 @@ func (m *UserManager) DestroyDomain(domain *Domain) error {
 	return nil
 }
 
-// AddDomain existing domain to the dominion
-func (m *UserManager) AddDomain(domain *Domain) error {
+// RegisterDomain existing domain to the dominion
+func (m *UserManager) RegisterDomain(domain *Domain) error {
 	if domain == nil {
 		return ErrNilDomain
 	}
@@ -155,7 +135,16 @@ func (m *UserManager) AddDomain(domain *Domain) error {
 		return fmt.Errorf("AddDomain(%s) failed: %s", domain, err)
 	}
 
-	log.Printf("adding domain [%s]\n", domain.ID)
+	// picking out the super domain
+	if domain.IsSuperDomain {
+		// there can be only one super domain
+		if m.superDomain != nil {
+			return fmt.Errorf("attempting to reassign super domain")
+		}
+
+		// assigning to the manager for ease of access
+		m.superDomain = domain
+	}
 
 	// adding domain to ID map for faster access
 	m.Lock()

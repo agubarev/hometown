@@ -1,7 +1,6 @@
 package usermanager_test
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -34,8 +33,6 @@ func TestGroupStorePut(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -44,7 +41,7 @@ func TestGroupStorePut(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	err = s.Put(ctx, g)
+	err = s.Put(g)
 	a.NoError(err)
 }
 
@@ -57,8 +54,6 @@ func TestGroupStoreGetByID(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -67,10 +62,10 @@ func TestGroupStoreGetByID(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	err = s.Put(ctx, g)
+	err = s.Put(g)
 	a.NoError(err)
 
-	fg, err := s.GetByID(ctx, g.ID)
+	fg, err := s.GetByID(g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 	a.Equal(g.ID, fg.ID)
@@ -88,8 +83,6 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -106,16 +99,16 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.NotNil(g3)
 	a.NoError(err)
 
-	err = s.Put(ctx, g1)
+	err = s.Put(g1)
 	a.NoError(err)
 
-	err = s.Put(ctx, g2)
+	err = s.Put(g2)
 	a.NoError(err)
 
-	err = s.Put(ctx, g3)
+	err = s.Put(g3)
 	a.NoError(err)
 
-	gs, err := s.GetAll(ctx)
+	gs, err := s.GetAll()
 	a.NoError(err)
 	a.Len(gs, 3)
 
@@ -144,8 +137,6 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -154,10 +145,10 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	err = s.Put(ctx, g)
+	err = s.Put(g)
 	a.NoError(err)
 
-	fg, err := s.GetByID(ctx, g.ID)
+	fg, err := s.GetByID(g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 	a.Equal(g.ID, fg.ID)
@@ -165,10 +156,10 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.Equal("test_group", fg.Key)
 	a.Equal("test group", fg.Name)
 
-	err = s.Delete(ctx, g.ID)
+	err = s.Delete(g.ID)
 	a.NoError(err)
 
-	fg, err = s.GetByID(ctx, g.ID)
+	fg, err = s.GetByID(g.ID)
 	a.Nil(fg)
 	a.Error(err)
 	a.EqualError(err, usermanager.ErrGroupNotFound.Error())
@@ -183,8 +174,6 @@ func TestGroupStorePutRelation(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -197,7 +186,7 @@ func TestGroupStorePutRelation(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u)
 
-	err = s.PutRelation(ctx, g.ID, u.ID)
+	err = s.PutRelation(g.ID, u.ID)
 	a.NoError(err)
 }
 
@@ -210,8 +199,6 @@ func TestGroupStoreHasRelation(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -224,17 +211,17 @@ func TestGroupStoreHasRelation(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u)
 
-	yes, err := s.HasRelation(ctx, g.ID, u.ID)
+	yes, err := s.HasRelation(g.ID, u.ID)
 	a.False(yes)
 	a.EqualError(err, usermanager.ErrRelationNotFound.Error())
 
-	err = s.Put(ctx, g)
+	err = s.Put(g)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u.ID)
+	err = s.PutRelation(g.ID, u.ID)
 	a.NoError(err)
 
-	fg, err := s.GetByID(ctx, g.ID)
+	fg, err := s.GetByID(g.ID)
 	a.NoError(err)
 	a.NotNil(fg)
 	a.Equal(g.ID, fg.ID)
@@ -242,7 +229,7 @@ func TestGroupStoreHasRelation(t *testing.T) {
 	a.Equal("test_group", fg.Key)
 	a.Equal("test group", fg.Name)
 
-	yes, err = s.HasRelation(ctx, g.ID, u.ID)
+	yes, err = s.HasRelation(g.ID, u.ID)
 	a.True(yes)
 	a.NoError(err)
 }
@@ -255,8 +242,6 @@ func TestGroupStoreGetAllRelation(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 	defer os.Remove(db.Path())
-
-	ctx := context.Background()
 
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
@@ -278,16 +263,16 @@ func TestGroupStoreGetAllRelation(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u3)
 
-	err = s.PutRelation(ctx, g.ID, u1.ID)
+	err = s.PutRelation(g.ID, u1.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u2.ID)
+	err = s.PutRelation(g.ID, u2.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u3.ID)
+	err = s.PutRelation(g.ID, u3.ID)
 	a.NoError(err)
 
-	rs, err := s.GetAllRelation(ctx)
+	rs, err := s.GetAllRelation()
 	a.NoError(err)
 	a.Contains(rs, g.ID)
 	a.Equal(rs[g.ID][0], u1.ID)
@@ -304,8 +289,6 @@ func TestGroupStoreGetRelationByGroupID(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -338,23 +321,23 @@ func TestGroupStoreGetRelationByGroupID(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u3)
 
-	err = s.PutRelation(ctx, g.ID, u1.ID)
+	err = s.PutRelation(g.ID, u1.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u2.ID)
+	err = s.PutRelation(g.ID, u2.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u3.ID)
+	err = s.PutRelation(g.ID, u3.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g2.ID, u4.ID)
+	err = s.PutRelation(g2.ID, u4.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g2.ID, u5.ID)
+	err = s.PutRelation(g2.ID, u5.ID)
 	a.NoError(err)
 
 	// group 1
-	rs, err := s.GetRelationByGroupID(ctx, g.ID)
+	rs, err := s.GetRelationByGroupID(g.ID)
 	a.NoError(err)
 	a.Contains(rs, g.ID)
 	a.Equal(rs[g.ID][0], u1.ID)
@@ -362,7 +345,7 @@ func TestGroupStoreGetRelationByGroupID(t *testing.T) {
 	a.Equal(rs[g.ID][2], u3.ID)
 
 	// group 2
-	rs, err = s.GetRelationByGroupID(ctx, g2.ID)
+	rs, err = s.GetRelationByGroupID(g2.ID)
 	a.NoError(err)
 	a.Contains(rs, g2.ID)
 	a.Equal(rs[g2.ID][0], u4.ID)
@@ -378,8 +361,6 @@ func TestGroupStoreDeleteRelation(t *testing.T) {
 	a.NotNil(db)
 	defer os.Remove(db.Path())
 
-	ctx := context.Background()
-
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
@@ -392,24 +373,24 @@ func TestGroupStoreDeleteRelation(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u)
 
-	yes, err := s.HasRelation(ctx, g.ID, u.ID)
+	yes, err := s.HasRelation(g.ID, u.ID)
 	a.False(yes)
 	a.EqualError(err, usermanager.ErrRelationNotFound.Error())
 
-	err = s.Put(ctx, g)
+	err = s.Put(g)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u.ID)
+	err = s.PutRelation(g.ID, u.ID)
 	a.NoError(err)
 
-	yes, err = s.HasRelation(ctx, g.ID, u.ID)
+	yes, err = s.HasRelation(g.ID, u.ID)
 	a.True(yes)
 	a.NoError(err)
 
-	err = s.DeleteRelation(ctx, g.ID, u.ID)
+	err = s.DeleteRelation(g.ID, u.ID)
 	a.NoError(err)
 
-	yes, err = s.HasRelation(ctx, g.ID, u.ID)
+	yes, err = s.HasRelation(g.ID, u.ID)
 	a.False(yes)
 	a.EqualError(err, usermanager.ErrRelationNotFound.Error())
 }
@@ -422,8 +403,6 @@ func TestGroupStoreDeleteRelationByGroupID(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 	defer os.Remove(db.Path())
-
-	ctx := context.Background()
 
 	s, err := usermanager.NewDefaultGroupStore(db)
 	a.NoError(err)
@@ -457,31 +436,31 @@ func TestGroupStoreDeleteRelationByGroupID(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u3)
 
-	err = s.PutRelation(ctx, g.ID, u1.ID)
+	err = s.PutRelation(g.ID, u1.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u2.ID)
+	err = s.PutRelation(g.ID, u2.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g.ID, u3.ID)
+	err = s.PutRelation(g.ID, u3.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g2.ID, u4.ID)
+	err = s.PutRelation(g2.ID, u4.ID)
 	a.NoError(err)
 
-	err = s.PutRelation(ctx, g2.ID, u5.ID)
+	err = s.PutRelation(g2.ID, u5.ID)
 	a.NoError(err)
 
-	err = s.DeleteRelationByGroupID(ctx, g.ID)
+	err = s.DeleteRelationByGroupID(g.ID)
 	a.NoError(err)
 
 	// group 1; should be absent now
-	rs, err := s.GetRelationByGroupID(ctx, g.ID)
+	rs, err := s.GetRelationByGroupID(g.ID)
 	a.NoError(err)
 	a.NotContains(rs, g.ID)
 
 	// group 2
-	rs, err = s.GetRelationByGroupID(ctx, g2.ID)
+	rs, err = s.GetRelationByGroupID(g2.ID)
 	a.NoError(err)
 	a.Contains(rs, g2.ID)
 	a.Equal(rs[g2.ID][0], u4.ID)
