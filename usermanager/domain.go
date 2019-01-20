@@ -75,3 +75,12 @@ func (d *Domain) Init(s DomainStore, uc *UserContainer, gc *GroupContainer) erro
 
 	return nil
 }
+
+// Save stores the domain object
+func (d *Domain) Save() error {
+	if d.store == nil {
+		return ErrNilDomainStore
+	}
+
+	return d.store.Put(d)
+}

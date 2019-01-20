@@ -104,9 +104,12 @@ func (c *GroupContainer) Unregister(id ulid.ULID) error {
 
 	// removing group from index maps and a main slice
 	c.Lock()
+
+	// clearing index maps
 	delete(c.idMap, g.ID)
 	delete(c.keyMap, g.Key)
 
+	// removing the actual item
 	for i, fg := range c.groups {
 		if g.ID == fg.ID {
 			c.groups = append(c.groups[:i], c.groups[i+1:]...)

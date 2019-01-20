@@ -15,8 +15,7 @@ import (
 type UserManager struct {
 	superDomain *Domain
 	domains     map[ulid.ULID]*Domain
-
-	s Store
+	s           Store
 	sync.RWMutex
 }
 
@@ -51,7 +50,8 @@ func New(s Store) (*UserManager, error) {
 		return nil, fmt.Errorf("New(): %s", err)
 	}
 
-	// preliminary checks
+	// this is solely to check whether super domain exists, returning this error
+	// to suggest the creation
 	// NOTE: there must always be a super administrator (root) user present
 	// NOTE: there must always be a super domain to which all system administrators belong
 	if len(domains) == 0 {
@@ -79,9 +79,47 @@ func New(s Store) (*UserManager, error) {
 	return m, nil
 }
 
+// CreateSuperDomain creates and registers a super domain only if doesn't
+// already exist
+func (m *UserManager) CreateSuperDomain(superuser *User) error {
+	// lookup existing super domain
+	for _, d := range m.domains {
+		if d.IsSuperDomain {
+			return ErrSuperDomainExists
+		}
+	}
+
+	// at this point it's safe to create a super domain
+	sd, err := m.CreateDomain(superuser)
+	if err != nil {
+		return fmt.Errorf("failed to create super domain: %s", err)
+	}
+
+	// flagging as super domain
+	sd.IsSuperDomain = true
+
+	// creating the core role group for super users
+	superRole, err := NewGroup(GKRole, "superuser", "Super User", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create superuser group: %s", err)
+	}
+
+	// adding a given user to superuser role
+	err = superRole.AddMember(superuser)
+	if err != nil {
+		return fmt.Errorf("failed to add user to superuser group: %s", err)
+	}
+
+	// persisting domain, role etc.
+	// TODO: implement
+	panic("implement this")
+
+	return nil
+}
+
 // CreateDomain creating new root subdomain
 func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
-	// domain must have an owner
+	// safety firstdomain must have an owner
 	if owner == nil {
 		return nil, ErrNilUser
 	}
