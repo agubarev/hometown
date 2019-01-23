@@ -30,7 +30,8 @@ type Domain struct {
 	sync.RWMutex
 }
 
-func (d *Domain) String() string {
+// IDString is a short text info
+func (d *Domain) IDString() string {
 	return fmt.Sprintf("domain[%s]", d.ID)
 }
 
@@ -82,5 +83,9 @@ func (d *Domain) Save() error {
 		return ErrNilDomainStore
 	}
 
-	return d.store.Put(d)
+	if err := d.store.Put(d); err != nil {
+		return fmt.Errorf("failed to store a domain: %s", err)
+	}
+
+	return nil
 }

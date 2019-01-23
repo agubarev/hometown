@@ -8,15 +8,17 @@ type Store struct {
 	us  UserStore
 	gs  GroupStore
 	aps AccessPolicyStore
+	ps  PasswordStore
 }
 
 // NewStore is a shorthand for convenience
-func NewStore(ds DomainStore, us UserStore, gs GroupStore, aps AccessPolicyStore) Store {
+func NewStore(ds DomainStore, us UserStore, gs GroupStore, aps AccessPolicyStore, ps PasswordStore) Store {
 	return Store{
 		ds:  ds,
 		us:  us,
 		gs:  gs,
 		aps: aps,
+		ps:  ps,
 	}
 }
 

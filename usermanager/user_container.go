@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/oklog/ulid"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 // UserFilterFunc is a filter function parameter to be passed to List() function
@@ -17,8 +16,6 @@ type UserFilterFunc func(u []*User) []*User
 // TODO add contexts for cancellation
 // TODO: use radix tree for id, username and email indexing
 type UserContainer struct {
-	ID ulid.ULID `json:"id"`
-
 	domain      *Domain
 	users       []*User
 	idMap       map[ulid.ULID]*User
@@ -35,7 +32,6 @@ func NewUserContainer(s UserStore) (*UserContainer, error) {
 	}
 
 	c := &UserContainer{
-		ID:          util.NewULID(),
 		users:       make([]*User, 0),
 		idMap:       make(map[ulid.ULID]*User),
 		usernameMap: make(map[string]*User),
@@ -70,8 +66,8 @@ func (c *UserContainer) Validate() error {
 	return nil
 }
 
-// Add user to the container
-func (c *UserContainer) Add(user *User) error {
+// Register user to the container
+func (c *UserContainer) Register(user *User) error {
 	if user == nil {
 		return ErrNilUser
 	}
@@ -95,8 +91,8 @@ func (c *UserContainer) Add(user *User) error {
 	return nil
 }
 
-// Remove user from the container
-func (c *UserContainer) Remove(id ulid.ULID) error {
+// Unregister user from the container
+func (c *UserContainer) Unregister(id ulid.ULID) error {
 	// just being explicit about the error for consistency
 	// not returning just nil if the user isn't found
 	if _, err := c.GetByID(id); err != nil {
@@ -104,22 +100,18 @@ func (c *UserContainer) Remove(id ulid.ULID) error {
 	}
 
 	c.Lock()
-	var pos int
 	for i, user := range c.users {
 		if user.ID == id {
-			pos = i
+			// clearing out index maps
+			delete(c.idMap, c.users[i].ID)
+			delete(c.usernameMap, c.users[i].Username)
+			delete(c.emailMap, c.users[i].Email)
+
+			// removing user from the main slice
+			c.users = append(c.users[0:i], c.users[i+1:]...)
 			break
 		}
 	}
-
-	// clearing out index maps
-	delete(c.idMap, c.users[pos].ID)
-	delete(c.usernameMap, c.users[pos].Username)
-	delete(c.emailMap, c.users[pos].Email)
-
-	// removing user from the main slice
-	c.users = append(c.users[0:pos], c.users[pos+1:]...)
-
 	c.Unlock()
 
 	return nil

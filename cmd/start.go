@@ -15,7 +15,7 @@ var startCmd = &cobra.Command{
 	Short: "Start the main Hometown server.",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
-		log.Fatal(server.StartHometownServer())
+		log.Fatal(server.StartHometown())
 	},
 }
 

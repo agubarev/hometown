@@ -17,13 +17,13 @@ type User struct {
 	Domain *Domain   `json:"-"`
 
 	// Username and Email are the primary IDs associated with the user account
-	Username string `json:"username"`
-	Email    string `json:"email"`
+	Username string `json:"username" valid:"required,alphanum"`
+	Email    string `json:"email" valid:"required,email"`
 
 	// the name
-	Firstname  string `json:"firstname"`
-	Lastname   string `json:"lastname"`
-	Middlename string `json:"middlename"`
+	Firstname  string `json:"firstname" valid:"optional,alpha"`
+	Lastname   string `json:"lastname" valid:"optional,alpha"`
+	Middlename string `json:"middlename" valid:"optional,alpha"`
 
 	// account related flags
 	IsConfirmed bool `json:"is_verified"`
@@ -67,11 +67,15 @@ func (u User) Fullname(withMiddlename bool) string {
 // NewUser initializing a new User
 func NewUser(username string, email string) (*User, error) {
 	u := &User{
-		ID:          util.NewULID(),
-		Username:    username,
-		Email:       email,
+		ID:       util.NewULID(),
+		Username: username,
+		Email:    email,
+
+		// metadata
 		IsSuspended: false,
-		groups:      make([]*Group, 0),
+		CreatedAt:   time.Now(),
+
+		groups: make([]*Group, 0),
 	}
 
 	if err := u.Validate(); err != nil {

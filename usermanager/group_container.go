@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/oklog/ulid"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 // GroupList is a typed slice of groups to make sorting easier
@@ -16,8 +15,6 @@ type GroupList []Group
 // GroupContainer is a container responsible for all operations within its scope
 // TODO: add default groups which need not to be assigned
 type GroupContainer struct {
-	ID ulid.ULID `json:"id"`
-
 	domain *Domain
 	groups []*Group
 	idMap  map[ulid.ULID]*Group
@@ -33,7 +30,6 @@ func NewGroupContainer(s GroupStore) (*GroupContainer, error) {
 	}
 
 	c := &GroupContainer{
-		ID:     util.NewULID(),
 		groups: make([]*Group, 0),
 		idMap:  make(map[ulid.ULID]*Group),
 		keyMap: make(map[string]*Group),

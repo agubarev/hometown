@@ -180,14 +180,14 @@ func (g *Group) SetParent(p *Group) error {
 	return nil
 }
 
-// Persist this group to storage
-func (g *Group) Persist() error {
+// Save this group to the store
+func (g *Group) Save() error {
 	if g.store == nil {
 		return ErrNilGroupStore
 	}
 
 	if err := g.container.store.Put(g); err != nil {
-		return fmt.Errorf("Persist() failed to store a group: %s", err)
+		return fmt.Errorf("failed to store a group: %s", err)
 	}
 
 	return nil

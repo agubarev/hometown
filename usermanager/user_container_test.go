@@ -61,7 +61,7 @@ func TestUserContainerAdd(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u3)
 
-	a.NoError(c.Add(u1))
-	a.NoError(c.Add(u2))
-	a.NoError(c.Add(u3))
+	a.NoError(c.Register(u1))
+	a.NoError(c.Register(u2))
+	a.NoError(c.Register(u3))
 }

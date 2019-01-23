@@ -1,4 +1,4 @@
-package handlers
+package auth
 
 import (
 	"context"
@@ -8,6 +8,12 @@ import (
 
 	"gitlab.com/agubarev/hometown/usermanager"
 )
+
+type contextKey string
+
+func (k contextKey) String() string {
+	return string(k)
+}
 
 var (
 	contextKeyUser = contextKey("user")

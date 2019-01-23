@@ -4,10 +4,12 @@ import "errors"
 
 // errors
 var (
+	ErrNilPasswordStore       = errors.New("password store is nil")
 	ErrEmptyPassword          = errors.New("empty password is forbidden")
 	ErrPasswordNotFound       = errors.New("password not found")
 	ErrEmptyDominion          = errors.New("no domains were found")
 	ErrSuperDomainExists      = errors.New("super domain already exists")
+	ErrSuperDomainNotFound    = errors.New("super domain not found")
 	ErrSuperuserNotFound      = errors.New("super user does not exist")
 	ErrNilAccessPolicy        = errors.New("access policy is nil")
 	ErrNilRightsRoster        = errors.New("rights roster is nil")

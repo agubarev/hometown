@@ -13,6 +13,8 @@ import (
 // everything which is user-related
 // TODO: consider naming first release `Lidia`
 type UserManager struct {
+	// instance ID
+	ID          ulid.ULID
 	superDomain *Domain
 	domains     map[ulid.ULID]*Domain
 	s           Store
@@ -41,13 +43,25 @@ func New(s Store) (*UserManager, error) {
 		return nil, ErrNilAccessPolicyStore
 	}
 
-	//---------------------------------------------------------------------------
-	// initializing the user manager
-	// loading domains and users from the store
-	//---------------------------------------------------------------------------
-	domains, err := s.ds.GetAll()
+	if s.ps == nil {
+		return nil, ErrNilPasswordStore
+	}
+
+	// initializing the main struct
+	m := &UserManager{
+		domains: make(map[ulid.ULID]*Domain, 0),
+		s:       s,
+	}
+
+	return m, nil
+}
+
+// Init initializes user manager
+func (m *UserManager) Init() error {
+	// initializing the user manager, loading domains and users from the store
+	domains, err := m.s.ds.GetAll()
 	if err != nil {
-		return nil, fmt.Errorf("New(): %s", err)
+		return fmt.Errorf("Init(): %s", err)
 	}
 
 	// this is solely to check whether super domain exists, returning this error
@@ -55,33 +69,44 @@ func New(s Store) (*UserManager, error) {
 	// NOTE: there must always be a super administrator (root) user present
 	// NOTE: there must always be a super domain to which all system administrators belong
 	if len(domains) == 0 {
-		return nil, ErrEmptyDominion
-	}
-
-	// initializing the main struct
-	m := &UserManager{
-		domains: make(map[ulid.ULID]*Domain, 0),
+		// TODO: check if super domain exists rather any domains, it's ok to not have any domains
+		// this should trigger the creation of a super domain
+		return ErrSuperDomainNotFound
 	}
 
 	// adding found domains to the dominion
 	for _, d := range domains {
 		// checking whether its already registered
 		if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
-			return nil, ErrDuplicateDomain
+			return ErrDuplicateDomain
 		}
 
 		err = m.RegisterDomain(d)
 		if err != nil {
-			return nil, fmt.Errorf("New(): %s", err)
+			return fmt.Errorf("Init(): %s", err)
 		}
 	}
 
-	return m, nil
+	return nil
 }
 
 // CreateSuperDomain creates and registers a super domain only if doesn't
 // already exist
 func (m *UserManager) CreateSuperDomain(superuser *User) error {
+	// retrieving all domains from the store to make sure there is no
+	// existing super domain
+	storedDomains, err := m.s.ds.GetAll()
+	if err != nil {
+		return err
+	}
+
+	// making sure there is no pre-existing super domain in the store
+	for _, d := range storedDomains {
+		if d.IsSuperDomain {
+			return ErrSuperDomainExists
+		}
+	}
+
 	// lookup existing super domain
 	for _, d := range m.domains {
 		if d.IsSuperDomain {
@@ -99,20 +124,37 @@ func (m *UserManager) CreateSuperDomain(superuser *User) error {
 	sd.IsSuperDomain = true
 
 	// creating the core role group for super users
-	superRole, err := NewGroup(GKRole, "superuser", "Super User", nil)
+	superuserRole, err := NewGroup(GKRole, "superuser", "Super User", nil)
 	if err != nil {
 		return fmt.Errorf("failed to create superuser group: %s", err)
 	}
 
-	// adding a given user to superuser role
-	err = superRole.AddMember(superuser)
+	//---------------------------------------------------------------------------
+	// persisting changes to the store
+	//---------------------------------------------------------------------------
+	// storing domain
+	err = sd.Save()
 	if err != nil {
-		return fmt.Errorf("failed to add user to superuser group: %s", err)
+		return fmt.Errorf("failed to save super domain: %s", err)
 	}
 
-	// persisting domain, role etc.
-	// TODO: implement
-	panic("implement this")
+	// saving superuser
+	err = sd.Users.Register(superuser)
+	if err != nil {
+		return fmt.Errorf("failed to register superuser: %s", err)
+	}
+
+	// saving the role
+	err = superuserRole.Save()
+	if err != nil {
+		return fmt.Errorf("failed to save superuser role: %s", err)
+	}
+
+	// adding a given user to superuser role
+	err = superuserRole.AddMember(superuser)
+	if err != nil {
+		return fmt.Errorf("failed to add user to superuser role group: %s", err)
+	}
 
 	return nil
 }
@@ -170,7 +212,7 @@ func (m *UserManager) RegisterDomain(domain *Domain) error {
 	}
 
 	if _, err := m.GetDomain(domain.ID); err != ErrDomainNotFound {
-		return fmt.Errorf("AddDomain(%s) failed: %s", domain, err)
+		return fmt.Errorf("AddDomain(%s) failed: %s", domain.IDString(), err)
 	}
 
 	// picking out the super domain
@@ -202,4 +244,17 @@ func (m *UserManager) GetDomain(id ulid.ULID) (*Domain, error) {
 	}
 
 	return nil, ErrDomainNotFound
+}
+
+// SetUserPassword sets a new password for the user
+func (m *UserManager) SetUserPassword(user *User, newpass string) error {
+	if user == nil {
+		return ErrNilUser
+	}
+
+	if m.s.ps == nil {
+		return ErrNilPasswordStore
+	}
+
+	return nil
 }

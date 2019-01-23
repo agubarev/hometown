@@ -5,12 +5,13 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"gitlab.com/agubarev/hometown/auth"
-
 	"gitlab.com/agubarev/hometown/usermanager"
 
+	"github.com/dgraph-io/badger"
 	"github.com/go-chi/chi"
 
 	"go.etcd.io/bbolt"
@@ -24,32 +25,76 @@ func (k contextKey) String() string {
 	return string(k)
 }
 
-// StartHometownServer starts the main server
-func StartHometownServer() error {
+func openDefaultDatabase(dbfile string) (*bbolt.DB, error) {
+	if strings.TrimSpace(dbfile) == "" {
+		return nil, fmt.Errorf("database file is not specified")
+	}
+
+	db, err := bbolt.Open(dbfile, 0600, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open bbolt database: %s", err)
+	}
+
+	return db, nil
+}
+
+func openDefaultPasswordDatabase(dbDir string) (*badger.DB, error) {
+	dopts := badger.DefaultOptions
+	dopts.Dir = dbDir
+	dopts.ValueDir = dbDir
+
+	// password storage directory must exist and be writable
+	fstat, err := os.Stat(dbDir)
+	if os.IsNotExist(err) {
+		if err := os.MkdirAll(dbDir, 0600); err != nil {
+			return nil, fmt.Errorf("failed to create password database directory: %s", err)
+		}
+	}
+
+	// path must be a directory
+	if !fstat.Mode().IsDir() {
+		return nil, fmt.Errorf("given password database directory path [%s] is not a directory", dbDir)
+	}
+
+	// attempting to open password database
+	db, err := badger.Open(dopts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open passwords database: %s", err)
+	}
+
+	return db, nil
+}
+
+// StartHometown starts the main server
+func StartHometown() error {
 	//---------------------------------------------------------------------------
 	// loading and validating configuration
 	//---------------------------------------------------------------------------
 	log.Println("loading instance configuration")
-	storageBackend := viper.GetString("instance.storage.backend")
-	dbfile := viper.GetString("instance.storage.dbfile")
+	dbfile := viper.GetString("instance.storage.default")
+	passDir := viper.GetString("instance.storage.passwords")
 
-	// basic check, only supporting bbolt for now
-	if strings.TrimSpace(storageBackend) == "" {
-		return fmt.Errorf("backend storage is not specified")
+	if strings.TrimSpace(passDir) == "" {
+		return fmt.Errorf("password database directory is not specified")
 	}
 
-	// making sure database file is set
-	if strings.TrimSpace(dbfile) == "" {
-		return fmt.Errorf("database file is not specified")
-	}
-
-	// loading the database
-	log.Printf("loading database [%s]", dbfile)
-	db, err := bbolt.Open(dbfile, 0600, nil)
+	//---------------------------------------------------------------------------
+	// loading databases
+	//---------------------------------------------------------------------------
+	// loading default database
+	log.Printf("loading general database [%s]", dbfile)
+	db, err := openDefaultDatabase(dbfile)
 	if err != nil {
-		return fmt.Errorf("failed to open bbolt database: %s", err)
+		return err
 	}
 	defer db.Close()
+
+	// loading default password database
+	log.Printf("loading password database [%s]", dbfile)
+	pdb, err := openDefaultPasswordDatabase(passDir)
+	if err != nil {
+		return err
+	}
 
 	//---------------------------------------------------------------------------
 	// bootstrapping the user manager
@@ -75,20 +120,36 @@ func StartHometownServer() error {
 		return fmt.Errorf("failed to initialize access policy store: %s", err)
 	}
 
+	ps, err := usermanager.NewDefaultPasswordStore(pdb)
+	if err != nil {
+		return fmt.Errorf("failed to initialize access policy store: %s", err)
+	}
+
 	log.Println("initializing the user manager")
-	m := usermanager.New()
+	m, err := usermanager.New(usermanager.NewStore(ds, us, gs, aps, ps))
 	if err != nil {
 		return fmt.Errorf("failed to create a new user manager instance: %s", err)
 	}
 
 	// initializing the manager; Init() also performs config validation
-	err = m.Init(usermanager.NewConfig(usermanager.NewStore(ds, us, gs, aps)))
+	err = m.Init()
 	if err != nil {
+		if err == usermanager.ErrSuperDomainNotFound {
+			// repeat until super domain is created successfully
+			for {
+				err := interactiveCreateSuperDomain(m)
+				if err == nil {
+					// super domain should be created at this point
+					break
+				}
+			}
+		}
+
 		return fmt.Errorf("failed to initialize the user manager: %s", err)
 	}
 
 	//---------------------------------------------------------------------------
-	// initializing routes and starting the server
+	// routing and starting the server
 	//---------------------------------------------------------------------------
 	r := chi.NewRouter()
 
