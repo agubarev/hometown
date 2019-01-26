@@ -20,30 +20,8 @@ type UserManager struct {
 
 // New returns a new user manager instance
 // also initializing by loading necessary data from a given store
-func New(s Store) (*UserManager, error) {
-	//---------------------------------------------------------------------------
-	// validating the store
-	//---------------------------------------------------------------------------
-	if s.ds == nil {
-		return nil, ErrNilDomainStore
-	}
-
-	if s.us == nil {
-		return nil, ErrNilUserStore
-	}
-
-	if s.gs == nil {
-		return nil, ErrNilGroupStore
-	}
-
-	if s.aps == nil {
-		return nil, ErrNilAccessPolicyStore
-	}
-
-	if s.ps == nil {
-		return nil, ErrNilPasswordStore
-	}
-
+// TODO: add usermanager config to initialization
+func New() (*UserManager, error) {
 	// initializing the main struct
 	m := &UserManager{
 		domains: make(map[ulid.ULID]*Domain, 0),
@@ -55,13 +33,13 @@ func New(s Store) (*UserManager, error) {
 // Init initializes user manager
 func (m *UserManager) Init() error {
 	// initializing the user manager, loading domains and users from the store
-	domains, err := m.s.ds.GetAll()
+	ds, err := m.s.ds.GetAll()
 	if err != nil {
 		return fmt.Errorf("Init(): %s", err)
 	}
 
-	// adding found domains to the dominion
-	for _, d := range domains {
+	// adding found domains to the user manager
+	for _, d := range ds {
 		// checking whether its already registered
 		if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
 			return ErrDuplicateDomain

@@ -2,26 +2,6 @@ package usermanager
 
 import "github.com/oklog/ulid"
 
-// Store is the storage proxy container
-type Store struct {
-	ds  DomainStore
-	us  UserStore
-	gs  GroupStore
-	aps AccessPolicyStore
-	ps  PasswordStore
-}
-
-// NewStore is a shorthand for convenience
-func NewStore(ds DomainStore, us UserStore, gs GroupStore, aps AccessPolicyStore, ps PasswordStore) Store {
-	return Store{
-		ds:  ds,
-		us:  us,
-		gs:  gs,
-		aps: aps,
-		ps:  ps,
-	}
-}
-
 // GroupRelationKey is a shorthand for convenience
 // TODO: rename to just RelationKey
 func GroupRelationKey(groupID ulid.ULID, userID ulid.ULID) []byte {

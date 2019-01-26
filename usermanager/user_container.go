@@ -5,6 +5,7 @@ import (
 	"log"
 	"sync"
 
+	"github.com/blevesearch/bleve"
 	"github.com/oklog/ulid"
 )
 
@@ -22,6 +23,7 @@ type UserContainer struct {
 	usernameMap map[string]*User
 	emailMap    map[string]*User
 	store       UserStore
+	index       bleve.Index
 	sync.RWMutex
 }
 
@@ -121,6 +123,8 @@ func (c *UserContainer) Unregister(id ulid.ULID) error {
 // IMPORTANT this function returns values and must be used only for listing
 // i.e. returning a list of users via API
 func (c *UserContainer) List() []*User {
+	// TODO: implement
+
 	return c.users
 }
 

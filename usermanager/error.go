@@ -43,7 +43,6 @@ var (
 	ErrInvalidID                  = errors.New("invalid ID")
 	ErrBucketNotFound             = errors.New("bucket not found")
 	ErrNilDominion                = errors.New("dominion is nil")
-	ErrNilDomainStore             = errors.New("domain store is nil")
 	ErrDuplicateDomain            = errors.New("found a duplicate domain")
 	ErrNilDomain                  = errors.New("domain is nil")
 	ErrDomainNotFound             = errors.New("domain not found")

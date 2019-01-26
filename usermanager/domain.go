@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/blevesearch/bleve"
+	"go.uber.org/zap"
 
 	"github.com/dgraph-io/badger"
 	"github.com/oklog/ulid"
@@ -20,6 +20,21 @@ import (
 
 // DomainConfig is a configuration object for a domain
 type DomainConfig struct {
+	logger *zap.Logger
+}
+
+// DefaultDomainConfig returns domain config with pre-defined default settings
+func DefaultDomainConfig() (*DomainConfig, error) {
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		return nil, err
+	}
+
+	dc := &DomainConfig{
+		logger: logger,
+	}
+
+	return dc, nil
 }
 
 // Domain represents a single organizational entity which incorporates
@@ -36,8 +51,8 @@ type Domain struct {
 	UpdatedAt   time.Time `json:"t_up,omitempty"`
 	ConfirmedAt time.Time `json:"t_co,omitempty"`
 
-	store DomainStore
-	index bleve.Index
+	config *viper.Viper
+	logger *zap.Logger
 	sync.RWMutex
 }
 
@@ -45,7 +60,7 @@ func localStorageDirectory() string {
 	return viper.GetString("instance.domains.directory")
 }
 
-func initLocalStorageDirectory() error {
+func validateLocalStorageDirectory() error {
 	// domain storage directory must be set
 	dsdir := localStorageDirectory()
 	if dsdir == "" {
@@ -119,14 +134,23 @@ func initLocalPasswordDatabase(dbDir string) (*badger.DB, error) {
 }
 
 // NewDomain initializing new domain
-func NewDomain(owner *User) (*Domain, error) {
+func NewDomain(owner *User, c *DomainConfig) (*Domain, error) {
 	// each new domain must have an owner user assigned
 	if owner == nil {
 		return nil, fmt.Errorf("new domain must have an owner: %s", ErrNilUser)
 	}
 
+	// if config is nil then using default settings
+	if c == nil {
+		dc, err := DefaultDomainConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to obtain default domain configuration: %s", err)
+		}
+		c = dc
+	}
+
 	// new domain
-	domain := &Domain{
+	d := &Domain{
 		ID: util.NewULID(),
 
 		// initial domain owner, full access to this domain
@@ -137,100 +161,219 @@ func NewDomain(owner *User) (*Domain, error) {
 		// TODO think through the default initial state of an AccessPolicy
 		// TODO: add domain ID as policy ID
 		AccessPolicy: NewAccessPolicy(owner, nil, false, false),
+
+		// domain-level logger
+		logger: c.logger,
 	}
+
+	if err := d.init(); err != nil {
+		return nil, fmt.Errorf("failed to initialize new domain: %s", err)
+	}
+
+	return d, nil
+}
+
+// LoadDomain loads existing domain
+func LoadDomain(id ulid.ULID) (*Domain, error) {
+	// setting just the ID which is sufficient to start
+	// the initialization mechanism
+	d := &Domain{
+		ID: id,
+	}
+
+	if err := d.init(); err != nil {
+		return nil, fmt.Errorf("failed to load domain (%s): %s", id, err)
+	}
+
+	// TODO: load domain config
+	// TODO: obtain owner
+	// TODO: obtain metadata
+
+	return d, nil
+}
+
+func (d *Domain) initConfig() error {
+	// only doing it once
+	if d.config != nil {
+		// config is already initialized, aborting
+		return nil
+	}
+
+	// safety first checks
+	if d == nil {
+		return ErrNilDomain
+	}
+
+	if d.Owner == nil {
+		return ErrNilUser
+	}
+
+	// new config instance
+	c := viper.New()
+	c.SetConfigName(d.StringID())
+	c.AddConfigPath(d.StoragePath())
+	c.SetConfigType("yaml")
+
+	// setting as domain config
+	d.config = c
+
+	return nil
+}
+
+func (d *Domain) saveConfig() error {
+	if err := d.initConfig(); err != nil {
+		return fmt.Errorf("failed to initialize domain config: %s", err)
+	}
+
+	// domain-specific settings
+	d.config.Set("owner.id", d.Owner.ID)
+	d.config.Set("owner.username", d.Owner.Username)
+	d.config.Set("owner.email", d.Owner.Email)
+	d.config.Set("domain.id", d.StringID())
+	d.config.Set("domain.name", d.Name)
+
+	// saving domain config
+	if err := d.config.WriteConfig(); err != nil {
+		return fmt.Errorf("failed to create config: %s", err)
+	}
+
+	return nil
+}
+
+func (d *Domain) loadConfig() error {
+	if err := d.initConfig(); err != nil {
+		return fmt.Errorf("failed to initialize domain config: %s", err)
+	}
+
+	// loading domain config
+	d.logger.Info("reading domain config", zap.String("config", d.config.ConfigFileUsed()))
+	if err := d.config.ReadInConfig(); err != nil {
+		if err == os.ErrNotExist {
+			// config file not found, attempting to create
+			d.logger.Info("domain config not found, creating", zap.String("config", d.config.ConfigFileUsed()))
+			if err := d.saveConfig(); err != nil {
+				return err
+			}
+		} else {
+			return fmt.Errorf("failed to create config: %s", err)
+		}
+	}
+
+	return nil
+}
+
+// Init initializes domain
+func (d *Domain) init() error {
+	// deferring log flush
+	defer d.logger.Sync()
+
+	d.logger.Info("initializing domain", zap.String("id", d.StringID()))
 
 	//---------------------------------------------------------------------------
 	// initializing local storage
 	//---------------------------------------------------------------------------
 	// precautious check
-	if err := initLocalStorageDirectory(); err != nil {
-		return nil, err
+	d.logger.Info("validating local storage directory")
+	if err := validateLocalStorageDirectory(); err != nil {
+		return err
 	}
 
 	// creating storage if it hasn't been created yet
-	sdir := domain.StorageDir()
+	sdir := d.StoragePath()
 	if _, err := os.Stat(sdir); err != nil {
 		if os.IsNotExist(err) {
-			// not found, attempting to create
+			// not found, attempting to create domain storage
+			d.logger.Info("creating domain storage", zap.String("id", d.StringID()))
 			if err := os.MkdirAll(sdir, 0600); err != nil {
-				return nil, fmt.Errorf("failed to create domain storage: %s")
+				return fmt.Errorf("failed to create domain storage: %s")
 			}
 		} else {
-			return nil, fmt.Errorf("failed to stat domain storage: %s", err)
+			return fmt.Errorf("failed to stat domain storage: %s", err)
 		}
 	}
 
 	//---------------------------------------------------------------------------
 	// initializing local databases
 	//---------------------------------------------------------------------------
-	// common database
-	db, err := initLocalDatabase(filepath.Join(domain.StorageDir(), domain.StorageID()))
+	d.logger.Info("initializing domain storage", zap.String("id", d.StringID()))
+
+	// general database
+	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), d.StorageID()))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	// password database
-	pdb, err := initLocalPasswordDatabase(filepath.Join(domain.StorageDir(), "passwords", domain.StorageID()))
+	pdb, err := initLocalPasswordDatabase(filepath.Join(d.StoragePath(), "passwords", d.StorageID()))
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	//---------------------------------------------------------------------------
 	// initializing stores
 	//---------------------------------------------------------------------------
+	d.logger.Info("initializing domain stores", zap.String("id", d.StringID()))
+
 	us, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize user store: %s", err)
+		return fmt.Errorf("failed to initialize user store: %s", err)
 	}
 
 	gs, err := NewDefaultGroupStore(db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize group store: %s", err)
+		return fmt.Errorf("failed to initialize group store: %s", err)
 	}
 
 	aps, err := NewDefaultAccessPolicyStore(db)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize access policy store: %s", err)
+		return fmt.Errorf("failed to initialize access policy store: %s", err)
 	}
 
 	ps, err := NewDefaultPasswordStore(pdb)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize password store: %s", err)
+		return fmt.Errorf("failed to initialize password store: %s", err)
 	}
 
 	//---------------------------------------------------------------------------
 	// initializing and validating containers
 	//---------------------------------------------------------------------------
+	d.logger.Info("initializing user container", zap.String("did", d.StringID()))
 	uc, err := NewUserContainer(us)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize user container: %s", err)
+		return fmt.Errorf("failed to initialize user container: %s", err)
 	}
 
 	if err := uc.Validate(); err != nil {
-		return nil, fmt.Errorf("Domain.Init() failed to validate user container: %s", err)
+		return fmt.Errorf("Domain.Init() failed to validate user container: %s", err)
 	}
 
+	d.logger.Info("initializing group container", zap.String("did", d.StringID()))
 	gc, err := NewGroupContainer(gs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize group container: %s", err)
+		return fmt.Errorf("failed to initialize group container: %s", err)
 	}
 
 	if err := gc.Validate(); err != nil {
-		return nil, fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
+		return fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
+	}
+
+	d.logger.Info("initializing domain configuration", zap.String("config", d.config.ConfigFileUsed()))
+	if err := d.saveConfig(); err != nil {
+		return fmt.Errorf("failed to initialize domain configuration: %s", err)
 	}
 
 	//---------------------------------------------------------------------------
 	// finalizing domain initialization
 	//---------------------------------------------------------------------------
-	domain.Users = uc
-	domain.Groups = gc
+	d.Users = uc
+	d.Groups = gc
 
-	return domain, nil
+	return nil
 }
 
-// IDString is a short text info
-func (d *Domain) IDString() string {
-	return fmt.Sprintf("domain[%s]", d.ID)
+// StringID is a short text info
+func (d *Domain) StringID() string {
+	return fmt.Sprintf("%s", d.ID)
 }
 
 // StorageID returns a string which should be used to identify
@@ -240,7 +383,7 @@ func (d *Domain) StorageID() string {
 	return fmt.Sprintf("%s", d.ID)
 }
 
-// StorageDir returns domain's local storage directory path
-func (d *Domain) StorageDir() string {
+// StoragePath returns domain's local storage directory path
+func (d *Domain) StoragePath() string {
 	return filepath.Join(localStorageDirectory(), d.StorageID())
 }
