@@ -143,20 +143,21 @@ func (g *Group) SetParent(p *Group) error {
 		// by tracing backwards until a nil parent is met; at this point only a
 		// requested parent is searched and not tested whether the relations
 		// are circuited among themselves
-		pg := g.Parent
-		for {
-			// testing equality by comparing each group's ID
-			if pg.ID == p.ID {
-				return ErrDuplicateParent
-			}
+		if pg := g.Parent; pg != nil {
+			for {
+				// no more parents, breaking
+				if pg.Parent == nil {
+					break
+				}
 
-			// no more parents, breaking
-			if pg.Parent == nil {
-				break
-			}
+				// testing equality by comparing each group's ID
+				if pg.ID == p.ID {
+					return ErrDuplicateParent
+				}
 
-			// moving on to a parent's parent
-			pg = pg.Parent
+				// moving on to a parent's parent
+				pg = pg.Parent
+			}
 		}
 
 		// group kind must be the same all the way back to the top

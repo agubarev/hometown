@@ -13,9 +13,9 @@ type Password struct {
 	Hash []byte    `json:"h"`
 }
 
-// evaluatePassword evaluates password's strength by checking length,
+// EvaluatePasswordStrength evaluates password's strength by checking length,
 // complexity, characters used etc.
-func evaluatePassword(rawpass string, userInputs []string) error {
+func EvaluatePasswordStrength(rawpass string, userInputs []string) error {
 	pl := len(rawpass)
 	if pl < 8 {
 		return ErrShortPassword
@@ -25,6 +25,8 @@ func evaluatePassword(rawpass string, userInputs []string) error {
 		return ErrLongPassword
 	}
 
+	// evaluating password's strength by the library's score
+	// the score must be at least 3
 	result := zxcvbn.PasswordStrength(rawpass, userInputs)
 	if result.Score < 3 {
 		return ErrUnsafePassword
@@ -34,7 +36,12 @@ func evaluatePassword(rawpass string, userInputs []string) error {
 }
 
 // NewPassword creates a hash from a given raw string
-func NewPassword(id ulid.ULID, rawpass string) (*Password, error) {
+func NewPassword(id ulid.ULID, rawpass string, userInput []string) (*Password, error) {
+	err := EvaluatePasswordStrength(rawpass, userInput)
+	if err != nil {
+		return nil, err
+	}
+
 	h, err := bcrypt.GenerateFromPassword([]byte(rawpass), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, err

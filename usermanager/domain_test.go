@@ -11,15 +11,15 @@ import (
 )
 
 func init() {
-	cstr := `
+	confstring := `
 instance:
     domains:
-        directory: ../data/test/domains
+        directory: /tmp/hometown/data/test/domains
 `
 
 	viper.SetConfigType("yaml")
 
-	if err := viper.ReadConfig(strings.NewReader(cstr)); err != nil {
+	if err := viper.ReadConfig(strings.NewReader(confstring)); err != nil {
 		panic(err)
 	}
 }
@@ -34,4 +34,9 @@ func TestNewDomain(t *testing.T) {
 	d, err := usermanager.NewDomain(owner, nil)
 	a.NoError(err)
 	a.NotNil(d)
+
+	// TODO: check storage
+	// TODO: check database files
+	// TODO: check stores
+	// TODO: check config
 }

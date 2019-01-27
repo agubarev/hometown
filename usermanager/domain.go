@@ -18,6 +18,9 @@ import (
 	"go.etcd.io/bbolt"
 )
 
+// permission mode used for the domain storage
+var localStorageFileMode = os.FileMode(0755)
+
 // DomainOptions is a configuration object for a domain
 type DomainOptions struct {
 	logger *zap.Logger
@@ -68,16 +71,8 @@ func validateLocalStorageDirectory() error {
 	}
 
 	// domain storage directory must exist during validation
-	_, err := os.Stat(lsd)
-	if err != nil {
-		if os.IsNotExist(err) {
-			// attempting to create storage directory
-			if err := os.MkdirAll(lsd, 0755); err != nil {
-				return fmt.Errorf("failed to create local domain storage directory: %s", err)
-			}
-		}
-
-		return fmt.Errorf("failed to initialize local storage directory: %s", err)
+	if err := util.CreateDirectoryIfNotExists(lsd, localStorageFileMode); err != nil {
+		return fmt.Errorf("failed to create local domain storage directory: %s", err)
 	}
 
 	// domain storage must be readable by the instance
@@ -97,7 +92,7 @@ func initLocalDatabase(dbfile string) (*bbolt.DB, error) {
 		return nil, fmt.Errorf("database file is not specified")
 	}
 
-	db, err := bbolt.Open(dbfile, 0755, nil)
+	db, err := bbolt.Open(dbfile, localStorageFileMode, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open bbolt database: %s", err)
 	}
@@ -112,11 +107,8 @@ func initLocalPasswordDatabase(dbDir string) (*badger.DB, error) {
 	opts.ValueDir = dbDir
 
 	// password storage directory must exist and be writable
-	_, err := os.Stat(dbDir)
-	if os.IsNotExist(err) {
-		if err := os.MkdirAll(dbDir, 0755); err != nil {
-			return nil, fmt.Errorf("failed to create local password database directory: %s", err)
-		}
+	if err := util.CreateDirectoryIfNotExists(dbDir, localStorageFileMode); err != nil {
+		return nil, fmt.Errorf("failed to create local password database directory: %s", err)
 	}
 
 	// attempting to open password database
@@ -161,9 +153,31 @@ func NewDomain(owner *User, c *DomainOptions) (*Domain, error) {
 		logger: c.logger,
 	}
 
-	if err := d.init(); err != nil {
+	err := d.init()
+	if err != nil {
 		return nil, fmt.Errorf("failed to initialize new domain: %s", err)
 	}
+
+	// creating default groups (basically, role groups)
+	err = d.setupDefaultGroups()
+	if err != nil {
+		return nil, fmt.Errorf("failed to setup default groups")
+	}
+
+	// configuring default groups
+	superuserRole, err := d.Groups.GetByKey("superuser")
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain superuser role: %s", err)
+	}
+
+	// TODO: store access policy object
+
+	// giving full access rights to the superuser role
+	d.AccessPolicy.SetRoleRights(owner, superuserRole, APFullAccess)
+
+	// creating initial access policies
+	// TODO: set owner rights
+	// TODO: set super role rights
 
 	return d, nil
 }
@@ -208,7 +222,7 @@ func (d *Domain) initConfig() error {
 		if os.IsNotExist(err) {
 			// just creating the empty config file
 			d.logger.Info("creating domain config", zap.String("path", configFilepath))
-			if err := ioutil.WriteFile(configFilepath, []byte(""), 0755); err != nil {
+			if err := ioutil.WriteFile(configFilepath, []byte(""), localStorageFileMode); err != nil {
 				return fmt.Errorf("failed to create domain config: %s", err)
 			}
 		}
@@ -284,16 +298,8 @@ func (d *Domain) init() error {
 
 	// creating storage if it hasn't been created yet
 	sdir := d.StoragePath()
-	if _, err := os.Stat(sdir); err != nil {
-		if os.IsNotExist(err) {
-			// not found, attempting to create domain storage
-			d.logger.Info("creating domain storage", zap.String("id", d.StringID()))
-			if err := os.MkdirAll(sdir, 0755); err != nil {
-				return fmt.Errorf("failed to create domain storage: %s", err)
-			}
-		} else {
-			return fmt.Errorf("failed to stat domain storage: %s", err)
-		}
+	if err := util.CreateDirectoryIfNotExists(sdir, localStorageFileMode); err != nil {
+		return fmt.Errorf("failed to create domain storage: %s", err)
 	}
 
 	//---------------------------------------------------------------------------
@@ -375,12 +381,61 @@ func (d *Domain) init() error {
 		return fmt.Errorf("failed to initialize user password manager: %s", err)
 	}
 
+	// TODO: set owner properly
+	// TODO: load groups
+	// TODO: load users
+
 	//---------------------------------------------------------------------------
 	// finalizing domain initialization
 	//---------------------------------------------------------------------------
 	d.Users = uc
 	d.Groups = gc
 	d.Passwords = pm
+
+	return nil
+}
+
+func (d *Domain) setupDefaultGroups() error {
+	if d.Groups == nil {
+		return ErrNilGroupContainer
+	}
+
+	//---------------------------------------------------------------------------
+	// defining default role groups (in hierarchical order)
+	//---------------------------------------------------------------------------
+
+	// regular user
+	userRole, err := NewGroup(GKRole, "user", "Regular User", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create regular user role: %s", err)
+	}
+
+	err = d.Groups.Register(userRole)
+	if err != nil {
+		return err
+	}
+
+	// manager
+	managerRole, err := NewGroup(GKRole, "manager", "Manager", userRole)
+	if err != nil {
+		return fmt.Errorf("failed to create manager role: %s", err)
+	}
+
+	err = d.Groups.Register(managerRole)
+	if err != nil {
+		return err
+	}
+
+	// superuser
+	superuserRole, err := NewGroup(GKRole, "superuser", "Super User", managerRole)
+	if err != nil {
+		return fmt.Errorf("failed to create superuser role: %s", err)
+	}
+
+	err = d.Groups.Register(superuserRole)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
