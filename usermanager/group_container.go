@@ -15,7 +15,6 @@ type GroupList []Group
 // GroupContainer is a container responsible for all operations within its scope
 // TODO: add default groups which need not to be assigned
 type GroupContainer struct {
-	domain *Domain
 	groups []*Group
 	idMap  map[ulid.ULID]*Group
 	keyMap map[string]*Group
@@ -41,10 +40,6 @@ func NewGroupContainer(s GroupStore) (*GroupContainer, error) {
 
 // Validate this group container
 func (c *GroupContainer) Validate() error {
-	if c.domain == nil {
-		return ErrNilDomain
-	}
-
 	if c.groups == nil {
 		return errors.New("groups slice is not initialized")
 	}

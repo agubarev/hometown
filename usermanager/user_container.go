@@ -17,7 +17,6 @@ type UserFilterFunc func(u []*User) []*User
 // TODO add contexts for cancellation
 // TODO: use radix tree for id, username and email indexing
 type UserContainer struct {
-	domain      *Domain
 	users       []*User
 	idMap       map[ulid.ULID]*User
 	usernameMap map[string]*User
@@ -37,18 +36,17 @@ func NewUserContainer(s UserStore) (*UserContainer, error) {
 		users:       make([]*User, 0),
 		idMap:       make(map[ulid.ULID]*User),
 		usernameMap: make(map[string]*User),
+		emailMap:    make(map[string]*User),
 		store:       s,
 	}
+
+	// TODO: initialize bleve index
 
 	return c, nil
 }
 
 // Validate this group container
 func (c *UserContainer) Validate() error {
-	if c.domain == nil {
-		return ErrNilDomain
-	}
-
 	if c.users == nil {
 		return errors.New("users slice is not initialized")
 	}

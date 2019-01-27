@@ -32,24 +32,26 @@ func New() (*UserManager, error) {
 
 // Init initializes user manager
 func (m *UserManager) Init() error {
-	// initializing the user manager, loading domains and users from the store
-	ds, err := m.s.ds.GetAll()
-	if err != nil {
-		return fmt.Errorf("Init(): %s", err)
-	}
-
-	// adding found domains to the user manager
-	for _, d := range ds {
-		// checking whether its already registered
-		if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
-			return ErrDuplicateDomain
-		}
-
-		err = m.RegisterDomain(d)
+	// initializing the user manager, loading domains and users from the storage
+	/*
+		ds, err := m.LoadDomains()
 		if err != nil {
-			return fmt.Errorf("Init(): %s", err)
+			return fmt.Errorf("failed to load domains: %s", err)
 		}
-	}
+
+		// adding found domains to the user manager
+		for _, d := range ds {
+			// checking whether its already registered
+			if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
+				return ErrDuplicateDomain
+			}
+
+			err = m.RegisterDomain(d)
+			if err != nil {
+				return fmt.Errorf("Init(): %s", err)
+			}
+		}
+	*/
 
 	return nil
 }
@@ -61,17 +63,19 @@ func (m *UserManager) CreateDomain(owner *User) (*Domain, error) {
 		return nil, ErrNilUser
 	}
 
+	// using default config for now
+	dopts, err := DefaultDomainOptions()
+
 	// initializing new domain
-	domain, err := NewDomain(owner)
+	domain, err := NewDomain(owner, dopts)
 	if err != nil {
 		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
 	}
 
-	// initializing new domain
-	err = domain.Init(m.s.ds, uc, gc)
-	if err != nil {
-		return nil, fmt.Errorf("CreateDomain() failed: %s", err)
-	}
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
 
 	// adding new domain to the root tree
 	if err = m.RegisterDomain(domain); err != nil {
@@ -88,18 +92,20 @@ func (m *UserManager) DestroyDomain(domain *Domain) error {
 }
 
 // RegisterDomain existing domain to the dominion
-func (m *UserManager) RegisterDomain(domain *Domain) error {
-	if domain == nil {
+func (m *UserManager) RegisterDomain(d *Domain) error {
+	if d == nil {
 		return ErrNilDomain
 	}
 
-	if _, err := m.GetDomain(domain.ID); err != ErrDomainNotFound {
-		return fmt.Errorf("AddDomain(%s) failed: %s", domain.IDString(), err)
+	// test whether the domain is already registered by attempting
+	// to obtain it from the map
+	if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
+		return fmt.Errorf("AddDomain(%s) failed: %s", d.StringID(), err)
 	}
 
-	// adding domain to ID map for faster access
+	// adding domain to the map
 	m.Lock()
-	m.domains[domain.ID] = domain
+	m.domains[d.ID] = d
 	m.Unlock()
 
 	return nil
@@ -118,13 +124,13 @@ func (m *UserManager) GetDomain(id ulid.ULID) (*Domain, error) {
 }
 
 // SetUserPassword sets a new password for the user
-func (m *UserManager) SetUserPassword(user *User, newpass string) error {
-	if user == nil {
+func (m *UserManager) SetUserPassword(u *User, newpass string) error {
+	if u == nil {
 		return ErrNilUser
 	}
 
-	if m.s.ps == nil {
-		return ErrNilPasswordStore
+	if u.Domain == nil {
+		return ErrNilDomain
 	}
 
 	// TODO: implement

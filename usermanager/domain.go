@@ -18,19 +18,19 @@ import (
 	"go.etcd.io/bbolt"
 )
 
-// DomainConfig is a configuration object for a domain
-type DomainConfig struct {
+// DomainOptions is a configuration object for a domain
+type DomainOptions struct {
 	logger *zap.Logger
 }
 
-// DefaultDomainConfig returns domain config with pre-defined default settings
-func DefaultDomainConfig() (*DomainConfig, error) {
+// DefaultDomainOptions returns domain config with pre-defined default settings
+func DefaultDomainOptions() (*DomainOptions, error) {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
 		return nil, err
 	}
 
-	dc := &DomainConfig{
+	dc := &DomainOptions{
 		logger: logger,
 	}
 
@@ -45,11 +45,11 @@ type Domain struct {
 	Owner        *User           `json:"-"`
 	Users        *UserContainer  `json:"-"`
 	Groups       *GroupContainer `json:"-"`
+	Passwords    PasswordManager `json:"-"`
 	AccessPolicy *AccessPolicy   `json:"-"`
 
-	CreatedAt   time.Time `json:"t_cr"`
-	UpdatedAt   time.Time `json:"t_up,omitempty"`
-	ConfirmedAt time.Time `json:"t_co,omitempty"`
+	CreatedAt  time.Time `json:"t_cr"`
+	ModifiedAt time.Time `json:"t_up,omitempty"`
 
 	config *viper.Viper
 	logger *zap.Logger
@@ -62,17 +62,17 @@ func localStorageDirectory() string {
 
 func validateLocalStorageDirectory() error {
 	// domain storage directory must be set
-	dsdir := localStorageDirectory()
-	if dsdir == "" {
+	lsd := localStorageDirectory()
+	if lsd == "" {
 		return fmt.Errorf("local domain storage directory is not defined")
 	}
 
 	// domain storage directory must exist during validation
-	fstat, err := os.Stat(dsdir)
+	_, err := os.Stat(lsd)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// attempting to create storage directory
-			if err := os.MkdirAll(dsdir, 0600); err != nil {
+			if err := os.MkdirAll(lsd, 0755); err != nil {
 				return fmt.Errorf("failed to create local domain storage directory: %s", err)
 			}
 		}
@@ -81,7 +81,7 @@ func validateLocalStorageDirectory() error {
 	}
 
 	// domain storage must be readable by the instance
-	if _, err := ioutil.ReadDir(dsdir); err != nil {
+	if _, err := ioutil.ReadDir(lsd); err != nil {
 		if os.IsPermission(err) {
 			return fmt.Errorf("local storage directory is not readable")
 		}
@@ -97,7 +97,7 @@ func initLocalDatabase(dbfile string) (*bbolt.DB, error) {
 		return nil, fmt.Errorf("database file is not specified")
 	}
 
-	db, err := bbolt.Open(dbfile, 0600, nil)
+	db, err := bbolt.Open(dbfile, 0755, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open bbolt database: %s", err)
 	}
@@ -112,16 +112,11 @@ func initLocalPasswordDatabase(dbDir string) (*badger.DB, error) {
 	opts.ValueDir = dbDir
 
 	// password storage directory must exist and be writable
-	fstat, err := os.Stat(dbDir)
+	_, err := os.Stat(dbDir)
 	if os.IsNotExist(err) {
-		if err := os.MkdirAll(dbDir, 0600); err != nil {
+		if err := os.MkdirAll(dbDir, 0755); err != nil {
 			return nil, fmt.Errorf("failed to create local password database directory: %s", err)
 		}
-	}
-
-	// path must be a directory
-	if !fstat.Mode().IsDir() {
-		return nil, fmt.Errorf("given password database directory path [%s] is not a directory", dbDir)
 	}
 
 	// attempting to open password database
@@ -134,7 +129,7 @@ func initLocalPasswordDatabase(dbDir string) (*badger.DB, error) {
 }
 
 // NewDomain initializing new domain
-func NewDomain(owner *User, c *DomainConfig) (*Domain, error) {
+func NewDomain(owner *User, c *DomainOptions) (*Domain, error) {
 	// each new domain must have an owner user assigned
 	if owner == nil {
 		return nil, fmt.Errorf("new domain must have an owner: %s", ErrNilUser)
@@ -142,7 +137,7 @@ func NewDomain(owner *User, c *DomainConfig) (*Domain, error) {
 
 	// if config is nil then using default settings
 	if c == nil {
-		dc, err := DefaultDomainConfig()
+		dc, err := DefaultDomainOptions()
 		if err != nil {
 			return nil, fmt.Errorf("failed to obtain default domain configuration: %s", err)
 		}
@@ -208,9 +203,20 @@ func (d *Domain) initConfig() error {
 		return ErrNilUser
 	}
 
+	configFilepath := filepath.Join(d.StoragePath(), fmt.Sprintf("%s_config.yaml", d.StringID()))
+	if _, err := os.Stat(configFilepath); err != nil {
+		if os.IsNotExist(err) {
+			// just creating the empty config file
+			d.logger.Info("creating domain config", zap.String("path", configFilepath))
+			if err := ioutil.WriteFile(configFilepath, []byte(""), 0755); err != nil {
+				return fmt.Errorf("failed to create domain config: %s", err)
+			}
+		}
+	}
+
 	// new config instance
 	c := viper.New()
-	c.SetConfigName(d.StringID())
+	c.SetConfigName(fmt.Sprintf("%s_config", d.StringID()))
 	c.AddConfigPath(d.StoragePath())
 	c.SetConfigType("yaml")
 
@@ -225,16 +231,22 @@ func (d *Domain) saveConfig() error {
 		return fmt.Errorf("failed to initialize domain config: %s", err)
 	}
 
-	// domain-specific settings
-	d.config.Set("owner.id", d.Owner.ID)
-	d.config.Set("owner.username", d.Owner.Username)
-	d.config.Set("owner.email", d.Owner.Email)
+	// domain
 	d.config.Set("domain.id", d.StringID())
 	d.config.Set("domain.name", d.Name)
 
+	// owner
+	d.config.Set("owner.id", d.Owner.ID)
+	d.config.Set("owner.username", d.Owner.Username)
+	d.config.Set("owner.email", d.Owner.Email)
+
+	// metadata
+	d.config.Set("times.created_at", d.CreatedAt)
+	d.config.Set("times.modified_at", d.ModifiedAt)
+
 	// saving domain config
 	if err := d.config.WriteConfig(); err != nil {
-		return fmt.Errorf("failed to create config: %s", err)
+		return fmt.Errorf("failed to save config: %s", err)
 	}
 
 	return nil
@@ -248,15 +260,7 @@ func (d *Domain) loadConfig() error {
 	// loading domain config
 	d.logger.Info("reading domain config", zap.String("config", d.config.ConfigFileUsed()))
 	if err := d.config.ReadInConfig(); err != nil {
-		if err == os.ErrNotExist {
-			// config file not found, attempting to create
-			d.logger.Info("domain config not found, creating", zap.String("config", d.config.ConfigFileUsed()))
-			if err := d.saveConfig(); err != nil {
-				return err
-			}
-		} else {
-			return fmt.Errorf("failed to create config: %s", err)
-		}
+		return fmt.Errorf("failed to load config: %s", err)
 	}
 
 	return nil
@@ -284,8 +288,8 @@ func (d *Domain) init() error {
 		if os.IsNotExist(err) {
 			// not found, attempting to create domain storage
 			d.logger.Info("creating domain storage", zap.String("id", d.StringID()))
-			if err := os.MkdirAll(sdir, 0600); err != nil {
-				return fmt.Errorf("failed to create domain storage: %s")
+			if err := os.MkdirAll(sdir, 0755); err != nil {
+				return fmt.Errorf("failed to create domain storage: %s", err)
 			}
 		} else {
 			return fmt.Errorf("failed to stat domain storage: %s", err)
@@ -298,13 +302,13 @@ func (d *Domain) init() error {
 	d.logger.Info("initializing domain storage", zap.String("id", d.StringID()))
 
 	// general database
-	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), d.StorageID()))
+	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), fmt.Sprintf("%s.dat", d.StorageID())))
 	if err != nil {
 		return err
 	}
 
 	// password database
-	pdb, err := initLocalPasswordDatabase(filepath.Join(d.StoragePath(), "passwords", d.StorageID()))
+	pdb, err := initLocalPasswordDatabase(filepath.Join(d.StoragePath(), "passwords"))
 	if err != nil {
 		return err
 	}
@@ -324,10 +328,12 @@ func (d *Domain) init() error {
 		return fmt.Errorf("failed to initialize group store: %s", err)
 	}
 
-	aps, err := NewDefaultAccessPolicyStore(db)
-	if err != nil {
-		return fmt.Errorf("failed to initialize access policy store: %s", err)
-	}
+	/*
+		aps, err := NewDefaultAccessPolicyStore(db)
+		if err != nil {
+			return fmt.Errorf("failed to initialize access policy store: %s", err)
+		}
+	*/
 
 	ps, err := NewDefaultPasswordStore(pdb)
 	if err != nil {
@@ -357,9 +363,16 @@ func (d *Domain) init() error {
 		return fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
 	}
 
-	d.logger.Info("initializing domain configuration", zap.String("config", d.config.ConfigFileUsed()))
 	if err := d.saveConfig(); err != nil {
 		return fmt.Errorf("failed to initialize domain configuration: %s", err)
+	}
+
+	//---------------------------------------------------------------------------
+	// initializing the user password manager
+	//---------------------------------------------------------------------------
+	pm, err := NewDefaultPasswordManager(ps)
+	if err != nil {
+		return fmt.Errorf("failed to initialize user password manager: %s", err)
 	}
 
 	//---------------------------------------------------------------------------
@@ -367,6 +380,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	d.Users = uc
 	d.Groups = gc
+	d.Passwords = pm
 
 	return nil
 }

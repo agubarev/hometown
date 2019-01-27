@@ -58,4 +58,7 @@ var (
 	ErrDomainDirectoryNotFound    = errors.New("domain directory is not found")
 	ErrDomainDirectoryNotReadable = errors.New("domain directory is not readable")
 	ErrDomainDirectoryNotWritable = errors.New("domain directory is not writable")
+	ErrShortPassword              = errors.New("password is too short")
+	ErrLongPassword               = errors.New("password is too long")
+	ErrUnsafePassword             = errors.New("password is too unsafe")
 )
