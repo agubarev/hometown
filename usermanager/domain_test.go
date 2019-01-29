@@ -14,7 +14,7 @@ func init() {
 	confstring := `
 instance:
     domains:
-        directory: /tmp/hometown/data/test/domains
+        directory: /tmp/hometown/domains
 `
 
 	viper.SetConfigType("yaml")

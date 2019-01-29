@@ -61,4 +61,5 @@ var (
 	ErrShortPassword              = errors.New("password is too short")
 	ErrLongPassword               = errors.New("password is too long")
 	ErrUnsafePassword             = errors.New("password is too unsafe")
+	ErrNilUserIndex               = errors.New("user index is nil")
 )

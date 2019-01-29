@@ -5,9 +5,10 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/blevesearch/bleve"
 
 	"go.uber.org/zap"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/oklog/ulid"
 	"github.com/spf13/viper"
 	"gitlab.com/agubarev/hometown/util"
-	"go.etcd.io/bbolt"
 )
 
 // permission mode used for the domain storage
@@ -87,27 +87,14 @@ func validateLocalStorageDirectory() error {
 	return nil
 }
 
-func initLocalDatabase(dbfile string) (*bbolt.DB, error) {
-	if strings.TrimSpace(dbfile) == "" {
-		return nil, fmt.Errorf("database file is not specified")
-	}
-
-	db, err := bbolt.Open(dbfile, localStorageFileMode, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open bbolt database: %s", err)
-	}
-
-	return db, nil
-}
-
-func initLocalPasswordDatabase(dbDir string) (*badger.DB, error) {
+func initLocalDatabase(dbpath string) (*badger.DB, error) {
 	// using default options
 	opts := badger.DefaultOptions
-	opts.Dir = dbDir
-	opts.ValueDir = dbDir
+	opts.Dir = dbpath
+	opts.ValueDir = dbpath
 
 	// password storage directory must exist and be writable
-	if err := util.CreateDirectoryIfNotExists(dbDir, localStorageFileMode); err != nil {
+	if err := util.CreateDirectoryIfNotExists(dbpath, localStorageFileMode); err != nil {
 		return nil, fmt.Errorf("failed to create local password database directory: %s", err)
 	}
 
@@ -118,6 +105,30 @@ func initLocalPasswordDatabase(dbDir string) (*badger.DB, error) {
 	}
 
 	return db, nil
+}
+
+func initLocalIndex(indexDir string) (bleve.Index, error) {
+	var index bleve.Index
+
+	// bleve requires a directory instead of just a file
+	indexPath := filepath.Join(indexDir)
+
+	// creating new index; will return an error if the index has already been created
+	index, err := bleve.New(indexPath, bleve.NewIndexMapping())
+	if err != nil {
+		if err == bleve.ErrorIndexPathExists {
+			// index already exists, trying to load instead
+			index, err = bleve.Open(indexPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to open existing index: %s", err)
+			}
+		} else {
+			// unhandled error
+			return nil, fmt.Errorf("failed to create new index: %s", err)
+		}
+	}
+
+	return index, nil
 }
 
 // NewDomain initializing new domain
@@ -308,19 +319,19 @@ func (d *Domain) init() error {
 	d.logger.Info("initializing domain storage", zap.String("id", d.StringID()))
 
 	// general database
-	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), fmt.Sprintf("%s.dat", d.StorageID())))
+	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), "data"))
 	if err != nil {
 		return err
 	}
 
 	// password database
-	pdb, err := initLocalPasswordDatabase(filepath.Join(d.StoragePath(), "passwords"))
+	pdb, err := initLocalDatabase(filepath.Join(d.StoragePath(), "passwords"))
 	if err != nil {
 		return err
 	}
 
 	//---------------------------------------------------------------------------
-	// initializing stores
+	// initializing stores and indexes
 	//---------------------------------------------------------------------------
 	d.logger.Info("initializing domain stores", zap.String("id", d.StringID()))
 
@@ -332,6 +343,11 @@ func (d *Domain) init() error {
 	gs, err := NewDefaultGroupStore(db)
 	if err != nil {
 		return fmt.Errorf("failed to initialize group store: %s", err)
+	}
+
+	uidx, err := initLocalIndex(filepath.Join(d.StoragePath(), "index", "users"))
+	if err != nil {
+		return err
 	}
 
 	/*
@@ -350,7 +366,7 @@ func (d *Domain) init() error {
 	// initializing and validating containers
 	//---------------------------------------------------------------------------
 	d.logger.Info("initializing user container", zap.String("did", d.StringID()))
-	uc, err := NewUserContainer(us)
+	uc, err := NewUserContainer(us, uidx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user container: %s", err)
 	}

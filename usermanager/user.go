@@ -14,7 +14,7 @@ import (
 // TODO: workout the length restrictions
 type User struct {
 	ID     ulid.ULID `json:"id"`
-	Domain *Domain   `json:"-"`
+	domain *Domain   `json:"-"`
 
 	// Username and Email are the primary IDs associated with the user account
 	Username string `json:"username" valid:"required,alphanum"`
@@ -51,8 +51,14 @@ type User struct {
 }
 
 // IDString returns short info about the user
-func (u User) IDString() string {
+func (u *User) IDString() string {
 	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
+}
+
+// Domain returns the domain to which this user belongs
+// NOTE: doing this due to gob encoding all exported fields
+func (u *User) Domain() *Domain {
+	return u.domain
 }
 
 // Fullname returns full name of a user

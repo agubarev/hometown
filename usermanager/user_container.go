@@ -27,9 +27,13 @@ type UserContainer struct {
 }
 
 // NewUserContainer initializing a new user container
-func NewUserContainer(s UserStore) (*UserContainer, error) {
+func NewUserContainer(s UserStore, idx bleve.Index) (*UserContainer, error) {
 	if s == nil {
 		log.Println("WARNING: NewUserContainer() store isn't set")
+	}
+
+	if idx == nil {
+		return nil, ErrNilUserIndex
 	}
 
 	c := &UserContainer{
@@ -38,11 +42,18 @@ func NewUserContainer(s UserStore) (*UserContainer, error) {
 		usernameMap: make(map[string]*User),
 		emailMap:    make(map[string]*User),
 		store:       s,
+		index:       idx,
 	}
 
 	// TODO: initialize bleve index
 
 	return c, nil
+}
+
+func (c *UserContainer) loadUsers() error {
+	// TODO: implement
+
+	return nil
 }
 
 // Validate this group container
