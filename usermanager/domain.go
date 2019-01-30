@@ -335,7 +335,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	d.logger.Info("initializing domain stores", zap.String("id", d.StringID()))
 
-	us, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
+	us, err := NewDefaultUserStore(db)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user store: %s", err)
 	}

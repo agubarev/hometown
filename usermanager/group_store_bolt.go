@@ -2,70 +2,58 @@ package usermanager
 
 import (
 	"bytes"
-	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
 
-	"github.com/dgraph-io/badger"
 	"github.com/oklog/ulid"
+	"go.etcd.io/bbolt"
 )
 
-// GroupStore describes a storage contract for groups specifically
-type GroupStore interface {
-	Put(g *Group) error
-	GetByID(id ulid.ULID) (*Group, error)
-	GetAll() ([]*Group, error)
-	Delete(id ulid.ULID) error
-	PutRelation(id ulid.ULID, userID ulid.ULID) error
-	GetAllRelation() (map[ulid.ULID][]ulid.ULID, error)
-	GetRelationByGroupID(id ulid.ULID) (map[ulid.ULID][]ulid.ULID, error)
-	HasRelation(id ulid.ULID, userID ulid.ULID) (bool, error)
-	DeleteRelation(id ulid.ULID, userID ulid.ULID) error
-	DeleteRelationByGroupID(id ulid.ULID) error
+// GroupStoreBolt is the default group store implementation
+type GroupStoreBolt struct {
+	db *bbolt.DB
 }
 
-func groupKey(domainID ulid.ULID, groupID ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("%s:group:%s", domainID[:], groupID[:]))
-}
+// NewGroupStoreBolt returns a group store with bbolt used as a backend
+func NewGroupStoreBolt(db *bbolt.DB) (GroupStore, error) {
+	s := &GroupStoreBolt{db}
+	err := s.db.Update(func(tx *bbolt.Tx) error {
+		_, err := tx.CreateBucketIfNotExists([]byte("GROUP"))
+		if err != nil {
+			return fmt.Errorf("failed to create a group bucket: %s", err)
+		}
 
-func groupUserKey(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("%s:group:rel:%s:%s", domainID[:], groupID[:], userID[:]))
-}
+		if _, err = tx.CreateBucketIfNotExists([]byte("GROUP_RELATION")); err != nil {
+			return fmt.Errorf("failed to create group relations bucket: %s", err)
+		}
 
-// defaultGroupStore is the default group store implementation
-type defaultGroupStore struct {
-	db *badger.DB
-}
+		return nil
+	})
 
-// NewDefaultGroupStore returns a group store with bbolt used as a backend
-func NewDefaultGroupStore(db *badger.DB) (GroupStore, error) {
-	if db == nil {
-		return nil, ErrNilDB
-	}
-
-	return &defaultGroupStore{db}, nil
+	return s, err
 }
 
 // Put storing group
-func (s *defaultGroupStore) Put(g *Group) error {
+func (s *GroupStoreBolt) Put(g *Group) error {
 	if g == nil {
 		return ErrNilGroup
 	}
 
-	return s.db.Update(func(tx *badger.Txn) error {
-		// serializing group
-		var data bytes.Buffer
-		err := gob.NewEncoder(&data).Encode(g)
-		if err != nil {
-			return fmt.Errorf("failed to serialize group: %s", err)
+	return s.db.Update(func(tx *bbolt.Tx) error {
+		groupBucket := tx.Bucket([]byte("GROUP"))
+		if groupBucket == nil {
+			return fmt.Errorf("Put() failed to open group bucket: %s", ErrBucketNotFound)
 		}
 
-		// storing primary value
-		pk := groupKey(domainID, g.ID)
-		err = tx.Set(pk, data)
+		data, err := json.Marshal(g)
 		if err != nil {
-			return fmt.Errorf("failed to store group %s: %s", pk, err)
+			return err
+		}
+
+		err = groupBucket.Put(g.ID[:], data)
+		if err != nil {
+			return fmt.Errorf("failed to store group: %s", err)
 		}
 
 		return nil
@@ -73,9 +61,9 @@ func (s *defaultGroupStore) Put(g *Group) error {
 }
 
 // GetByID retrieving a group by ID
-func (s *defaultGroupStore) GetByID(id ulid.ULID) (*Group, error) {
+func (s *GroupStoreBolt) GetByID(id ulid.ULID) (*Group, error) {
 	var g *Group
-	err := s.db.View(func(tx *badger.Txn) error {
+	err := s.db.View(func(tx *bbolt.Tx) error {
 		groupBucket := tx.Bucket([]byte("GROUP"))
 		if groupBucket == nil {
 			return fmt.Errorf("GetByID(%s) failed to load group bucket: %s", id, ErrBucketNotFound)
@@ -93,9 +81,9 @@ func (s *defaultGroupStore) GetByID(id ulid.ULID) (*Group, error) {
 }
 
 // GetAll retrieving all groups
-func (s *defaultGroupStore) GetAll() ([]*Group, error) {
+func (s *GroupStoreBolt) GetAll() ([]*Group, error) {
 	var groups []*Group
-	err := s.db.View(func(tx *badger.Txn) error {
+	err := s.db.View(func(tx *bbolt.Tx) error {
 		groupBucket := tx.Bucket([]byte("GROUP"))
 		if groupBucket == nil {
 			return fmt.Errorf("GetAll() failed to load group bucket: %s", ErrBucketNotFound)
@@ -121,8 +109,8 @@ func (s *defaultGroupStore) GetAll() ([]*Group, error) {
 }
 
 // Delete from the store by group ID
-func (s *defaultGroupStore) Delete(id ulid.ULID) error {
-	err := s.db.Update(func(tx *badger.Txn) error {
+func (s *GroupStoreBolt) Delete(id ulid.ULID) error {
+	err := s.db.Update(func(tx *bbolt.Tx) error {
 		groupBucket := tx.Bucket([]byte("GROUP"))
 		if groupBucket == nil {
 			return fmt.Errorf("failed to load group bucket: %s", ErrBucketNotFound)
@@ -150,7 +138,7 @@ func (s *defaultGroupStore) Delete(id ulid.ULID) error {
 }
 
 // PutRelation store a relation flagging that user belongs to a group
-func (s *defaultGroupStore) PutRelation(id ulid.ULID, userID ulid.ULID) error {
+func (s *GroupStoreBolt) PutRelation(id ulid.ULID, userID ulid.ULID) error {
 	// making sure that given ids are not empty, just in case
 	if len(id[:]) == 0 {
 		return ErrInvalidID
@@ -161,7 +149,7 @@ func (s *defaultGroupStore) PutRelation(id ulid.ULID, userID ulid.ULID) error {
 	}
 
 	// storing the relationship
-	return s.db.Update(func(tx *badger.Txn) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
 		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
 		if groupRelationBucket == nil {
 			return fmt.Errorf("PutRelation() failed to open group relation bucket: %s", ErrBucketNotFound)
@@ -177,9 +165,9 @@ func (s *defaultGroupStore) PutRelation(id ulid.ULID, userID ulid.ULID) error {
 }
 
 // HasRelation returns boolean denoting whether user is related to a group
-func (s *defaultGroupStore) HasRelation(id ulid.ULID, userID ulid.ULID) (bool, error) {
+func (s *GroupStoreBolt) HasRelation(id ulid.ULID, userID ulid.ULID) (bool, error) {
 	result := false
-	err := s.db.View(func(tx *badger.Txn) error {
+	err := s.db.View(func(tx *bbolt.Tx) error {
 		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
 		if groupRelationBucket == nil {
 			return fmt.Errorf("GetRelation() failed to load group relation bucket: %s", ErrBucketNotFound)
@@ -200,9 +188,9 @@ func (s *defaultGroupStore) HasRelation(id ulid.ULID, userID ulid.ULID) (bool, e
 
 // GetAllRelation retrieve all user relations for a given group
 // returns a map[groupID]userID
-func (s *defaultGroupStore) GetAllRelation() (map[ulid.ULID][]ulid.ULID, error) {
+func (s *GroupStoreBolt) GetAllRelation() (map[ulid.ULID][]ulid.ULID, error) {
 	ids := make(map[ulid.ULID][]ulid.ULID, 0)
-	err := s.db.View(func(tx *badger.Txn) error {
+	err := s.db.View(func(tx *bbolt.Tx) error {
 		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
 		if groupRelationBucket == nil {
 			return fmt.Errorf("GetAllRelation() failed to load group relations bucket: %s", ErrBucketNotFound)
@@ -232,9 +220,9 @@ func (s *defaultGroupStore) GetAllRelation() (map[ulid.ULID][]ulid.ULID, error) 
 }
 
 // GetRelationByGroupID returns a map of group id -> user id relations for a given group id
-func (s *defaultGroupStore) GetRelationByGroupID(id ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
+func (s *GroupStoreBolt) GetRelationByGroupID(id ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
 	ids := make(map[ulid.ULID][]ulid.ULID, 0)
-	err := s.db.View(func(tx *badger.Txn) error {
+	err := s.db.View(func(tx *bbolt.Tx) error {
 		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
 		if groupRelationBucket == nil {
 			return fmt.Errorf("GetRelationByGroupID() failed to load group relations bucket: %s", ErrBucketNotFound)
@@ -270,8 +258,8 @@ func (s *defaultGroupStore) GetRelationByGroupID(id ulid.ULID) (map[ulid.ULID][]
 }
 
 // DeleteRelation deletes a group-user relation
-func (s *defaultGroupStore) DeleteRelation(id ulid.ULID, userID ulid.ULID) error {
-	return s.db.Update(func(tx *badger.Txn) error {
+func (s *GroupStoreBolt) DeleteRelation(id ulid.ULID, userID ulid.ULID) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
 		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
 		if groupRelationBucket == nil {
 			return fmt.Errorf("failed to load group relation bucket: %s", ErrBucketNotFound)
@@ -287,8 +275,8 @@ func (s *defaultGroupStore) DeleteRelation(id ulid.ULID, userID ulid.ULID) error
 }
 
 // DeleteRelationByGroupID deletes all relations for a given group id
-func (s *defaultGroupStore) DeleteRelationByGroupID(id ulid.ULID) error {
-	return s.db.Update(func(tx *badger.Txn) error {
+func (s *GroupStoreBolt) DeleteRelationByGroupID(id ulid.ULID) error {
+	return s.db.Update(func(tx *bbolt.Tx) error {
 		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
 		if groupRelationBucket == nil {
 			return fmt.Errorf("failed to load group relation bucket: %s", ErrBucketNotFound)

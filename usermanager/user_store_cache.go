@@ -10,7 +10,7 @@ import (
 // UserStoreCache is an internal user caching mechanism for a Store
 type UserStoreCache interface {
 	GetByID(id ulid.ULID) *User
-	GetByIndex(index string, value string) *User
+	GetByIndex(domainID ulid.ULID, index string, value string) *User
 	Put(u *User)
 	Delete(id ulid.ULID)
 	Cleanup() error
@@ -20,7 +20,7 @@ type UserStoreCache interface {
 // a very simple mechanism, returning nil on cache misses
 func NewUserStoreCache(threshold int) UserStoreCache {
 	return &userCache{
-		users:     make(map[ulid.ULID]cachedUser),
+		users:     make(map[[]byte]cachedUser),
 		usernames: make(map[string]ulid.ULID),
 		emails:    make(map[string]ulid.ULID),
 		counter:   0,
@@ -35,7 +35,7 @@ type cachedUser struct {
 }
 
 type userCache struct {
-	users     map[ulid.ULID]cachedUser
+	users     map[[]byte]cachedUser
 	usernames map[string]ulid.ULID
 	emails    map[string]ulid.ULID
 	len       int
@@ -47,7 +47,7 @@ type userCache struct {
 
 func (c *userCache) Put(u *User) {
 	c.Lock()
-	c.users[u.ID] = cachedUser{u, time.Now().Add(c.cacheTTL)}
+	c.users[userKey(u.Domain().ID, u.ID)] = cachedUser{u, time.Now().Add(c.cacheTTL)}
 	c.usernames[u.Username] = u.ID
 	c.emails[u.Email] = u.ID
 	c.len++
