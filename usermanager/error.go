@@ -21,6 +21,7 @@ var (
 	ErrSameUser                   = errors.New("assignor and assignee is the same user")
 	ErrNilParent                  = errors.New("parent is nil")
 	ErrUserExists                 = errors.New("user already exists")
+	ErrNilUserContainer           = errors.New("user container is nil")
 	ErrNilUser                    = errors.New("user is nil")
 	ErrNilUserStore               = errors.New("user store is nil")
 	ErrNilGroupStore              = errors.New("group store is nil")
@@ -62,4 +63,5 @@ var (
 	ErrLongPassword               = errors.New("password is too long")
 	ErrUnsafePassword             = errors.New("password is too unsafe")
 	ErrNilUserIndex               = errors.New("user index is nil")
+	ErrNilPasswordManager         = errors.New("password manager is nil")
 )

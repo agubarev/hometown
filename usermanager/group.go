@@ -41,10 +41,12 @@ const (
 // TODO add mutex and store to the group; store should be set implicitly upon addition to the container
 type Group struct {
 	ID           ulid.ULID     `json:"id"`
+	Parent       *Group        `json:"-"`
+	Domain       *Domain       `json:"-"`
 	Kind         GroupKind     `json:"kind"`
 	HasParent    bool          `json:"hasp"`
+	DomainID     ulid.ULID     `json:"did"`
 	ParentID     ulid.ULID     `json:"pid"`
-	Parent       *Group        `json:"-"`
 	Key          string        `json:"key" valid:"required,ascii"`
 	Name         string        `json:"name" valid:"required"`
 	Description  string        `json:"desc" valid:"optional,length(0|200)"`
@@ -60,6 +62,12 @@ type Group struct {
 // NewGroup initializing a new group struct
 // IMPORTANT: group kind is permanent and must never change
 func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, error) {
+	if parent != nil {
+		if err := parent.Validate(); err != nil {
+			return nil, fmt.Errorf("NewGroup() parent validation failed: %s", err)
+		}
+	}
+
 	g := &Group{
 		ID:        util.NewULID(),
 		Kind:      kind,
@@ -69,12 +77,6 @@ func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, e
 		memberMap: make(map[ulid.ULID]*User),
 	}
 
-	if parent != nil {
-		if err := parent.Validate(); err != nil {
-			return nil, fmt.Errorf("NewGroup() parent validation failed: %s", err)
-		}
-	}
-
 	if err := g.SetParent(parent); err != nil {
 		return nil, err
 	}
@@ -82,8 +84,8 @@ func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, e
 	return g, g.Validate()
 }
 
-// IDString returns short object info
-func (g *Group) IDString() string {
+// StringID returns short object info
+func (g *Group) StringID() string {
 	return fmt.Sprintf("%s(%s:%s:%s)", g.Kind, g.ID, g.Key, g.Name)
 }
 
@@ -133,6 +135,13 @@ func (g *Group) IsCircuited() (bool, error) {
 	}
 
 	return false, ErrCircuitCheckTimeout
+}
+
+// SetDescription sets text description for this domain
+func (g *Domain) SetDescription(desc string) error {
+	// TODO: implement
+
+	return nil
 }
 
 // SetParent assigning a parent group, could be nil
@@ -226,7 +235,7 @@ func (g *Group) AddMember(u *User) error {
 			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
 		}
 	} else {
-		log.Printf("WARNING: AddMember() adding %s member to %s without storing\n", u.IDString(), g.IDString())
+		log.Printf("WARNING: AddMember() adding %s member to %s without storing\n", u.StringID(), g.StringID())
 	}
 
 	// updating runtime data
@@ -237,7 +246,7 @@ func (g *Group) AddMember(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.TrackGroup(g); err != nil {
-		log.Printf("WARNING: AddMember() user failed to track group(%s): %s\n", g.IDString(), err)
+		log.Printf("WARNING: AddMember() user failed to track group(%s): %s\n", g.StringID(), err)
 	}
 
 	return nil
@@ -278,7 +287,7 @@ func (g *Group) RemoveMember(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.UntrackGroup(g.ID); err != nil {
-		log.Printf("WARNING: RemoveMember() user failed to untrack group(%s): %s\n", g.IDString(), err)
+		log.Printf("WARNING: RemoveMember() user failed to untrack group(%s): %s\n", g.StringID(), err)
 	}
 
 	return nil

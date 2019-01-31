@@ -52,13 +52,12 @@ type User struct {
 	groups []*Group
 }
 
-// IDString returns short info about the user
-func (u *User) IDString() string {
+// StringID returns short info about the user
+func (u *User) StringID() string {
 	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
 }
 
 // Domain returns the domain to which this user belongs
-// NOTE: doing this due to gob encoding all exported fields
 func (u *User) Domain() *Domain {
 	return u.domain
 }

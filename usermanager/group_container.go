@@ -15,6 +15,7 @@ type GroupList []Group
 // GroupContainer is a container responsible for all operations within its scope
 // TODO: add default groups which need not to be assigned
 type GroupContainer struct {
+	domain *Domain
 	groups []*Group
 	idMap  map[ulid.ULID]*Group
 	keyMap map[string]*Group
@@ -40,6 +41,10 @@ func NewGroupContainer(s GroupStore) (*GroupContainer, error) {
 
 // Validate this group container
 func (c *GroupContainer) Validate() error {
+	if c.domain == nil {
+		return ErrNilDomain
+	}
+
 	if c.groups == nil {
 		return errors.New("groups slice is not initialized")
 	}
@@ -55,8 +60,20 @@ func (c *GroupContainer) Validate() error {
 	return nil
 }
 
-// Persist asks all contained groups to store itself
-func (c *GroupContainer) Persist() error {
+// Save asks all contained groups to store itself
+func (c *GroupContainer) Save() error {
+
+	return nil
+}
+
+// SetDomain is called when this container is attached to a domain
+func (c *GroupContainer) SetDomain(d *Domain) error {
+	if d == nil {
+		return ErrNilDomain
+	}
+
+	// link this container to a given domain
+	c.domain = d
 
 	return nil
 }
@@ -71,9 +88,12 @@ func (c *GroupContainer) Register(g *Group) error {
 	// check if the group is in store, otherwise create
 	if _, err := c.store.GetByID(g.ID); err == ErrGroupNotFound {
 		if err = c.store.Put(g); err != nil {
-			return fmt.Errorf("failed to register group [%s]: %s", g.ID, err)
+			return fmt.Errorf("failed to stored registered group [%s]: %s", g.ID, err)
 		}
 	}
+
+	// linking group to this container
+	g.container = c
 
 	c.Lock()
 	c.groups = append(c.groups, g)

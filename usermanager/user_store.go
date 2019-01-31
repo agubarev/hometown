@@ -51,16 +51,16 @@ func (s *defaultUserStore) Put(u *User) error {
 	}
 
 	return s.db.Update(func(tx *badger.Txn) error {
-		// serializing user using gob
-		var data bytes.Buffer
-		err := gob.NewEncoder(&data).Encode(u)
+		// decoding user payload bytes using gob
+		var payload bytes.Buffer
+		err := gob.NewEncoder(&payload).Encode(u)
 		if err != nil {
-			return fmt.Errorf("failed to serialize user: %s", err)
+			return fmt.Errorf("failed to encode user: %s", err)
 		}
 
 		// storing primary value
 		primaryKey = userKey(u.Domain().ID, u.ID)
-		err = tx.Set(primaryKey, data)
+		err = tx.Set(primaryKey, payload.Bytes())
 		if err != nil {
 			return fmt.Errorf("failed to store user %s: %s", primaryKey, err)
 		}
@@ -114,7 +114,7 @@ func (s *defaultUserStore) GetByID(d *Domain, id ulid.ULID) (*User, error) {
 		// lookup user by ID
 		item, err := tx.Get(userKey(d.ID, id))
 		if err != nil {
-			if err == ErrKeyNotFound {
+			if err == badger.ErrKeyNotFound {
 				return ErrUserNotFound
 			}
 
@@ -124,7 +124,7 @@ func (s *defaultUserStore) GetByID(d *Domain, id ulid.ULID) (*User, error) {
 		// obtaining value
 		return item.Value(func(val []byte) error {
 			if err := gob.NewDecoder(user).Decode(val); err != nil {
-				return fmt.Errorf("failed to unserialize stored user: %s", err)
+				return fmt.Errorf("failed to decode stored user: %s", err)
 			}
 
 			return nil
@@ -141,7 +141,7 @@ func (s *defaultUserStore) GetByIndex(domainID ulid.ULID, index string, value st
 		// lookup user by ID
 		item, err := tx.Get(userIndexKey(domainID, index, value))
 		if err != nil {
-			if err == ErrKeyNotFound {
+			if err == badger.ErrKeyNotFound {
 				return ErrUserNotFound
 			}
 
@@ -151,7 +151,7 @@ func (s *defaultUserStore) GetByIndex(domainID ulid.ULID, index string, value st
 		// obtaining value
 		return item.Value(func(val []byte) error {
 			if err := gob.NewDecoder(user).Decode(val); err != nil {
-				return fmt.Errorf("failed to unserialize stored user: %s", err)
+				return fmt.Errorf("failed to decode stored user: %s", err)
 			}
 
 			return nil

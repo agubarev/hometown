@@ -102,6 +102,18 @@ func (c *UserContainer) Register(user *User) error {
 	return nil
 }
 
+// SetDomain is called when this container is attached to a domain
+func (c *UserContainer) SetDomain(d *Domain) error {
+	if d == nil {
+		return ErrNilDomain
+	}
+
+	// link this container to a given domain
+	c.domain = d
+
+	return nil
+}
+
 // Unregister user from the container
 func (c *UserContainer) Unregister(id ulid.ULID) error {
 	// just being explicit about the error for consistency

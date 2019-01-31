@@ -229,6 +229,12 @@ func (ap *AccessPolicy) UserAccess(u *User) AccessRight {
 // TODO: store changes if the store is not nil
 // TODO: store changes if the store is not nil
 // TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
+// TODO: store changes if the store is not nil
 func (ap *AccessPolicy) SetPublicRights(assignor *User, rights AccessRight) error {
 	if assignor == nil {
 		return ErrNilAssignor
@@ -347,10 +353,7 @@ func (ap *AccessPolicy) HasRights(user *User, rights AccessRight) bool {
 		return true
 	}
 
-	// copying for convenience
-	rr := ap.RightsRoster
-
-	if rr == nil {
+	if ap.RightsRoster == nil {
 		return false
 	}
 

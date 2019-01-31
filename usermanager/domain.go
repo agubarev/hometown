@@ -404,9 +404,18 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// finalizing domain initialization
 	//---------------------------------------------------------------------------
-	d.Users = uc
-	d.Groups = gc
-	d.Passwords = pm
+
+	if err = d.SetUserContainer(uc); err != nil {
+		return err
+	}
+
+	if err = d.SetGroupContainer(gc); err != nil {
+		return err
+	}
+
+	if err = d.SetPasswordManager(pm); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -459,6 +468,60 @@ func (d *Domain) setupDefaultGroups() error {
 // StringID is a short text info
 func (d *Domain) StringID() string {
 	return fmt.Sprintf("%s", d.ID)
+}
+
+// SetUserContainer assigns a user container to this domain
+func (d *Domain) SetUserContainer(uc *UserContainer) error {
+	if uc == nil {
+		return ErrNilUserContainer
+	}
+
+	err := uc.Validate()
+	if err != nil {
+		return fmt.Errorf("failed to set user container: %s", err)
+	}
+
+	err = uc.SetDomain(d)
+	if err != nil {
+		return fmt.Errorf("failed to set user container: %s", err)
+	}
+
+	// assigning user container to this domain
+	d.Users = uc
+
+	return nil
+}
+
+// SetGroupContainer assigns a user container to this domain
+func (d *Domain) SetGroupContainer(gc *GroupContainer) error {
+	if gc == nil {
+		return ErrNilGroupContainer
+	}
+
+	err := gc.Validate()
+	if err != nil {
+		return fmt.Errorf("failed to set group container: %s", err)
+	}
+
+	err = gc.SetDomain(d)
+	if err != nil {
+		return fmt.Errorf("failed to set group container: %s", err)
+	}
+
+	d.Groups = gc
+
+	return nil
+}
+
+// SetPasswordManager assigns a password manager for this container
+func (d *Domain) SetPasswordManager(pm PasswordManager) error {
+	if pm == nil {
+		return ErrNilPasswordManager
+	}
+
+	d.Passwords = pm
+
+	return nil
 }
 
 // StorageID returns a string which should be used to identify
