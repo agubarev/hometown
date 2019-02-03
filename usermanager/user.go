@@ -13,7 +13,8 @@ import (
 // User represents a user account, a unique entity
 // TODO: workout the length restrictions
 type User struct {
-	ID ulid.ULID `json:"id"`
+	ID     ulid.ULID `json:"id"`
+	Domain *Domain   `json:"-"`
 
 	// Username and Email are the primary IDs associated with the user account
 	Username string `json:"username" valid:"required,alphanum"`
@@ -45,9 +46,6 @@ type User struct {
 	SuspensionExpiresAt time.Time `json:"suspension_expires_at,omitempty"`
 	SuspensionReason    string    `json:"suspension_reason,omitempty"`
 
-	// pointer to the domain of residence
-	domain *Domain
-
 	// tracking all group kinds in one slice
 	groups []*Group
 }
@@ -55,11 +53,6 @@ type User struct {
 // StringID returns short info about the user
 func (u *User) StringID() string {
 	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
-}
-
-// Domain returns the domain to which this user belongs
-func (u *User) Domain() *Domain {
-	return u.domain
 }
 
 // Fullname returns full name of a user
@@ -99,7 +92,16 @@ func (u *User) Validate() error {
 	}
 
 	if ok, err := govalidator.ValidateStruct(u); !ok || err != nil {
-		return fmt.Errorf("user [%s:%s] validation failed: %s", u.ID, u.Username, err)
+		return fmt.Errorf("%s validation failed: %s", u.StringID(), err)
+	}
+
+	return nil
+}
+
+// Save saves current user to the container's store
+func (u *User) Save() error {
+	if u == nil {
+		return ErrNilUser
 	}
 
 	return nil
@@ -131,18 +133,13 @@ func (u *User) UntrackGroup(id ulid.ULID) error {
 		return nil
 	}
 
-	// finding position
-	// TODO: extract to util function to delete slice items by something i.e. ID
-	var pos int
+	// removing group from the tracklist
 	for i, g := range u.groups {
 		if g.ID == id {
-			pos = i
+			u.groups = append(u.groups[0:i], u.groups[i+1:]...)
 			break
 		}
 	}
-
-	// removing group from the tracklist
-	u.groups = append(u.groups[0:pos], u.groups[pos+1:]...)
 
 	return ErrGroupNotFound
 }

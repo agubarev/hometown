@@ -129,6 +129,19 @@ func (s *defaultGroupStore) GetAll(domainID ulid.ULID) ([]*Group, error) {
 // Delete from the store by group ID
 func (s *defaultGroupStore) Delete(domainID ulid.ULID, groupID ulid.ULID) error {
 	err := s.db.Update(func(tx *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false
+		opts.Prefix = []byte(fmt.Sprintf("%s:group:%s:rel:", domainID, groupID))
+		it := tx.NewIterator(opts)
+		defer it.Close()
+
+		// iterating over found keys and deleting them one by one
+		for it.Rewind(); it.Valid(); it.Next() {
+			if err := tx.Delete(it.Item().Key()); err != nil {
+				return fmt.Errorf("failed to delete stored group relations: %s")
+			}
+		}
+
 		return tx.Delete(groupKey(domainID, groupID))
 	})
 	if err != nil {
@@ -149,7 +162,7 @@ func (s *defaultGroupStore) PutRelation(domainID ulid.ULID, groupID ulid.ULID, u
 	return s.db.Update(func(tx *badger.Txn) error {
 		err := tx.Set(groupUserKey(domainID, groupID, userID), []byte{1})
 		if err != nil {
-			return fmt.Errorf("PutRelation() failed to store group relation: %s", err)
+			return fmt.Errorf("failed to store group relation: %s", err)
 		}
 
 		return nil
@@ -157,16 +170,20 @@ func (s *defaultGroupStore) PutRelation(domainID ulid.ULID, groupID ulid.ULID, u
 }
 
 // HasRelation returns boolean denoting whether user is related to a group
-func (s *defaultGroupStore) HasRelation(id ulid.ULID, userID ulid.ULID) (bool, error) {
+func (s *defaultGroupStore) HasRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) (bool, error) {
 	result := false
 	err := s.db.View(func(tx *badger.Txn) error {
-		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
-		if groupRelationBucket == nil {
-			return fmt.Errorf("GetRelation() failed to load group relation bucket: %s", ErrBucketNotFound)
-		}
+		_, err := tx.Get(groupUserKey(domainID, groupID, userID))
+		if err != nil {
+			// relation exists if the key exists
+			if err == badger.ErrKeyNotFound {
+				// no relation found, normal return
+				// the result is still false
+				return nil
+			}
 
-		if !bytes.Equal(groupRelationBucket.Get(GroupRelationKey(id, userID)), []byte{1}) {
-			return ErrRelationNotFound
+			// unexpected error
+			return err
 		}
 
 		// relation exists
@@ -179,87 +196,89 @@ func (s *defaultGroupStore) HasRelation(id ulid.ULID, userID ulid.ULID) (bool, e
 }
 
 // GetAllRelation retrieve all user relations for a given group
-// returns a map[groupID]userID
-func (s *defaultGroupStore) GetAllRelation() (map[ulid.ULID][]ulid.ULID, error) {
-	ids := make(map[ulid.ULID][]ulid.ULID, 0)
+// returns a map[groupID][]userID
+func (s *defaultGroupStore) GetAllRelation(domainID ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
+	relations := make(map[ulid.ULID][]ulid.ULID, 0)
 	err := s.db.View(func(tx *badger.Txn) error {
-		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
-		if groupRelationBucket == nil {
-			return fmt.Errorf("GetAllRelation() failed to load group relations bucket: %s", ErrBucketNotFound)
-		}
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte(fmt.Sprintf("%s:group:rel:", domainID[:]))
+		opts.PrefetchValues = false
+		it := tx.NewIterator(opts)
 
-		// key holds group and user ids as string of bytes separated by a hyphen
-		c := groupRelationBucket.Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			// parsing IDs
-			var groupID ulid.ULID
-			if err := groupID.Scan(k[0:16]); err != nil {
-				return fmt.Errorf("GetAllRelation() failed to parse group id: %s", err)
+		var groupID, userID ulid.ULID
+		for it.Rewind(); it.Valid(); it.Next() {
+			key := it.Item().Key()
+
+			err := groupID.UnmarshalBinary(key[:16])
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal group id from bytes: %s", err)
 			}
 
-			var userID ulid.ULID
-			if err := userID.Scan(k[16:]); err != nil {
-				return fmt.Errorf("GetAllRelation() failed to parse related user id: %s", err)
+			err = userID.UnmarshalBinary(key[16:])
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal user id from bytes: %s", err)
 			}
 
-			ids[groupID] = append(ids[groupID], userID)
+			// creating a user slice for the group
+			if _, ok := relations[groupID]; !ok {
+				relations[groupID] = make([]ulid.ULID, 0)
+			}
+
+			// appending group to user relation
+			relations[groupID] = append(relations[groupID], userID)
 		}
 
 		return nil
 	})
 
-	return ids, err
+	return relations, err
 }
 
 // GetRelationByGroupID returns a map of group id -> user id relations for a given group id
-func (s *defaultGroupStore) GetRelationByGroupID(id ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
-	ids := make(map[ulid.ULID][]ulid.ULID, 0)
+func (s *defaultGroupStore) GetRelationByGroupID(domainID ulid.ULID, groupID ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
+	relations := make(map[ulid.ULID][]ulid.ULID, 0)
 	err := s.db.View(func(tx *badger.Txn) error {
-		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
-		if groupRelationBucket == nil {
-			return fmt.Errorf("GetRelationByGroupID() failed to load group relations bucket: %s", ErrBucketNotFound)
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte(fmt.Sprintf("%s:group:rel:%s:", domainID[:], groupID[:]))
+		opts.PrefetchValues = false
+		it := tx.NewIterator(opts)
+
+		var groupID, userID ulid.ULID
+		for it.Rewind(); it.Valid(); it.Next() {
+			key := it.Item().Key()
+
+			// initializing ULIDs from key bytes
+			err := groupID.UnmarshalBinary(key[:16])
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal group id from bytes: %s", err)
+			}
+
+			err = userID.UnmarshalBinary(key[16:])
+			if err != nil {
+				return fmt.Errorf("failed to unmarshal user id from bytes: %s", err)
+			}
+
+			// creating a user slice for the group
+			if _, ok := relations[groupID]; !ok {
+				relations[groupID] = make([]ulid.ULID, 0)
+			}
+
+			// appending group to user relation
+			relations[groupID] = append(relations[groupID], userID)
+
+			return nil
 		}
-
-		// key holds group and user ids as string of bytes separated by a hyphen
-		c := groupRelationBucket.Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			if !bytes.HasPrefix(k, id[:]) {
-				continue
-			}
-
-			var groupID ulid.ULID
-			if err := groupID.Scan(k[0:16]); err != nil {
-				return fmt.Errorf("GetAllRelation() failed to parse group id: %s", err)
-			}
-
-			var userID ulid.ULID
-			if err := userID.Scan(k[16:]); err != nil {
-				return fmt.Errorf("GetAllRelation() failed to parse related user id: %s", err)
-			}
-
-			// paranoid check
-			if groupID == id {
-				ids[groupID] = append(ids[groupID], userID)
-			}
-		}
-
-		return nil
 	})
 
-	return ids, err
+	return relations, err
 }
 
 // DeleteRelation deletes a group-user relation
-func (s *defaultGroupStore) DeleteRelation(id ulid.ULID, userID ulid.ULID) error {
+func (s *defaultGroupStore) DeleteRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) error {
 	return s.db.Update(func(tx *badger.Txn) error {
-		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
-		if groupRelationBucket == nil {
-			return fmt.Errorf("failed to load group relation bucket: %s", ErrBucketNotFound)
-		}
-
-		err := groupRelationBucket.Delete(GroupRelationKey(id, userID))
+		err := tx.Delete(groupUserKey(domainID, groupID, userID))
 		if err != nil {
-			return fmt.Errorf("DeleteRelation() failed to delete group relation (%s -> %s): %s", id, userID, err)
+			return fmt.Errorf("failed to delete stored group-user relation (%s -> %s): %s", groupID, userID, err)
 		}
 
 		return nil
@@ -267,22 +286,20 @@ func (s *defaultGroupStore) DeleteRelation(id ulid.ULID, userID ulid.ULID) error
 }
 
 // DeleteRelationByGroupID deletes all relations for a given group id
-func (s *defaultGroupStore) DeleteRelationByGroupID(id ulid.ULID) error {
+func (s *defaultGroupStore) DeleteRelationByGroupID(domainID ulid.ULID, groupID ulid.ULID) error {
 	return s.db.Update(func(tx *badger.Txn) error {
-		groupRelationBucket := tx.Bucket([]byte("GROUP_RELATION"))
-		if groupRelationBucket == nil {
-			return fmt.Errorf("failed to load group relation bucket: %s", ErrBucketNotFound)
-		}
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte(fmt.Sprintf("%s:group:rel:%s:", domainID[:], groupID[:]))
+		opts.PrefetchValues = false
+		it := tx.NewIterator(opts)
 
-		c := groupRelationBucket.Cursor()
-		for k, _ := c.First(); k != nil; k, _ = c.Next() {
-			// testing by a prefix
-			if bytes.HasPrefix(k, id[:]) {
-				// found, deleting
-				if err := c.Delete(); err != nil {
-					return err
-				}
+		var groupID, userID ulid.ULID
+		for it.Rewind(); it.Valid(); it.Next() {
+			if err := tx.Delete(it.Item().Key()); err != nil {
+				return fmt.Errorf("failed to delete stored group-user relations for %s: %s", groupID, err)
 			}
+
+			return nil
 		}
 
 		return nil

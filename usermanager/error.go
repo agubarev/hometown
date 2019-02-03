@@ -4,6 +4,7 @@ import "errors"
 
 // errors
 var (
+	ErrNilUserManager             = errors.New("user manager is nil")
 	ErrNilPasswordStore           = errors.New("password store is nil")
 	ErrEmptyPassword              = errors.New("empty password is forbidden")
 	ErrPasswordNotFound           = errors.New("password not found")
@@ -46,6 +47,7 @@ var (
 	ErrNilDominion                = errors.New("dominion is nil")
 	ErrDuplicateDomain            = errors.New("found a duplicate domain")
 	ErrNilDomain                  = errors.New("domain is nil")
+	ErrNilUserDomain              = errors.New("user domain is nil")
 	ErrDomainNotFound             = errors.New("domain not found")
 	ErrNilGroup                   = errors.New("group is nil")
 	ErrNilGroupContainer          = errors.New("group container is nil")

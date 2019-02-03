@@ -85,11 +85,18 @@ func (c *GroupContainer) Register(g *Group) error {
 		return ErrGroupAlreadyRegistered
 	}
 
-	// check if the group is in store, otherwise create
-	if _, err := c.store.GetByID(g.ID); err == ErrGroupNotFound {
-		if err = c.store.Put(g); err != nil {
-			return fmt.Errorf("failed to stored registered group [%s]: %s", g.ID, err)
+	// working with the store only if its assigned to this container
+	// NOTE: this is handled the way it is only to possibly allow
+	// pre-assembly of containers for future processing
+	if c.store == nil {
+		// check if the group is in store, otherwise create
+		if _, err := c.store.GetByID(c.domain.ID, g.ID); err == ErrGroupNotFound {
+			if err = c.store.Put(g); err != nil {
+				return fmt.Errorf("failed to stored registered group [%s]: %s", g.ID, err)
+			}
 		}
+	} else {
+		log.Printf("WARNING: registering %s without storing\n", g.StringID())
 	}
 
 	// linking group to this container

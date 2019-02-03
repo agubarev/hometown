@@ -44,16 +44,16 @@ type Group struct {
 	Parent       *Group        `json:"-"`
 	Domain       *Domain       `json:"-"`
 	Kind         GroupKind     `json:"kind"`
-	HasParent    bool          `json:"hasp"`
-	DomainID     ulid.ULID     `json:"did"`
-	ParentID     ulid.ULID     `json:"pid"`
 	Key          string        `json:"key" valid:"required,ascii"`
 	Name         string        `json:"name" valid:"required"`
 	Description  string        `json:"desc" valid:"optional,length(0|200)"`
 	AccessPolicy *AccessPolicy `json:"-"`
 
+	// these fields are basically just for the storage
+	DomainID ulid.ULID `json:"did"`
+	ParentID ulid.ULID `json:"pid"`
+
 	container *GroupContainer
-	store     GroupStore
 	members   GroupMembers
 	memberMap map[ulid.ULID]*User
 	sync.RWMutex
@@ -176,12 +176,7 @@ func (g *Group) SetParent(p *Group) error {
 
 		// ParentID is used to rebuild parent-child connections after
 		// loading groups from the store
-		// HasParent flags whether this group has a parent because
-		// ULID can't be nil
-		g.HasParent = true
 		g.ParentID = p.ID
-	} else {
-		g.HasParent = false
 	}
 
 	// assingning a new parent
@@ -192,7 +187,7 @@ func (g *Group) SetParent(p *Group) error {
 
 // Save this group to the store
 func (g *Group) Save() error {
-	if g.store == nil {
+	if g.container.store == nil {
 		return ErrNilGroupStore
 	}
 
@@ -219,23 +214,37 @@ func (g *Group) IsMember(u *User) bool {
 	return false
 }
 
-// AddMember adding user to a group
-func (g *Group) AddMember(u *User) error {
+func (g *Group) validateUser(u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
 
+	// this group must belong to some domain at this point
+	if u.Domain == nil {
+		return ErrNilUserDomain
+	}
+
+	return nil
+}
+
+// Register adding user to a group
+func (g *Group) Register(u *User) error {
+	if err := g.validateUser(u); err != nil {
+		return err
+	}
+
+	// returning an error if this user already belongs to this group
 	if g.IsMember(u) {
 		return ErrAlreadyMember
 	}
 
 	// if store is set then storing new relation
-	if g.store != nil {
-		if err := g.store.PutRelation(g.ID, u.ID); err != nil {
-			return fmt.Errorf("AddMember(%s) failed to store relation: %s", u.ID, err)
+	if g.container.store != nil {
+		if err := g.container.store.PutRelation(g.Domain.ID, g.ID, u.ID); err != nil {
+			return err
 		}
 	} else {
-		log.Printf("WARNING: AddMember() adding %s member to %s without storing\n", u.StringID(), g.StringID())
+		log.Printf("WARNING: registering %s member to %s without storing\n", u.StringID(), g.StringID())
 	}
 
 	// updating runtime data
@@ -246,48 +255,52 @@ func (g *Group) AddMember(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.TrackGroup(g); err != nil {
-		log.Printf("WARNING: AddMember() user failed to track group(%s): %s\n", g.StringID(), err)
+		log.Printf("%s failed to track group(%s): %s", u.StringID(), g.StringID(), err)
 	}
 
 	return nil
 }
 
-// RemoveMember adding user to a group
-func (g *Group) RemoveMember(u *User) error {
-	if u == nil {
-		return ErrNilUser
+// Unregister adding user to a group
+func (g *Group) Unregister(u *User) error {
+	if err := g.validateUser(u); err != nil {
+		return err
 	}
 
-	if g.IsMember(u) {
+	// being consistent and returning an error for explicitness
+	if !g.IsMember(u) {
 		return ErrNotMember
 	}
 
-	// deleting a stored relation
-	if err := g.container.store.DeleteRelation(g.ID, u.ID); err != nil {
-		return fmt.Errorf("RemoveMember() failed to delete a stored relation: %s", err)
+	if g.container.store != nil {
+		// TODO: do not store relation if this user already belongs to this group
+		// deleting a stored relation
+		if err := g.container.store.DeleteRelation(g.Domain.ID, g.ID, u.ID); err != nil {
+			return err
+		}
+	} else {
+		log.Printf("WARNING: unregistering %s member to %s without storing\n", u.StringID(), g.StringID())
 	}
 
 	g.container.Lock()
-	defer g.container.Unlock()
 
-	// removing a member
-	var pos int
+	// removing group from the main slice
 	for i, m := range g.members {
 		if m.ID == u.ID {
-			pos = i
+			// deleting a group from the list
+			g.members = append(g.members[0:i], g.members[i+1:]...)
 			break
 		}
 	}
 
-	// deleting a group from the list
-	g.members = append(g.members[0:pos], g.members[pos+1:]...)
-
-	// removing user from the index
+	// removing user from the group members
 	delete(g.memberMap, u.ID)
+
+	g.container.Unlock()
 
 	// updating group tracklist for this user
 	if err := u.UntrackGroup(g.ID); err != nil {
-		log.Printf("WARNING: RemoveMember() user failed to untrack group(%s): %s\n", g.StringID(), err)
+		log.Printf("%s failed to untrack group(%s): %s", u.StringID(), g.StringID(), err)
 	}
 
 	return nil

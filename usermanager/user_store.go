@@ -13,9 +13,9 @@ import (
 // UserStore represents a user storage contract
 type UserStore interface {
 	Put(u *User) error
-	GetByID(domainID ulid.ULID, id ulid.ULID) (*User, error)
+	Delete(u *User) error
+	GetByID(domainID ulid.ULID, userID ulid.ULID) (*User, error)
 	GetByIndex(domainID ulid.ULID, index string, value string) (*User, error)
-	Delete(id ulid.ULID) error
 }
 
 func userKey(domainID ulid.ULID, userID ulid.ULID) []byte {
@@ -37,8 +37,7 @@ func NewDefaultUserStore(db *badger.DB) (UserStore, error) {
 	}
 
 	s := &defaultUserStore{
-		db:        db,
-		userCache: uc,
+		db: db,
 	}
 
 	return s, nil
@@ -59,7 +58,7 @@ func (s *defaultUserStore) Put(u *User) error {
 		}
 
 		// storing primary value
-		primaryKey = userKey(u.Domain().ID, u.ID)
+		primaryKey := userKey(u.Domain().ID, u.ID)
 		err = tx.Set(primaryKey, payload.Bytes())
 		if err != nil {
 			return fmt.Errorf("failed to store user %s: %s", primaryKey, err)
