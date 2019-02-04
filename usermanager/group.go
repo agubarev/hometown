@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/asaskevich/govalidator"
 
 	"github.com/oklog/ulid"
@@ -56,6 +58,7 @@ type Group struct {
 	container *GroupContainer
 	members   GroupMembers
 	memberMap map[ulid.ULID]*User
+	logger    *zap.Logger
 	sync.RWMutex
 }
 
@@ -240,11 +243,11 @@ func (g *Group) Register(u *User) error {
 
 	// if store is set then storing new relation
 	if g.container.store != nil {
-		if err := g.container.store.PutRelation(g.Domain.ID, g.ID, u.ID); err != nil {
+		if err := g.container.store.PutRelation(g.ID, u.ID); err != nil {
 			return err
 		}
 	} else {
-		log.Printf("WARNING: registering %s member to %s without storing\n", u.StringID(), g.StringID())
+		g.logger.Warn("registering member without storing", zap.String("gid", g.ID.String()), zap.String("uid", u.ID.String()))
 	}
 
 	// updating runtime data
@@ -255,7 +258,12 @@ func (g *Group) Register(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.TrackGroup(g); err != nil {
-		log.Printf("%s failed to track group(%s): %s", u.StringID(), g.StringID(), err)
+		g.logger.Error(
+			"user failed to track group",
+			zap.String("gid", g.ID.String()),
+			zap.String("uid", u.ID.String()),
+			zap.Error(err),
+		)
 	}
 
 	return nil
@@ -273,9 +281,8 @@ func (g *Group) Unregister(u *User) error {
 	}
 
 	if g.container.store != nil {
-		// TODO: do not store relation if this user already belongs to this group
 		// deleting a stored relation
-		if err := g.container.store.DeleteRelation(g.Domain.ID, g.ID, u.ID); err != nil {
+		if err := g.container.store.DeleteRelation(g.ID, u.ID); err != nil {
 			return err
 		}
 	} else {
@@ -300,7 +307,12 @@ func (g *Group) Unregister(u *User) error {
 
 	// updating group tracklist for this user
 	if err := u.UntrackGroup(g.ID); err != nil {
-		log.Printf("%s failed to untrack group(%s): %s", u.StringID(), g.StringID(), err)
+		g.logger.Error(
+			"user failed to untrack group",
+			zap.String("gid", g.ID.String()),
+			zap.String("uid", u.ID.String()),
+			zap.Error(err),
+		)
 	}
 
 	return nil

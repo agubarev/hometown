@@ -12,23 +12,24 @@ import (
 // GroupStore describes a storage contract for groups specifically
 type GroupStore interface {
 	Put(g *Group) error
-	GetByID(domainID ulid.ULID, groupID ulid.ULID) (*Group, error)
-	GetAll(domainID ulid.ULID) ([]*Group, error)
-	Delete(domainID ulid.ULID, groupID ulid.ULID) error
-	PutRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) error
-	GetAllRelation(domainID ulid.ULID) (map[ulid.ULID][]ulid.ULID, error)
-	GetRelationByGroupID(domainID ulid.ULID, groupID ulid.ULID) (map[ulid.ULID][]ulid.ULID, error)
-	HasRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) (bool, error)
-	DeleteRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) error
-	DeleteRelationByGroupID(domainID ulid.ULID, groupID ulid.ULID) error
+	Get(groupID ulid.ULID) (*Group, error)
+	GetAll() ([]*Group, error)
+	Delete(groupID ulid.ULID) error
+	PutRelation(groupID ulid.ULID, userID ulid.ULID) error
+	HasRelation(groupID ulid.ULID, userID ulid.ULID) (bool, error)
+	DeleteRelation(groupID ulid.ULID, userID ulid.ULID) error
 }
 
-func groupKey(domainID ulid.ULID, groupID ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("%s:group:%s", domainID[:], groupID[:]))
+func groupKey(groupID ulid.ULID) []byte {
+	return groupID[:]
 }
 
-func groupUserKey(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("%s:group:rel:%s:%s", domainID[:], groupID[:], userID[:]))
+func groupUserKey(groupID ulid.ULID, userID ulid.ULID) []byte {
+	key := make([]byte, 32)
+	copy(key[:16], groupID[:])
+	copy(key[16:], userID[:])
+
+	return key
 }
 
 // defaultGroupStore is the default group store implementation
@@ -60,7 +61,7 @@ func (s *defaultGroupStore) Put(g *Group) error {
 		}
 
 		// storing primary value
-		key := groupKey(g.Domain.ID, g.ID)
+		key := groupKey(g.ID)
 		err = tx.Set(key, payload.Bytes())
 		if err != nil {
 			return fmt.Errorf("failed to store group %s: %s", key, err)
@@ -70,11 +71,11 @@ func (s *defaultGroupStore) Put(g *Group) error {
 	})
 }
 
-// GetByID retrieving a group by ID
-func (s *defaultGroupStore) GetByID(domainID ulid.ULID, groupID ulid.ULID) (*Group, error) {
+// Get retrieving a group by ID
+func (s *defaultGroupStore) Get(groupID ulid.ULID) (*Group, error) {
 	var g *Group
 	err := s.db.View(func(tx *badger.Txn) error {
-		item, err := tx.Get(groupKey(domainID, groupID))
+		item, err := tx.Get(groupKey(groupID))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
 				return ErrGroupNotFound
@@ -96,14 +97,13 @@ func (s *defaultGroupStore) GetByID(domainID ulid.ULID, groupID ulid.ULID) (*Gro
 }
 
 // GetAll retrieving all groups
-func (s *defaultGroupStore) GetAll(domainID ulid.ULID) ([]*Group, error) {
+func (s *defaultGroupStore) GetAll() ([]*Group, error) {
 	var g *Group
 	var gs []*Group
 
 	err := s.db.View(func(tx *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		opts.Prefix = domainID[:]
+		opts.Prefix = []byte(fmt.Sprintf("group"))
 		it := tx.NewIterator(opts)
 		defer it.Close()
 
@@ -127,42 +127,36 @@ func (s *defaultGroupStore) GetAll(domainID ulid.ULID) ([]*Group, error) {
 }
 
 // Delete from the store by group ID
-func (s *defaultGroupStore) Delete(domainID ulid.ULID, groupID ulid.ULID) error {
+func (s *defaultGroupStore) Delete(groupID ulid.ULID) error {
 	err := s.db.Update(func(tx *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
-		opts.Prefix = []byte(fmt.Sprintf("%s:group:%s:rel:", domainID, groupID))
+		opts.Prefix = groupKey(groupID) // this will also delete all group relations
 		it := tx.NewIterator(opts)
 		defer it.Close()
 
 		// iterating over found keys and deleting them one by one
 		for it.Rewind(); it.Valid(); it.Next() {
 			if err := tx.Delete(it.Item().Key()); err != nil {
-				return fmt.Errorf("failed to delete stored group relations: %s")
+				return err
 			}
 		}
 
-		return tx.Delete(groupKey(domainID, groupID))
+		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("failed to delete stored %s(%s): %s", domainID, groupID, err)
-	}
-
-	// deleting all of this group's relations
-	err = s.DeleteRelationByGroupID(domainID, groupID)
-	if err != nil {
-		return fmt.Errorf("failed to delete group relations: %s", err)
+		return fmt.Errorf("failed to delete stored group (%s) related key: %s", groupID, err)
 	}
 
 	return nil
 }
 
 // PutRelation store a relation flagging that user belongs to a group
-func (s *defaultGroupStore) PutRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) error {
+func (s *defaultGroupStore) PutRelation(groupID ulid.ULID, userID ulid.ULID) error {
 	return s.db.Update(func(tx *badger.Txn) error {
-		err := tx.Set(groupUserKey(domainID, groupID, userID), []byte{1})
+		err := tx.Set(groupUserKey(groupID, userID), []byte{1})
 		if err != nil {
-			return fmt.Errorf("failed to store group relation: %s", err)
+			return fmt.Errorf("failed to store group(%s) relation: %s", groupID, err)
 		}
 
 		return nil
@@ -170,10 +164,10 @@ func (s *defaultGroupStore) PutRelation(domainID ulid.ULID, groupID ulid.ULID, u
 }
 
 // HasRelation returns boolean denoting whether user is related to a group
-func (s *defaultGroupStore) HasRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) (bool, error) {
+func (s *defaultGroupStore) HasRelation(groupID ulid.ULID, userID ulid.ULID) (bool, error) {
 	result := false
 	err := s.db.View(func(tx *badger.Txn) error {
-		_, err := tx.Get(groupUserKey(domainID, groupID, userID))
+		_, err := tx.Get(groupUserKey(groupID, userID))
 		if err != nil {
 			// relation exists if the key exists
 			if err == badger.ErrKeyNotFound {
@@ -195,111 +189,12 @@ func (s *defaultGroupStore) HasRelation(domainID ulid.ULID, groupID ulid.ULID, u
 	return result, err
 }
 
-// GetAllRelation retrieve all user relations for a given group
-// returns a map[groupID][]userID
-func (s *defaultGroupStore) GetAllRelation(domainID ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
-	relations := make(map[ulid.ULID][]ulid.ULID, 0)
-	err := s.db.View(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte(fmt.Sprintf("%s:group:rel:", domainID[:]))
-		opts.PrefetchValues = false
-		it := tx.NewIterator(opts)
-
-		var groupID, userID ulid.ULID
-		for it.Rewind(); it.Valid(); it.Next() {
-			key := it.Item().Key()
-
-			err := groupID.UnmarshalBinary(key[:16])
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal group id from bytes: %s", err)
-			}
-
-			err = userID.UnmarshalBinary(key[16:])
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal user id from bytes: %s", err)
-			}
-
-			// creating a user slice for the group
-			if _, ok := relations[groupID]; !ok {
-				relations[groupID] = make([]ulid.ULID, 0)
-			}
-
-			// appending group to user relation
-			relations[groupID] = append(relations[groupID], userID)
-		}
-
-		return nil
-	})
-
-	return relations, err
-}
-
-// GetRelationByGroupID returns a map of group id -> user id relations for a given group id
-func (s *defaultGroupStore) GetRelationByGroupID(domainID ulid.ULID, groupID ulid.ULID) (map[ulid.ULID][]ulid.ULID, error) {
-	relations := make(map[ulid.ULID][]ulid.ULID, 0)
-	err := s.db.View(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte(fmt.Sprintf("%s:group:rel:%s:", domainID[:], groupID[:]))
-		opts.PrefetchValues = false
-		it := tx.NewIterator(opts)
-
-		var groupID, userID ulid.ULID
-		for it.Rewind(); it.Valid(); it.Next() {
-			key := it.Item().Key()
-
-			// initializing ULIDs from key bytes
-			err := groupID.UnmarshalBinary(key[:16])
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal group id from bytes: %s", err)
-			}
-
-			err = userID.UnmarshalBinary(key[16:])
-			if err != nil {
-				return fmt.Errorf("failed to unmarshal user id from bytes: %s", err)
-			}
-
-			// creating a user slice for the group
-			if _, ok := relations[groupID]; !ok {
-				relations[groupID] = make([]ulid.ULID, 0)
-			}
-
-			// appending group to user relation
-			relations[groupID] = append(relations[groupID], userID)
-
-			return nil
-		}
-	})
-
-	return relations, err
-}
-
 // DeleteRelation deletes a group-user relation
-func (s *defaultGroupStore) DeleteRelation(domainID ulid.ULID, groupID ulid.ULID, userID ulid.ULID) error {
+func (s *defaultGroupStore) DeleteRelation(groupID ulid.ULID, userID ulid.ULID) error {
 	return s.db.Update(func(tx *badger.Txn) error {
-		err := tx.Delete(groupUserKey(domainID, groupID, userID))
+		err := tx.Delete(groupUserKey(groupID, userID))
 		if err != nil {
 			return fmt.Errorf("failed to delete stored group-user relation (%s -> %s): %s", groupID, userID, err)
-		}
-
-		return nil
-	})
-}
-
-// DeleteRelationByGroupID deletes all relations for a given group id
-func (s *defaultGroupStore) DeleteRelationByGroupID(domainID ulid.ULID, groupID ulid.ULID) error {
-	return s.db.Update(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte(fmt.Sprintf("%s:group:rel:%s:", domainID[:], groupID[:]))
-		opts.PrefetchValues = false
-		it := tx.NewIterator(opts)
-
-		var groupID, userID ulid.ULID
-		for it.Rewind(); it.Valid(); it.Next() {
-			if err := tx.Delete(it.Item().Key()); err != nil {
-				return fmt.Errorf("failed to delete stored group-user relations for %s: %s", groupID, err)
-			}
-
-			return nil
 		}
 
 		return nil

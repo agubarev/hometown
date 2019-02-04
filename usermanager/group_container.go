@@ -80,7 +80,7 @@ func (c *GroupContainer) SetDomain(d *Domain) error {
 
 // Register adding group to a container
 func (c *GroupContainer) Register(g *Group) error {
-	_, err := c.GetByID(g.ID)
+	_, err := c.Get(g.ID)
 	if err != ErrGroupNotFound {
 		return ErrGroupAlreadyRegistered
 	}
@@ -90,7 +90,7 @@ func (c *GroupContainer) Register(g *Group) error {
 	// pre-assembly of containers for future processing
 	if c.store == nil {
 		// check if the group is in store, otherwise create
-		if _, err := c.store.GetByID(c.domain.ID, g.ID); err == ErrGroupNotFound {
+		if _, err := c.store.Get(g.ID); err == ErrGroupNotFound {
 			if err = c.store.Put(g); err != nil {
 				return fmt.Errorf("failed to stored registered group [%s]: %s", g.ID, err)
 			}
@@ -115,7 +115,7 @@ func (c *GroupContainer) Register(g *Group) error {
 func (c *GroupContainer) Unregister(id ulid.ULID) error {
 	// a bit pedantic but consistent, returning an error if the group isn't
 	// already registered
-	g, err := c.GetByID(id)
+	g, err := c.Get(id)
 	if err != nil {
 		return err
 	}
@@ -152,8 +152,8 @@ func (c *GroupContainer) List(kind GroupKind) []*Group {
 	return gs
 }
 
-// GetByID returns a group by ID
-func (c *GroupContainer) GetByID(id ulid.ULID) (*Group, error) {
+// Get returns a group by ID
+func (c *GroupContainer) Get(id ulid.ULID) (*Group, error) {
 	if g, ok := c.idMap[id]; ok {
 		return g, nil
 	}
