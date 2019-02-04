@@ -13,8 +13,7 @@ import (
 // User represents a user account, a unique entity
 // TODO: workout the length restrictions
 type User struct {
-	ID     ulid.ULID `json:"id"`
-	Domain *Domain   `json:"-"`
+	ID ulid.ULID `json:"id"`
 
 	// Username and Email are the primary IDs associated with the user account
 	Username string `json:"username" valid:"required,alphanum"`
@@ -46,8 +45,16 @@ type User struct {
 	SuspensionExpiresAt time.Time `json:"suspension_expires_at,omitempty"`
 	SuspensionReason    string    `json:"suspension_reason,omitempty"`
 
+	// corresponding domain
+	domain *Domain
+
 	// tracking all group kinds in one slice
 	groups []*Group
+}
+
+// Domain returns the corresponding domain to which this user belongs
+func (u *User) Domain() *Domain {
+	return u.domain
 }
 
 // StringID returns short info about the user

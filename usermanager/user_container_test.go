@@ -1,49 +1,56 @@
 package usermanager_test
 
 import (
-	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
-	"go.etcd.io/bbolt"
+	"github.com/blevesearch/bleve"
 
 	"github.com/stretchr/testify/assert"
 	"gitlab.com/agubarev/hometown/usermanager"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 func TestNewUserContainer(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.Remove(db.Path())
 
-	s, err := usermanager.NewDefaultUserStore(db, usermanager.NewUserStoreCache(1000))
+	s, err := usermanager.NewDefaultUserStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	c, err := usermanager.NewUserContainer(s)
+	index, err := bleve.New(filepath.Join(dbPath, "index"), bleve.NewIndexMapping())
+	a.NoError(err)
+	a.NotNil(index)
+
+	c, err := usermanager.NewUserContainer(s, index)
 	a.NoError(err)
 	a.NotNil(c)
 
 	a.NoError(c.Validate())
 }
 
-func TestUserContainerAdd(t *testing.T) {
+func TestUserContainerRegister(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.Remove(db.Path())
 
-	s, err := usermanager.NewDefaultUserStore(db, usermanager.NewUserStoreCache(1000))
+	s, err := usermanager.NewDefaultUserStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	c, err := usermanager.NewUserContainer(s)
+	index, err := bleve.New(filepath.Join(dbPath, "index"), bleve.NewIndexMapping())
+	a.NoError(err)
+	a.NotNil(index)
+
+	c, err := usermanager.NewUserContainer(s, index)
 	a.NoError(err)
 	a.NotNil(c)
 

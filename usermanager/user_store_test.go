@@ -1,112 +1,91 @@
-package usermanager
+package usermanager_test
 
 import (
-	"context"
-	"fmt"
 	"os"
-	"reflect"
 	"testing"
 
+	"gitlab.com/agubarev/hometown/usermanager"
+
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/util"
-	"go.etcd.io/bbolt"
 )
 
-func TestUserStoreCreate(t *testing.T) {
+func TestUserStorePut(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.Remove(db.Path())
 
-	s, err := NewDefaultUserStore(db, nil)
+	s, err := usermanager.NewDefaultUserStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	svc, err := NewUserService(s)
-	a.NoError(err)
-	a.NotNil(svc)
-
-	unsavedUser, err := NewUser("testuser", "test@example.com")
-	a.NoError(err)
-	a.NotNil(unsavedUser)
-
-	newUser, err := svc.Create(context.Background(), unsavedUser)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
 	a.NoError(err)
 	a.NotNil(newUser)
-	a.Equal("testuser", newUser.Username)
-	a.Equal("test@example.com", newUser.Email)
-	a.True(reflect.DeepEqual(unsavedUser, newUser))
-}
 
-func TestUserStorePutUser(t *testing.T) {
-	t.Parallel()
-	a := assert.New(t)
+	a.NoError(s.Put(newUser))
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	// retrieving to make sure everything is set properly
+	u, err := s.Get(newUser.ID)
 	a.NoError(err)
-	a.NotNil(db)
-	defer os.Remove(db.Path())
+	a.NotNil(u)
 
-	s, err := NewDefaultUserStore(db, nil)
+	u, err = s.GetByIndex("username", "testuser")
 	a.NoError(err)
-	a.NotNil(s)
+	a.NotNil(u)
 
-	newuser, err := NewUser("testuser", "test@example.com")
+	u, err = s.GetByIndex("email", "test@example.com")
 	a.NoError(err)
-	a.NotNil(newuser)
-
-	err = s.Put(context.Background(), newuser)
-	a.NoError(err)
+	a.NotNil(u)
 }
 
 func TestUserStoreGetters(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.Remove(db.Path())
 
-	s, err := NewDefaultUserStore(db, nil)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	a.NoError(err)
+	a.NotNil(newUser)
+
+	s, err := usermanager.NewDefaultUserStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser, err := NewUser("testuser", "test@example.com")
-	a.NoError(err)
-	a.NotNil(newuser)
-
 	// storing
-	err = s.Put(context.Background(), newuser)
-	a.NoError(err)
+	a.NoError(s.Put(newUser))
 
 	// retrieving by ID
-	u, err := s.GetByID(context.Background(), newuser.ID)
+	u, err := s.Get(newUser.ID)
 	a.NoError(err)
 	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
+	a.Equal(newUser.Username, u.Username)
+	a.Equal(newUser.Email, u.Email)
 
 	// retrieving by username index
-	u, err = s.GetByIndex(context.Background(), "username", "testuser")
+	u, err = s.GetByIndex("username", newUser.Username)
 	a.NoError(err)
 	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
+	a.Equal(newUser.Username, u.Username)
+	a.Equal(newUser.Email, u.Email)
 
 	// retrieving by email index
-	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
+	u, err = s.GetByIndex("email", newUser.Email)
 	a.NoError(err)
 	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
+	a.Equal(newUser.Username, u.Username)
+	a.Equal(newUser.Email, u.Email)
 
 	// retrieving by a non-existing index
-	u, err = s.GetByIndex(context.Background(), "no such index", "absent value")
-	a.Error(err)
+	u, err = s.GetByIndex("no such index", "absent value")
+	a.EqualError(err, usermanager.ErrUserNotFound.Error())
 	a.Nil(u)
 }
 
@@ -114,61 +93,44 @@ func TestUserStoreDelete(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.Remove(db.Path())
 
-	s, err := NewDefaultUserStore(db, nil)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	a.NoError(err)
+	a.NotNil(newUser)
+
+	s, err := usermanager.NewDefaultUserStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	newuser, err := NewUser("testuser", "test@example.com")
-	a.NotNil(newuser)
-
-	//---------------------------------------------------------------------------
 	// storing and retrieving to make sure it exists
-	//---------------------------------------------------------------------------
+	a.NoError(s.Put(newUser))
 
-	err = s.Put(context.Background(), newuser)
-	a.NoError(err)
-
-	u, err := s.GetByID(context.Background(), newuser.ID)
+	// retrieving by ID
+	u, err := s.Get(newUser.ID)
 	a.NoError(err)
 	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
+	a.Equal(newUser.Username, u.Username)
+	a.Equal(newUser.Email, u.Email)
 
-	u, err = s.GetByIndex(context.Background(), "username", "testuser")
-	a.NoError(err)
-	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
-
-	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
-	a.NoError(err)
-	a.NotNil(u)
-	a.Equal("testuser", u.Username)
-	a.Equal("test@example.com", u.Email)
-
-	//---------------------------------------------------------------------------
 	// deleting and attempting to retrieve to make sure it's gone
 	// along with all its indexes
-	//---------------------------------------------------------------------------
-
-	err = s.Delete(context.Background(), u.ID)
+	err = s.Delete(u.ID)
 	a.NoError(err)
 
-	u, err = s.GetByID(context.Background(), newuser.ID)
-	a.EqualError(err, ErrUserNotFound.Error())
+	u, err = s.Get(newUser.ID)
+	a.EqualError(err, usermanager.ErrUserNotFound.Error())
 	a.Nil(u)
 
-	u, err = s.GetByIndex(context.Background(), "username", "testuser")
-	a.EqualError(err, ErrUserNotFound.Error())
+	u, err = s.GetByIndex("username", "testuser")
+	a.EqualError(err, usermanager.ErrUserNotFound.Error())
 	a.Nil(u)
 
-	u, err = s.GetByIndex(context.Background(), "email", "test@example.com")
-	a.EqualError(err, ErrUserNotFound.Error())
+	u, err = s.GetByIndex("email", "test@example.com")
+	a.EqualError(err, usermanager.ErrUserNotFound.Error())
 	a.Nil(u)
 }
 
@@ -179,113 +141,57 @@ func TestUserStoreDelete(t *testing.T) {
 func BenchmarkUserStorePutUser(b *testing.B) {
 	b.ReportAllocs()
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
+
+	s, err := usermanager.NewDefaultUserStore(db)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
 	if err != nil {
 		panic(err)
 	}
-	defer os.Remove(db.Path())
-
-	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
-	var newuser *User
-
 	for n := 0; n < b.N; n++ {
-		newuser, err = NewUser("testuser", "test@example.com")
-		if err != nil {
-			panic(err)
-		}
 
-		err = s.Put(context.Background(), newuser)
+		err = s.Put(newUser)
 		if err != nil {
 			panic(err)
 		}
 	}
 }
 
-func BenchmarkUserStoreGetByID(b *testing.B) {
+func BenchmarkUserStoreGet(b *testing.B) {
 	b.ReportAllocs()
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(db.Path())
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 
-	s, err := NewDefaultUserStore(db, nil)
-	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.Put(context.Background(), newuser)
+	s, err := usermanager.NewDefaultUserStore(db)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	err = s.Put(newUser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetByID(context.Background(), newuser.ID)
+		_, err = s.Get(newUser.ID)
 		if err != nil {
 			panic(err)
 		}
 	}
 }
 
-func BenchmarkUserStoreGetByIDWithCaching(b *testing.B) {
-	b.ReportAllocs()
-
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(db.Path())
-
-	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
-	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.Put(context.Background(), newuser)
-	if err != nil {
-		panic(err)
-	}
-	for n := 0; n < b.N; n++ {
-		_, err = s.GetByID(context.Background(), newuser.ID)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
 func BenchmarkUserStoreGetByUsername(b *testing.B) {
 	b.ReportAllocs()
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(db.Path())
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 
-	s, err := NewDefaultUserStore(db, nil)
-	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.Put(context.Background(), newuser)
-	if err != nil {
-		panic(err)
-	}
-	for n := 0; n < b.N; n++ {
-		_, err = s.GetByIndex(context.Background(), "username", newuser.Username)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkUserStoreGetByUsernameWithCaching(b *testing.B) {
-	b.ReportAllocs()
-
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(db.Path())
-
-	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
-	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.Put(context.Background(), newuser)
+	s, err := usermanager.NewDefaultUserStore(db)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	err = s.Put(newUser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetByIndex(context.Background(), "username", newuser.Username)
+		_, err = s.GetByIndex("username", newUser.Username)
 		if err != nil {
 			panic(err)
 		}
@@ -295,43 +201,17 @@ func BenchmarkUserStoreGetByUsernameWithCaching(b *testing.B) {
 func BenchmarkUserStoreGetByEmail(b *testing.B) {
 	b.ReportAllocs()
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(db.Path())
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
 
-	s, err := NewDefaultUserStore(db, nil)
-	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.Put(context.Background(), newuser)
-	if err != nil {
-		panic(err)
-	}
-	for n := 0; n < b.N; n++ {
-		_, err = s.GetByIndex(context.Background(), "email", newuser.Email)
-		if err != nil {
-			panic(err)
-		}
-	}
-}
-
-func BenchmarkUserStoreGetByEmailWithCaching(b *testing.B) {
-	b.ReportAllocs()
-
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	if err != nil {
-		panic(err)
-	}
-	defer os.Remove(db.Path())
-
-	s, err := NewDefaultUserStore(db, NewUserStoreCache(1000))
-	newuser, err := NewUser("testuser", "test@example.com")
-	err = s.Put(context.Background(), newuser)
+	s, err := usermanager.NewDefaultUserStore(db)
+	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	err = s.Put(newUser)
 	if err != nil {
 		panic(err)
 	}
 	for n := 0; n < b.N; n++ {
-		_, err = s.GetByIndex(context.Background(), "email", newuser.Email)
+		_, err = s.GetByIndex("email", newUser.Email)
 		if err != nil {
 			panic(err)
 		}

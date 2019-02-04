@@ -1,57 +1,52 @@
-package usermanager
+package usermanager_test
 
 import (
-	"context"
-	"fmt"
+	"strings"
 	"testing"
 
-	"gitlab.com/agubarev/hometown/util"
-	"go.etcd.io/bbolt"
-
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/agubarev/hometown/usermanager"
 )
+
+func init() {
+	confstring := `
+instance:
+    domains:
+        directory: /tmp/hometown/domains
+`
+
+	viper.SetConfigType("yaml")
+
+	if err := viper.ReadConfig(strings.NewReader(confstring)); err != nil {
+		panic(err)
+	}
+}
 
 func TestNewService(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	a.NoError(err)
-	a.NotNil(db)
-	defer db.Close()
-
-	store, err := NewDefaultUserStore(db, nil)
-	a.NotNil(store)
-	a.NoError(err)
-
-	m, err := NewUserService(store)
+	m, err := usermanager.New()
 	a.NoError(err)
 	a.NotNil(m)
+
+	s, err := usermanager.NewUserService(m)
+	a.NoError(err)
+	a.NotNil(s)
 }
 
-func TestServiceCreate(t *testing.T) {
+func TestServiceRegister(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	db, err := bbolt.Open(fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID()), 0600, nil)
-	a.NoError(err)
-	a.NotNil(db)
-	defer db.Close()
-
-	store, err := NewDefaultUserStore(db, nil)
-	a.NotNil(store)
-	a.NoError(err)
-
-	m, err := NewUserService(store)
+	m, err := usermanager.New()
 	a.NoError(err)
 	a.NotNil(m)
 
-	u, err := NewUser("testuser", "testuser@example.com")
+	s, err := usermanager.NewUserService(m)
 	a.NoError(err)
-	a.NotNil(u)
+	a.NotNil(s)
 
-	// creating a new user
-	uu, err := m.Create(context.Background(), u)
-	a.NotNil(uu)
-	a.NoError(err)
+	// TODO: implement
 }

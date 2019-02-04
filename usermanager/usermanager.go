@@ -129,7 +129,7 @@ func (m *UserManager) SetUserPassword(u *User, newpass string) error {
 		return ErrNilUser
 	}
 
-	if u.Domain == nil {
+	if u.Domain() == nil {
 		return ErrNilDomain
 	}
 

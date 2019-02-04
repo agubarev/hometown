@@ -26,7 +26,8 @@ func userIndexKey(index string, value string) []byte {
 	return []byte(fmt.Sprintf("uidx:%s:%s", index, value))
 }
 
-type defaultUserStore struct {
+// DefaultUserStore is a default user store implementation
+type DefaultUserStore struct {
 	db *badger.DB
 }
 
@@ -36,7 +37,7 @@ func NewDefaultUserStore(db *badger.DB) (UserStore, error) {
 		return nil, ErrNilDB
 	}
 
-	s := &defaultUserStore{
+	s := &DefaultUserStore{
 		db: db,
 	}
 
@@ -44,7 +45,7 @@ func NewDefaultUserStore(db *badger.DB) (UserStore, error) {
 }
 
 // Put stores a User
-func (s *defaultUserStore) Put(u *User) error {
+func (s *DefaultUserStore) Put(u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
@@ -67,13 +68,13 @@ func (s *defaultUserStore) Put(u *User) error {
 		// storing username index with a primary key as value
 		err = tx.Set(userIndexKey("username", u.Username), primaryKey)
 		if err != nil {
-			return fmt.Errorf("failed to store username(%s) index %s: %s", u.Username, err)
+			return fmt.Errorf("failed to store username(%s) index: %s", u.Username, err)
 		}
 
 		// storing email index, same as above
 		err = tx.Set(userIndexKey("email", u.Email), primaryKey)
 		if err != nil {
-			return fmt.Errorf("failed to store email(%s) index %s: %s", u.Email, err)
+			return fmt.Errorf("failed to store email(%s) index: %s", u.Email, err)
 		}
 
 		return nil
@@ -81,13 +82,14 @@ func (s *defaultUserStore) Put(u *User) error {
 }
 
 // Delete a user from the store
-func (s *defaultUserStore) Delete(id ulid.ULID) error {
+func (s *DefaultUserStore) Delete(id ulid.ULID) error {
 	return s.db.Update(func(tx *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		opts.PrefetchValues = false
 		opts.PrefetchSize = 5
 		opts.Prefix = userKey(id)
 		it := tx.NewIterator(opts)
+		defer it.Close()
 
 		for it.Rewind(); it.Valid(); it.Next() {
 			if err := tx.Delete(it.Item().Key()); err != nil {
@@ -100,7 +102,7 @@ func (s *defaultUserStore) Delete(id ulid.ULID) error {
 }
 
 // Get returns a User by ID
-func (s *defaultUserStore) Get(id ulid.ULID) (*User, error) {
+func (s *DefaultUserStore) Get(id ulid.ULID) (*User, error) {
 	var u *User
 
 	err := s.db.View(func(tx *badger.Txn) error {
@@ -115,21 +117,25 @@ func (s *defaultUserStore) Get(id ulid.ULID) (*User, error) {
 		}
 
 		// obtaining value
-		return item.Value(func(payload []byte) error {
-			if err := gob.NewDecoder(bytes.NewReader(payload)).Decode(u); err != nil {
-				return fmt.Errorf("failed to decode stored user: %s", err)
+		return item.Value(func(val []byte) error {
+			if err := gob.NewDecoder(bytes.NewReader(val)).Decode(&u); err != nil {
+				return fmt.Errorf("Get(): failed to decode stored user: %s", err)
 			}
 
 			return nil
 		})
 	})
 
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+
+	return u, nil
 }
 
 // GetByIndex lookup a user by an index
-func (s *defaultUserStore) GetByIndex(index string, value string) (*User, error) {
-	var u *User
+func (s *DefaultUserStore) GetByIndex(index string, value string) (*User, error) {
+	u := &User{}
 
 	err := s.db.View(func(tx *badger.Txn) error {
 		// lookup user by ID
@@ -139,18 +145,44 @@ func (s *defaultUserStore) GetByIndex(index string, value string) (*User, error)
 				return ErrUserNotFound
 			}
 
-			return fmt.Errorf("failed to get stored user by index(%s=): %s", index, value, err)
+			return fmt.Errorf("GetByIndex(): failed to get stored user by index(%s=%s): %s", index, value, err)
 		}
 
 		// obtaining value
-		return item.Value(func(payload []byte) error {
-			if err := gob.NewDecoder(bytes.NewReader(payload)).Decode(u); err != nil {
-				return fmt.Errorf("failed to decode stored user: %s", err)
+		return item.Value(func(primaryKey []byte) error {
+			//---------------------------------------------------------------------------
+			// code duplication is BAD, very BAD, ugly BAD
+			// TODO: REFACTOR ASAP
+			// TODO: REFACTOR ASAP
+			// TODO: REFACTOR ASAP
+			// TODO: REFACTOR ASAP
+			// TODO: REFACTOR ASAP
+			// TODO: REFACTOR ASAP
+			// TODO: REFACTOR ASAP
+			//---------------------------------------------------------------------------
+			item, err := tx.Get(primaryKey)
+			if err != nil {
+				if err == badger.ErrKeyNotFound {
+					return ErrUserNotFound
+				}
+
+				return fmt.Errorf("GetByIndex(): failed to get stored user by ID %s: %s", primaryKey, err)
 			}
 
-			return nil
+			// obtaining value
+			return item.Value(func(val []byte) error {
+				if err := gob.NewDecoder(bytes.NewReader(val)).Decode(&u); err != nil {
+					return fmt.Errorf("Get(): failed to decode stored user: %s", err)
+				}
+
+				return nil
+			})
 		})
 	})
 
-	return u, err
+	if err != nil {
+		return nil, err
+	}
+
+	return u, nil
 }

@@ -115,13 +115,13 @@ func TestSetGroupRights(t *testing.T) {
 	group1, err := NewGroup(GKGroup, "test_group_1", "test group 1", nil)
 	a.NoError(err)
 
-	err = group1.AddMember(testuser)
+	err = group1.Register(testuser)
 	a.NoError(err)
 
 	group2, err := NewGroup(GKGroup, "test_group_2", "test group 2", nil)
 	a.NoError(err)
 
-	err = group2.AddMember(testuser)
+	err = group2.Register(testuser)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -174,13 +174,13 @@ func TestSetRoleRights(t *testing.T) {
 	role1, err := NewGroup(GKRole, "test_role_1", "test role 1", nil)
 	a.NoError(err)
 
-	err = role1.AddMember(testuser)
+	err = role1.Register(testuser)
 	a.NoError(err)
 
 	role2, err := NewGroup(GKRole, "test_role_2", "test role 2", nil)
 	a.NoError(err)
 
-	err = role2.AddMember(testuser)
+	err = role2.Register(testuser)
 	a.NoError(err)
 
 	wantedRights := APView | APChange

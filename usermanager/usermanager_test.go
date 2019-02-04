@@ -15,6 +15,8 @@ func TestUserManagerTestNew(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(m)
 
+	// TODO: check existence of all necessary paths
+
 	err = m.Init()
 	a.NoError(err)
 }

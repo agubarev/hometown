@@ -85,7 +85,7 @@ func (c *UserContainer) Register(user *User) error {
 		return ErrNilUser
 	}
 
-	if _, err := c.GetByID(user.ID); err != ErrUserNotFound {
+	if _, err := c.Get(user.ID); err != ErrUserNotFound {
 		return ErrUserExists
 	}
 
@@ -120,7 +120,7 @@ func (c *UserContainer) SetDomain(d *Domain) error {
 func (c *UserContainer) Unregister(id ulid.ULID) error {
 	// just being explicit about the error for consistency
 	// not returning just nil if the user isn't found
-	if _, err := c.GetByID(id); err != nil {
+	if _, err := c.Get(id); err != nil {
 		return err
 	}
 
@@ -151,8 +151,8 @@ func (c *UserContainer) List() []*User {
 	return c.users
 }
 
-// GetByID returns a group by ID
-func (c *UserContainer) GetByID(id ulid.ULID) (*User, error) {
+// Get returns a group by ID
+func (c *UserContainer) Get(id ulid.ULID) (*User, error) {
 	if user, ok := c.idMap[id]; ok {
 		return user, nil
 	}

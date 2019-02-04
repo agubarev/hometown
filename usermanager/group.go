@@ -42,24 +42,34 @@ const (
 // TODO custom JSON marshalling
 // TODO add mutex and store to the group; store should be set implicitly upon addition to the container
 type Group struct {
-	ID           ulid.ULID     `json:"id"`
-	Parent       *Group        `json:"-"`
-	Domain       *Domain       `json:"-"`
-	Kind         GroupKind     `json:"kind"`
-	Key          string        `json:"key" valid:"required,ascii"`
-	Name         string        `json:"name" valid:"required"`
-	Description  string        `json:"desc" valid:"optional,length(0|200)"`
-	AccessPolicy *AccessPolicy `json:"-"`
+	ID          ulid.ULID `json:"id"`
+	Kind        GroupKind `json:"kind"`
+	Key         string    `json:"key" valid:"required,ascii"`
+	Name        string    `json:"name" valid:"required"`
+	Description string    `json:"desc" valid:"optional,length(0|200)"`
 
 	// these fields are basically just for the storage
 	DomainID ulid.ULID `json:"did"`
 	ParentID ulid.ULID `json:"pid"`
 
+	domain    *Domain
+	parent    *Group
 	container *GroupContainer
 	members   GroupMembers
 	memberMap map[ulid.ULID]*User
+	ap        *AccessPolicy
 	logger    *zap.Logger
-	sync.RWMutex
+	mu        sync.RWMutex
+}
+
+// Domain returns the domain to which this group belongs
+func (g *Group) Domain() *Domain {
+	return g.domain
+}
+
+// Parent returns parent group or nil
+func (g *Group) Parent() *Group {
+	return g.parent
 }
 
 // NewGroup initializing a new group struct
@@ -119,13 +129,13 @@ func (g *Group) Validate() error {
 
 // IsCircuited tests whether the parents trace back to a nil
 func (g *Group) IsCircuited() (bool, error) {
-	if g.Parent == nil {
+	if g.Parent() == nil {
 		return false, nil
 	}
 
 	// moving up a parent tree until nil is reached or the signs of circulation are found
 	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
-	p := g.Parent
+	p := g.Parent()
 	timeout := time.Now().Add(5 * time.Millisecond)
 	for !time.Now().After(timeout) {
 		if p == nil {
@@ -134,7 +144,7 @@ func (g *Group) IsCircuited() (bool, error) {
 		}
 
 		// next parent
-		p = p.Parent
+		p = p.Parent()
 	}
 
 	return false, ErrCircuitCheckTimeout
@@ -155,10 +165,10 @@ func (g *Group) SetParent(p *Group) error {
 		// by tracing backwards until a nil parent is met; at this point only a
 		// requested parent is searched and not tested whether the relations
 		// are circuited among themselves
-		if pg := g.Parent; pg != nil {
+		if pg := g.Parent(); pg != nil {
 			for {
 				// no more parents, breaking
-				if pg.Parent == nil {
+				if pg.Parent() == nil {
 					break
 				}
 
@@ -168,7 +178,7 @@ func (g *Group) SetParent(p *Group) error {
 				}
 
 				// moving on to a parent's parent
-				pg = pg.Parent
+				pg = g.Parent()
 			}
 		}
 
@@ -179,11 +189,11 @@ func (g *Group) SetParent(p *Group) error {
 
 		// ParentID is used to rebuild parent-child connections after
 		// loading groups from the store
-		g.ParentID = p.ID
+		g.Parent().ID = p.ID
 	}
 
 	// assingning a new parent
-	g.Parent = p
+	g.parent = p
 
 	return nil
 }
@@ -207,8 +217,8 @@ func (g *Group) IsMember(u *User) bool {
 		return false
 	}
 
-	g.RLock()
-	defer g.RUnlock()
+	g.mu.RLock()
+	defer g.mu.RUnlock()
 
 	if _, ok := g.memberMap[u.ID]; ok {
 		return true
@@ -223,7 +233,7 @@ func (g *Group) validateUser(u *User) error {
 	}
 
 	// this group must belong to some domain at this point
-	if u.Domain == nil {
+	if u.Domain() == nil {
 		return ErrNilUserDomain
 	}
 
@@ -251,10 +261,10 @@ func (g *Group) Register(u *User) error {
 	}
 
 	// updating runtime data
-	g.Lock()
+	g.mu.Lock()
 	g.members = append(g.members, u)
 	g.memberMap[u.ID] = u
-	g.Unlock()
+	g.mu.Unlock()
 
 	// updating group tracklist for this user
 	if err := u.TrackGroup(g); err != nil {

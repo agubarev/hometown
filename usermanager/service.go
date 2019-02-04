@@ -9,12 +9,12 @@ import (
 
 // Service represents a User manager contract interface
 type Service interface {
-	Register(ctx context.Context, req NewUserRequest) (*User, error)
-	Unregister(ctx context.Context, u *User) error
-	SetUsername(ctx context.Context, id ulid.ULID, username string) error
-	GetByID(ctx context.Context, id ulid.ULID) (*User, error)
-	GetByUsername(ctx context.Context, username string) (*User, error)
-	GetByEmail(ctx context.Context, email string) (*User, error)
+	Register(ctx context.Context, d *Domain, req *NewUserRequest) (*User, error)
+	Unregister(ctx context.Context, d *Domain, id ulid.ULID) error
+	SetUsername(ctx context.Context, d *Domain, id ulid.ULID, username string) error
+	GetUser(ctx context.Context, d *Domain, id ulid.ULID) (*User, error)
+	GetUserByUsername(ctx context.Context, d *Domain, username string) (*User, error)
+	GetUserByEmail(ctx context.Context, d *Domain, email string) (*User, error)
 }
 
 // NewUserRequest holds data necessary to create a new user
@@ -68,24 +68,24 @@ func (s *service) Register(ctx context.Context, d *Domain, req *NewUserRequest) 
 }
 
 // Get existing user
-func (s *service) GetByID(ctx context.Context, d *Domain, userID ulid.ULID) (*User, error) {
-	return d.Users.GetByID(userID)
+func (s *service) GetUser(ctx context.Context, d *Domain, userID ulid.ULID) (*User, error) {
+	return d.Users.Get(userID)
 }
 
-// GetByUsername returns a user by username
-func (s *service) GetByUsername(ctx context.Context, d *Domain, username string) (*User, error) {
+// GetUserByUsername returns a user by username
+func (s *service) GetUserByUsername(ctx context.Context, d *Domain, username string) (*User, error) {
 	return d.Users.GetByUsername(username)
 }
 
-// GetByEmail returns a user by email
-func (s *service) GetByEmail(ctx context.Context, d *Domain, email string) (*User, error) {
+// GetUserByEmail returns a user by email
+func (s *service) GetUserByEmail(ctx context.Context, d *Domain, email string) (*User, error) {
 	return d.Users.GetByEmail(email)
 }
 
 // SetUsername update username for an existing user
 // TODO: username validation
 func (s *service) SetUsername(ctx context.Context, d *Domain, userID ulid.ULID, newUsername string) error {
-	u, err := d.Users.GetByID(userID)
+	u, err := d.Users.Get(userID)
 	if err != nil {
 		return ErrUserNotFound
 	}
