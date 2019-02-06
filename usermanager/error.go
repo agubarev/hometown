@@ -21,7 +21,7 @@ var (
 	ErrExcessOfRights             = errors.New("assignor is attempting to set the rights that excess his own")
 	ErrSameUser                   = errors.New("assignor and assignee is the same user")
 	ErrNilParent                  = errors.New("parent is nil")
-	ErrUserExists                 = errors.New("user already exists")
+	ErrUserIsRegistered           = errors.New("user is already registered")
 	ErrNilUserContainer           = errors.New("user container is nil")
 	ErrNilUser                    = errors.New("user is nil")
 	ErrNilUserStore               = errors.New("user store is nil")

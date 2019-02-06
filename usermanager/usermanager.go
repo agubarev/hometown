@@ -91,7 +91,7 @@ func (m *UserManager) DestroyDomain(domain *Domain) error {
 	return nil
 }
 
-// RegisterDomain existing domain to the dominion
+// RegisterDomain add existing domain to the dominion
 func (m *UserManager) RegisterDomain(d *Domain) error {
 	if d == nil {
 		return ErrNilDomain
@@ -121,20 +121,4 @@ func (m *UserManager) GetDomain(id ulid.ULID) (*Domain, error) {
 	}
 
 	return nil, ErrDomainNotFound
-}
-
-// SetUserPassword sets a new password for the user
-func (m *UserManager) SetUserPassword(u *User, newpass string) error {
-	if u == nil {
-		return ErrNilUser
-	}
-
-	if u.Domain() == nil {
-		return ErrNilDomain
-	}
-
-	// TODO: implement
-	panic("not implemented")
-
-	return nil
 }

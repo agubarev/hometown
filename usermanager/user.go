@@ -79,6 +79,7 @@ func NewUser(username string, email string) (*User, error) {
 		Email:    email,
 
 		// metadata
+		IsConfirmed: false,
 		IsSuspended: false,
 		CreatedAt:   time.Now(),
 

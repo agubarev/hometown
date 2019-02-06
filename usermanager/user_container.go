@@ -25,6 +25,8 @@ type UserContainer struct {
 	emailMap    map[string]*User
 	store       UserStore
 	index       bleve.Index
+	passwords   PasswordManager
+
 	sync.RWMutex
 }
 
@@ -79,26 +81,132 @@ func (c *UserContainer) Validate() error {
 	return nil
 }
 
-// Register user to the container
-func (c *UserContainer) Register(user *User) error {
-	if user == nil {
+// CheckAvailability tests whether someone with such username or email
+// is already registered
+func (c *UserContainer) CheckAvailability(username string, email string) error {
+	if c.store == nil {
+		return ErrNilUserStore
+	}
+
+	// runtime checks first
+	_, err := c.GetByUsername(username)
+	if err != nil {
+		if err == ErrUserNotFound {
+			return ErrUsernameTaken
+		}
+
+		return err
+	}
+
+	_, err = c.GetByEmail(email)
+	if err != nil {
+		if err == ErrUserNotFound {
+			return ErrEmailTaken
+		}
+
+		return err
+	}
+
+	// checking storage for just in case
+	_, err = c.store.GetByIndex("username", username)
+	if err != nil {
+		if err == ErrUserNotFound {
+			return ErrUsernameTaken
+		}
+
+		return err
+	}
+
+	_, err = c.store.GetByIndex("email", email)
+	if err != nil {
+		if err == ErrUserNotFound {
+			return ErrEmailTaken
+		}
+
+		return err
+	}
+
+	return nil
+}
+
+// Create new user
+func (c *UserContainer) Create(username string, email string, userinfo map[string]string) (*User, error) {
+	if c.store == nil {
+		return nil, ErrNilUserContainer
+	}
+
+	// checking the availability of username and email
+	if err := c.CheckAvailability(username, email); err != nil {
+		return nil, err
+	}
+
+	// initializing new user
+	u, err := NewUser(username, email)
+	if err != nil {
+		return nil, err
+	}
+
+	// adding to container's registry
+	if err = c.Add(u); err != nil {
+		return nil, err
+	}
+
+	// saving to the store
+	if err = c.store.Put(u); err != nil {
+		return nil, err
+	}
+
+	return u, nil
+}
+
+// CreateWithPassword creates a new user with a password
+func (c *UserContainer) CreateWithPassword(username, email, password string, userinfo map[string]string) (*User, error) {
+	// copying userinfo values into slice to improve password strength evaluation
+	userdata := make([]string, 0)
+	for _, v := range userinfo {
+		userdata = append(userdata, v)
+	}
+
+	err := EvaluatePasswordStrength(password, userdata)
+	if err != nil {
+		return nil, err
+	}
+
+	// attempting to create the user first
+	u, err := c.Create(username, email, userinfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// assigning a password to this user
+	if err = c.SetPassword(u, password); err != nil {
+		// TODO: possibly delete the unfinished user or figure out a better way to handle
+
+		return nil, err
+	}
+
+	return u, nil
+}
+
+// Add user to the container
+func (c *UserContainer) Add(u *User) error {
+	if u == nil {
 		return ErrNilUser
 	}
 
-	if _, err := c.Get(user.ID); err != ErrUserNotFound {
-		return ErrUserExists
+	// paranoid check
+	err := u.Validate()
+	if err != nil {
+		return err
 	}
 
-	if _, err := c.GetByUsername(user.Username); err != ErrUserNotFound {
-		return ErrUsernameTaken
-	}
-
-	if _, err := c.GetByEmail(user.Email); err != ErrUserNotFound {
-		return ErrEmailTaken
+	// looking inside the container itself
+	if _, err = c.Get(u.ID); err != ErrUserNotFound {
+		return ErrUserIsRegistered
 	}
 
 	c.Lock()
-	c.users = append(c.users, user)
+	c.users = append(c.users, u)
 	c.Unlock()
 
 	return nil
@@ -116,8 +224,21 @@ func (c *UserContainer) SetDomain(d *Domain) error {
 	return nil
 }
 
-// Unregister user from the container
-func (c *UserContainer) Unregister(id ulid.ULID) error {
+// SetPassword sets a new password for the user
+func (c *UserContainer) SetPassword(u *User, newpass string) error {
+	if u == nil {
+		return ErrNilUser
+	}
+
+	if u.Domain() == nil {
+		return ErrNilDomain
+	}
+
+	return nil
+}
+
+// Remove user from the container
+func (c *UserContainer) Remove(id ulid.ULID) error {
 	// just being explicit about the error for consistency
 	// not returning just nil if the user isn't found
 	if _, err := c.Get(id); err != nil {
@@ -176,4 +297,15 @@ func (c *UserContainer) GetByEmail(email string) (*User, error) {
 	}
 
 	return nil, ErrUserNotFound
+}
+
+// SetPasswordManager assigns a password manager for this container
+func (c *UserContainer) SetPasswordManager(pm PasswordManager) error {
+	if pm == nil {
+		return ErrNilPasswordManager
+	}
+
+	c.Passwords = pm
+
+	return nil
 }

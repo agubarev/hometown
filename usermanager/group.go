@@ -241,6 +241,12 @@ func (g *Group) validateUser(u *User) error {
 }
 
 // Register adding user to a group
+// TODO: separate split into Create and Add
+// TODO: separate split into Create and Add
+// TODO: separate split into Create and Add
+// TODO: separate split into Create and Add
+// TODO: separate split into Create and Add
+// TODO: separate split into Create and Add
 func (g *Group) Register(u *User) error {
 	if err := g.validateUser(u); err != nil {
 		return err

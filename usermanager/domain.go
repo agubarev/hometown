@@ -48,7 +48,6 @@ type Domain struct {
 	Owner        *User           `json:"-"`
 	Users        *UserContainer  `json:"-"`
 	Groups       *GroupContainer `json:"-"`
-	Passwords    PasswordManager `json:"-"`
 	AccessPolicy *AccessPolicy   `json:"-"`
 
 	CreatedAt  time.Time `json:"t_cr"`
@@ -365,13 +364,24 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing and validating containers
 	//---------------------------------------------------------------------------
+
 	d.logger.Info("initializing user container", zap.String("did", d.StringID()))
 	uc, err := NewUserContainer(us, uidx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user container: %s", err)
 	}
 
-	if err := uc.Validate(); err != nil {
+	// initializing and assigning a password manager to the user container
+	pm, err := NewDefaultPasswordManager(ps)
+	if err != nil {
+		return fmt.Errorf("failed to initialize user password manager: %s", err)
+	}
+
+	if err = uc.SetPasswordManager(pm); err != nil {
+		return err
+	}
+
+	if err = uc.Validate(); err != nil {
 		return fmt.Errorf("Domain.Init() failed to validate user container: %s", err)
 	}
 
@@ -381,20 +391,12 @@ func (d *Domain) init() error {
 		return fmt.Errorf("failed to initialize group container: %s", err)
 	}
 
-	if err := gc.Validate(); err != nil {
+	if err = gc.Validate(); err != nil {
 		return fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
 	}
 
-	if err := d.saveConfig(); err != nil {
+	if err = d.saveConfig(); err != nil {
 		return fmt.Errorf("failed to initialize domain configuration: %s", err)
-	}
-
-	//---------------------------------------------------------------------------
-	// initializing the user password manager
-	//---------------------------------------------------------------------------
-	pm, err := NewDefaultPasswordManager(ps)
-	if err != nil {
-		return fmt.Errorf("failed to initialize user password manager: %s", err)
 	}
 
 	// TODO: set owner properly
@@ -410,10 +412,6 @@ func (d *Domain) init() error {
 	}
 
 	if err = d.SetGroupContainer(gc); err != nil {
-		return err
-	}
-
-	if err = d.SetPasswordManager(pm); err != nil {
 		return err
 	}
 
@@ -509,17 +507,6 @@ func (d *Domain) SetGroupContainer(gc *GroupContainer) error {
 	}
 
 	d.Groups = gc
-
-	return nil
-}
-
-// SetPasswordManager assigns a password manager for this container
-func (d *Domain) SetPasswordManager(pm PasswordManager) error {
-	if pm == nil {
-		return ErrNilPasswordManager
-	}
-
-	d.Passwords = pm
 
 	return nil
 }
