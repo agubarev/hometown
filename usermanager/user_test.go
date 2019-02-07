@@ -15,8 +15,6 @@ func TestNewUser(t *testing.T) {
 	a.NotNil(u)
 }
 
-func BenchmarkCreateUsers(t *testing.B) {
-	for i := 0; i <= t.N; i++ {
+func TestIsRegisteredAndStored(t *testing.T) {
 
-	}
 }

@@ -45,21 +45,26 @@ type User struct {
 	SuspensionExpiresAt time.Time `json:"suspension_expires_at,omitempty"`
 	SuspensionReason    string    `json:"suspension_reason,omitempty"`
 
-	// corresponding domain
-	domain *Domain
+	// corresponding container
+	container *UserContainer
 
 	// tracking all group kinds in one slice
 	groups []*Group
 }
 
-// Domain returns the corresponding domain to which this user belongs
-func (u *User) Domain() *Domain {
-	return u.domain
-}
-
 // StringID returns short info about the user
 func (u *User) StringID() string {
 	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
+}
+
+// Container returns the corresponding user container to
+// which this user belongs
+func (u *User) Container() (*UserContainer, error) {
+	if u.container == nil {
+		return nil, ErrNilUserContainer
+	}
+
+	return u.container, nil
 }
 
 // Fullname returns full name of a user
@@ -162,4 +167,38 @@ func (u *User) Groups(kind GroupKind) []*Group {
 	}
 
 	return groups
+}
+
+// IsRegisteredAndStored returns true if the user is both:
+// 1. registered by user container
+// 2. persisted to the store
+func (u *User) IsRegisteredAndStored() (bool, error) {
+	c, err := u.Container()
+	if err != nil {
+		return false, fmt.Errorf("IsRegisteredAndStored(): failed to obtain user container: %s", err)
+	}
+
+	// checking whether the user is registered during runtime
+	if _, err = c.Get(u.ID); err != nil {
+		if err == ErrUserNotFound {
+			// user isn't registered, normal return
+			return false, nil
+		}
+
+		// unexpected error
+		return false, fmt.Errorf("IsRegisteredAndStored(): %s", err)
+	}
+
+	// checking container's store
+	if _, err = c.Store().Get(u.ID); err != nil {
+		if err == ErrUserNotFound {
+			// user isn't in the store yet, normal return
+			return false, nil
+		}
+
+		// unexpected error
+		return false, fmt.Errorf("IsRegisteredAndStored(): %s", err)
+	}
+
+	return true, nil
 }

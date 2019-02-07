@@ -6,8 +6,10 @@ import "errors"
 var (
 	ErrNilUserManager             = errors.New("user manager is nil")
 	ErrNilPasswordStore           = errors.New("password store is nil")
+	ErrNilPassword                = errors.New("password is nil")
 	ErrEmptyPassword              = errors.New("empty password is forbidden")
 	ErrPasswordNotFound           = errors.New("password not found")
+	ErrUserPasswordNotEligible    = errors.New("user is not eligible for password assignment")
 	ErrEmptyDominion              = errors.New("no domains were found")
 	ErrSuperDomainExists          = errors.New("super domain already exists")
 	ErrSuperDomainNotFound        = errors.New("super domain not found")

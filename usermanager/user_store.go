@@ -93,7 +93,7 @@ func (s *DefaultUserStore) Delete(id ulid.ULID) error {
 
 		for it.Rewind(); it.Valid(); it.Next() {
 			if err := tx.Delete(it.Item().Key()); err != nil {
-				return fmt.Errorf("failed to delete stored user")
+				return err
 			}
 		}
 

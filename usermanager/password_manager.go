@@ -2,7 +2,7 @@ package usermanager
 
 // PasswordManager describes the behaviour of a user password manager
 type PasswordManager interface {
-	Set(u *User, p Password) error
+	Set(u *User, p *Password) error
 	Get(u *User) (*Password, error)
 	Delete(u *User) error
 }
@@ -24,9 +24,13 @@ func NewDefaultPasswordManager(ps PasswordStore) (PasswordManager, error) {
 	return pm, nil
 }
 
-func (pm *defaultPasswordManager) Set(u *User, p Password) error {
+func (pm *defaultPasswordManager) Set(u *User, p *Password) error {
 	if pm.ps == nil {
 		return ErrNilPasswordStore
+	}
+
+	if p == nil {
+		return ErrNilPassword
 	}
 
 	if u == nil {

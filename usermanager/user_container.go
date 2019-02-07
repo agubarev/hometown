@@ -2,6 +2,7 @@ package usermanager
 
 import (
 	"errors"
+	"fmt"
 	"log"
 	"sync"
 
@@ -132,7 +133,7 @@ func (c *UserContainer) CheckAvailability(username string, email string) error {
 // Create new user
 func (c *UserContainer) Create(username string, email string, userinfo map[string]string) (*User, error) {
 	if c.store == nil {
-		return nil, ErrNilUserContainer
+		return nil, ErrNilUserStore
 	}
 
 	// checking the availability of username and email
@@ -160,32 +161,104 @@ func (c *UserContainer) Create(username string, email string, userinfo map[strin
 }
 
 // CreateWithPassword creates a new user with a password
-func (c *UserContainer) CreateWithPassword(username, email, password string, userinfo map[string]string) (*User, error) {
+func (c *UserContainer) CreateWithPassword(username, email, rawpass string, userinfo map[string]string) (u *User, err error) {
+	if c.passwords == nil {
+		return nil, ErrNilPasswordManager
+	}
+
+	// attempting to create the user first
+	u, err = c.Create(username, email, userinfo)
+	if err != nil {
+		return nil, err
+	}
+
+	// deferring a function to delete this user if there's any error to follow
+	defer func() {
+		if r := recover(); r != nil {
+			// at this point it doesn't matter what caused this panic, it only matters
+			// to delete the created user and clean up what's unfinished
+			// TODO: devise a contingency plan for OSHI- if the recovery fails
+			if err := c.Delete(u); err != nil {
+				// OSHI-, it happened, flap your wings
+				err = fmt.Errorf("[CRITICAL] CreateWithPassword(): FAILED TO DELETE USER DURING RECOVERY FROM PANIC: %s", err)
+			}
+
+			// attempting to pass the recovery error to an upper function's return
+			err = r.(error)
+		}
+	}()
+
+	// initializing and assigning a password to this user
 	// copying userinfo values into slice to improve password strength evaluation
 	userdata := make([]string, 0)
 	for _, v := range userinfo {
 		userdata = append(userdata, v)
 	}
 
-	err := EvaluatePasswordStrength(password, userdata)
+	p, err := NewPassword(u.ID, rawpass, userdata)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 
-	// attempting to create the user first
-	u, err := c.Create(username, email, userinfo)
-	if err != nil {
-		return nil, err
-	}
-
-	// assigning a password to this user
-	if err = c.SetPassword(u, password); err != nil {
+	if err = c.SetPassword(u, p); err != nil {
 		// TODO: possibly delete the unfinished user or figure out a better way to handle
-
-		return nil, err
+		// NOTE: at this point this account cannot be allowed to stay without a password
+		// because there's an explicit attempt to create a new user account WITH PASSWORD,
+		// so it has to be deleted in case of an error, panic now.
+		// NOTE: runtime must recover from panic, run it's contingency plan and set a proper error
+		// for return
+		panic(fmt.Errorf("SetPassword(): failed to delete the user after failing to create a password: %s"))
 	}
 
-	return u, nil
+	return
+}
+
+// Delete deletes user
+func (c *UserContainer) Delete(u *User) error {
+	// checking the store in advance
+	if c.store == nil {
+		return fmt.Errorf("Delete(): %s", ErrNilUserStore)
+	}
+
+	// NOTE: if the user doesn't exist then returning an error for
+	// consistent explicitness
+	_, err := c.Get(u.ID)
+	if err != nil {
+		return fmt.Errorf("Delete(): failed to delete user %s: %s", u.ID, err)
+	}
+
+	c.Lock()
+
+	// deleting from index maps
+	delete(c.idMap, u.ID)
+	delete(c.usernameMap, u.Username)
+
+	// deleting from the main slice
+	for i, fu := range c.users {
+		if fu.ID == u.ID {
+			c.users = append(c.users[0:i], c.users[i+1:]...)
+			break
+		}
+	}
+
+	c.Unlock()
+
+	// now deleting user from the store
+	err = c.store.Delete(u.ID)
+	if err != nil {
+		return fmt.Errorf("Delete() failed to delete user from the store: %s", err)
+	}
+
+	// and finally deleting user's password if the password manager is present
+	// NOTE: it should be possible that the user could not have a password
+	if c.passwords != nil {
+		err = c.passwords.Delete(u)
+		if err != nil {
+			return fmt.Errorf("Delete(): failed to delete user password: %s", err)
+		}
+	}
+
+	return nil
 }
 
 // Add user to the container
@@ -225,13 +298,26 @@ func (c *UserContainer) SetDomain(d *Domain) error {
 }
 
 // SetPassword sets a new password for the user
-func (c *UserContainer) SetPassword(u *User, newpass string) error {
+func (c *UserContainer) SetPassword(u *User, p *Password) error {
 	if u == nil {
 		return ErrNilUser
 	}
 
-	if u.Domain() == nil {
-		return ErrNilDomain
+	// paranoid check of whether the user is eligible to have
+	// a password created and stored
+	ok, err := u.IsRegisteredAndStored()
+	if err != nil {
+		return fmt.Errorf("SetPassword(): %s", err)
+	}
+
+	if !ok {
+		return ErrUserPasswordNotEligible
+	}
+
+	// storing password
+	// NOTE: PasswordManager is responsible for hashing and encryption
+	if err = c.passwords.Set(u, p); err != nil {
+		return fmt.Errorf("SetPassword(): failed to set password: %s", err)
 	}
 
 	return nil
@@ -248,6 +334,9 @@ func (c *UserContainer) Remove(id ulid.ULID) error {
 	c.Lock()
 	for i, user := range c.users {
 		if user.ID == id {
+			// clearing container reference
+			c.idMap[c.users[i].ID].SetContainer(nil)
+
 			// clearing out index maps
 			delete(c.idMap, c.users[i].ID)
 			delete(c.usernameMap, c.users[i].Username)

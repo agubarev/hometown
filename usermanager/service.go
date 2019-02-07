@@ -9,8 +9,8 @@ import (
 
 // Service represents a User manager contract interface
 type Service interface {
-	Register(ctx context.Context, d *Domain, req *NewUserRequest) (*User, error)
-	Unregister(ctx context.Context, d *Domain, id ulid.ULID) error
+	CreateUser(ctx context.Context, d *Domain, req *NewUserRequest) (*User, error)
+	DeleteUser(ctx context.Context, d *Domain, id ulid.ULID) error
 	SetUsername(ctx context.Context, d *Domain, id ulid.ULID, username string) error
 	GetUser(ctx context.Context, d *Domain, id ulid.ULID) (*User, error)
 	GetUserByUsername(ctx context.Context, d *Domain, username string) (*User, error)
@@ -41,8 +41,8 @@ type service struct {
 	m *UserManager
 }
 
-// Register new user
-func (s *service) Register(ctx context.Context, d *Domain, req *NewUserRequest) (*User, error) {
+// CreateUser new user
+func (s *service) CreateUser(ctx context.Context, d *Domain, req *NewUserRequest) (*User, error) {
 	if d == nil {
 		return nil, ErrNilDomain
 	}
@@ -51,17 +51,11 @@ func (s *service) Register(ctx context.Context, d *Domain, req *NewUserRequest) 
 		return nil, fmt.Errorf("new user request is nil")
 	}
 
-	newUser, err := NewUser(req.Username, req.Email)
+	err := d.Users.Create(req.Username, req.Email)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new user: %s", err)
 	}
 
-	err = d.Users.Register(newUser)
-	if err != nil {
-		return nil, fmt.Errorf("failed to register new user: %s", err)
-	}
-
-	// TODO: create password if required
 	// TODO: send verification email
 
 	return newUser, nil
@@ -106,7 +100,7 @@ func (s *service) SetUsername(ctx context.Context, d *Domain, userID ulid.ULID, 
 	return nil
 }
 
-// Unregister unregisters user
-func (s *service) Unregister(ctx context.Context, d *Domain, userID ulid.ULID) error {
-	return d.Users.Unregister(userID)
+// DeleteUser unregisters user
+func (s *service) DeleteUser(ctx context.Context, d *Domain, userID ulid.ULID) error {
+	return d.Users.DeleteUser(userID)
 }

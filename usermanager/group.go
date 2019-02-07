@@ -232,9 +232,9 @@ func (g *Group) validateUser(u *User) error {
 		return ErrNilUser
 	}
 
-	// this group must belong to some domain at this point
-	if u.Domain() == nil {
-		return ErrNilUserDomain
+	_, err := u.Container()
+	if err != nil {
+		return err
 	}
 
 	return nil
