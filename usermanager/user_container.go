@@ -207,7 +207,7 @@ func (c *UserContainer) CreateWithPassword(username, email, rawpass string, user
 		// so it has to be deleted in case of an error, panic now.
 		// NOTE: runtime must recover from panic, run it's contingency plan and set a proper error
 		// for return
-		panic(fmt.Errorf("SetPassword(): failed to delete the user after failing to create a password: %s"))
+		panic(fmt.Errorf("SetPassword(): failed to delete the user after failing to create a password: %s", err))
 	}
 
 	return
@@ -227,21 +227,10 @@ func (c *UserContainer) Delete(u *User) error {
 		return fmt.Errorf("Delete(): failed to delete user %s: %s", u.ID, err)
 	}
 
-	c.Lock()
-
-	// deleting from index maps
-	delete(c.idMap, u.ID)
-	delete(c.usernameMap, u.Username)
-
-	// deleting from the main slice
-	for i, fu := range c.users {
-		if fu.ID == u.ID {
-			c.users = append(c.users[0:i], c.users[i+1:]...)
-			break
-		}
+	err = c.Remove(u.ID)
+	if err != nil {
+		return fmt.Errorf("Delete(): failed to delete user %s: %s", u.ID, err)
 	}
-
-	c.Unlock()
 
 	// now deleting user from the store
 	err = c.store.Delete(u.ID)
@@ -285,6 +274,35 @@ func (c *UserContainer) Add(u *User) error {
 	return nil
 }
 
+// Remove user from the container
+func (c *UserContainer) Remove(id ulid.ULID) error {
+	// just being explicit about the error for consistency
+	// not returning just nil if the user isn't found
+	if _, err := c.Get(id); err != nil {
+		return err
+	}
+
+	c.Lock()
+	for i, user := range c.users {
+		if user.ID == id {
+			// clearing container reference
+			c.idMap[c.users[i].ID].SetContainer(nil)
+
+			// clearing out index maps
+			delete(c.idMap, c.users[i].ID)
+			delete(c.usernameMap, c.users[i].Username)
+			delete(c.emailMap, c.users[i].Email)
+
+			// removing user from the main slice
+			c.users = append(c.users[0:i], c.users[i+1:]...)
+			break
+		}
+	}
+	c.Unlock()
+
+	return nil
+}
+
 // SetDomain is called when this container is attached to a domain
 func (c *UserContainer) SetDomain(d *Domain) error {
 	if d == nil {
@@ -319,35 +337,6 @@ func (c *UserContainer) SetPassword(u *User, p *Password) error {
 	if err = c.passwords.Set(u, p); err != nil {
 		return fmt.Errorf("SetPassword(): failed to set password: %s", err)
 	}
-
-	return nil
-}
-
-// Remove user from the container
-func (c *UserContainer) Remove(id ulid.ULID) error {
-	// just being explicit about the error for consistency
-	// not returning just nil if the user isn't found
-	if _, err := c.Get(id); err != nil {
-		return err
-	}
-
-	c.Lock()
-	for i, user := range c.users {
-		if user.ID == id {
-			// clearing container reference
-			c.idMap[c.users[i].ID].SetContainer(nil)
-
-			// clearing out index maps
-			delete(c.idMap, c.users[i].ID)
-			delete(c.usernameMap, c.users[i].Username)
-			delete(c.emailMap, c.users[i].Email)
-
-			// removing user from the main slice
-			c.users = append(c.users[0:i], c.users[i+1:]...)
-			break
-		}
-	}
-	c.Unlock()
 
 	return nil
 }
@@ -394,7 +383,7 @@ func (c *UserContainer) SetPasswordManager(pm PasswordManager) error {
 		return ErrNilPasswordManager
 	}
 
-	c.Passwords = pm
+	c.passwords = pm
 
 	return nil
 }

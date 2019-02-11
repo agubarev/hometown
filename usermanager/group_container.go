@@ -60,12 +60,6 @@ func (c *GroupContainer) Validate() error {
 	return nil
 }
 
-// Save asks all contained groups to store itself
-func (c *GroupContainer) Save() error {
-
-	return nil
-}
-
 // SetDomain is called when this container is attached to a domain
 func (c *GroupContainer) SetDomain(d *Domain) error {
 	if d == nil {
@@ -78,29 +72,41 @@ func (c *GroupContainer) SetDomain(d *Domain) error {
 	return nil
 }
 
-// Register adding group to a container
-func (c *GroupContainer) Register(g *Group) error {
+// Create creates new group
+func (c *GroupContainer) Create(kind GroupKind, key string, name string, parent *Group) (*Group, error) {
+	// groups must be of the same kind
+	if parent != nil && parent.Kind != kind {
+		return nil, ErrGroupKindMismatch
+	}
+
+	// initializing new group
+	g, err := NewGroup(kind, key, name, parent)
+	if err != nil {
+		return nil, fmt.Errorf("Create(): failed to initialize new group(%s): %s", key, err)
+	}
+
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+
+	return g, nil
+}
+
+// Add adds group to the container
+func (c *GroupContainer) Add(g *Group) error {
+	if g == nil {
+		return ErrNilGroup
+	}
+
 	_, err := c.Get(g.ID)
 	if err != ErrGroupNotFound {
 		return ErrGroupAlreadyRegistered
 	}
-
-	// working with the store only if its assigned to this container
-	// NOTE: this is handled the way it is only to possibly allow
-	// pre-assembly of containers for future processing
-	if c.store == nil {
-		// check if the group is in store, otherwise create
-		if _, err := c.store.Get(g.ID); err == ErrGroupNotFound {
-			if err = c.store.Put(g); err != nil {
-				return fmt.Errorf("failed to stored registered group [%s]: %s", g.ID, err)
-			}
-		}
-	} else {
-		log.Printf("WARNING: registering %s without storing\n", g.StringID())
-	}
-
-	// linking group to this container
-	g.container = c
 
 	c.Lock()
 	c.groups = append(c.groups, g)
@@ -111,10 +117,10 @@ func (c *GroupContainer) Register(g *Group) error {
 	return nil
 }
 
-// Unregister removing group from a container by ID
-func (c *GroupContainer) Unregister(id ulid.ULID) error {
-	// a bit pedantic but consistent, returning an error if the group isn't
-	// already registered
+// Remove removing group from the container
+func (c *GroupContainer) Remove(id ulid.ULID) error {
+	// a bit pedantic but consistent, returning an error if group
+	// is already registered within the container
 	g, err := c.Get(id)
 	if err != nil {
 		return err

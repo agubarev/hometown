@@ -423,17 +423,13 @@ func (d *Domain) setupDefaultGroups() error {
 		return ErrNilGroupContainer
 	}
 
-	//---------------------------------------------------------------------------
-	// defining default role groups (in hierarchical order)
-	//---------------------------------------------------------------------------
-
 	// regular user
 	userRole, err := NewGroup(GKRole, "user", "Regular User", nil)
 	if err != nil {
 		return fmt.Errorf("failed to create regular user role: %s", err)
 	}
 
-	err = d.Groups.Register(userRole)
+	err = d.Groups.Add(userRole)
 	if err != nil {
 		return err
 	}
@@ -444,7 +440,7 @@ func (d *Domain) setupDefaultGroups() error {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
 
-	err = d.Groups.Register(managerRole)
+	err = d.Groups.Add(managerRole)
 	if err != nil {
 		return err
 	}
@@ -455,7 +451,7 @@ func (d *Domain) setupDefaultGroups() error {
 		return fmt.Errorf("failed to create superuser role: %s", err)
 	}
 
-	err = d.Groups.Register(superuserRole)
+	err = d.Groups.Add(superuserRole)
 	if err != nil {
 		return err
 	}

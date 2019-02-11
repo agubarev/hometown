@@ -93,7 +93,7 @@ func TestGroupStoreGetAll(t *testing.T) {
 	err = s.Put(g3)
 	a.NoError(err)
 
-	gs, err := s.GetAll()
+	gs, err := s.GetGroups()
 	a.NoError(err)
 	a.Len(gs, 3)
 
@@ -108,9 +108,9 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.Equal(g2.Name, gs[1].Name)
 
 	a.Equal(g3.ID, gs[2].ID)
-	a.Equal(g1.Kind, gs[2].Kind)
-	a.Equal(g1.Key, gs[2].Key)
-	a.Equal(g1.Name, gs[2].Name)
+	a.Equal(g3.Kind, gs[2].Kind)
+	a.Equal(g3.Key, gs[2].Key)
+	a.Equal(g3.Name, gs[2].Name)
 }
 
 func TestGroupStoreDelete(t *testing.T) {
@@ -185,6 +185,6 @@ func TestGroupStoreRelations(t *testing.T) {
 
 	// making sure the relation is gone
 	ok, err = s.HasRelation(g.ID, u.ID)
-	a.EqualError(err, usermanager.ErrRelationNotFound.Error())
+	a.NoError(err)
 	a.False(ok)
 }

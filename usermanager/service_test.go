@@ -1,14 +1,6 @@
 package usermanager_test
 
-import (
-	"strings"
-	"testing"
-
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/usermanager"
-)
-
+/*
 func init() {
 	confstring := `
 instance:
@@ -50,3 +42,4 @@ func TestServiceRegister(t *testing.T) {
 
 	// TODO: implement
 }
+*/

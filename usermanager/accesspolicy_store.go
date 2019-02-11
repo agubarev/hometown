@@ -2,7 +2,6 @@ package usermanager
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/oklog/ulid"

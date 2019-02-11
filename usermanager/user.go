@@ -169,6 +169,13 @@ func (u *User) Groups(kind GroupKind) []*Group {
 	return groups
 }
 
+// SetContainer assigns user container
+func (u *User) SetContainer(c *UserContainer) error {
+	u.container = c
+
+	return nil
+}
+
 // IsRegisteredAndStored returns true if the user is both:
 // 1. registered by user container
 // 2. persisted to the store
@@ -190,7 +197,7 @@ func (u *User) IsRegisteredAndStored() (bool, error) {
 	}
 
 	// checking container's store
-	if _, err = c.Store().Get(u.ID); err != nil {
+	if _, err = c.store.Get(u.ID); err != nil {
 		if err == ErrUserNotFound {
 			// user isn't in the store yet, normal return
 			return false, nil

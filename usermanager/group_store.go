@@ -1,35 +1,34 @@
 package usermanager
 
 import (
-	"bytes"
-	"encoding/gob"
 	"fmt"
+	"strings"
 
 	"github.com/dgraph-io/badger"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/oklog/ulid"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // GroupStore describes a storage contract for groups specifically
 type GroupStore interface {
 	Put(g *Group) error
 	Get(groupID ulid.ULID) (*Group, error)
-	GetAll() ([]*Group, error)
+	GetGroups() ([]*Group, error)
 	Delete(groupID ulid.ULID) error
+	GetRelations(groupID ulid.ULID) ([]ulid.ULID, error)
 	PutRelation(groupID ulid.ULID, userID ulid.ULID) error
 	HasRelation(groupID ulid.ULID, userID ulid.ULID) (bool, error)
 	DeleteRelation(groupID ulid.ULID, userID ulid.ULID) error
 }
 
-func groupKey(groupID ulid.ULID) []byte {
-	return groupID[:]
+func groupKey(id ulid.ULID) []byte {
+	return []byte(fmt.Sprintf("g:%s", id[:]))
 }
 
 func groupUserKey(groupID ulid.ULID, userID ulid.ULID) []byte {
-	key := make([]byte, 32)
-	copy(key[:16], groupID[:])
-	copy(key[16:], userID[:])
-
-	return key
+	return []byte(fmt.Sprintf("gr:%s:%s", groupID[:], userID[:]))
 }
 
 // DefaultGroupStore is the default group store implementation
@@ -53,18 +52,14 @@ func (s *DefaultGroupStore) Put(g *Group) error {
 	}
 
 	return s.db.Update(func(tx *badger.Txn) error {
-		// decoding group bytes
-		var payload bytes.Buffer
-		err := gob.NewEncoder(&payload).Encode(g)
+		payload, err := json.Marshal(g)
 		if err != nil {
-			return fmt.Errorf("failed to encode group: %s", err)
+			return fmt.Errorf("failed to marshal group: %s", err)
 		}
 
-		// storing primary value
 		key := groupKey(g.ID)
-		err = tx.Set(key, payload.Bytes())
-		if err != nil {
-			return fmt.Errorf("failed to store group %s: %s", key, err)
+		if tx.Set(key, payload) != nil {
+			return fmt.Errorf("failed to store group key(%s): %s", key, err)
 		}
 
 		return nil
@@ -72,22 +67,22 @@ func (s *DefaultGroupStore) Put(g *Group) error {
 }
 
 // Get retrieving a group by ID
-func (s *DefaultGroupStore) Get(groupID ulid.ULID) (*Group, error) {
-	g := &Group{}
+func (s *DefaultGroupStore) Get(id ulid.ULID) (*Group, error) {
+	g := new(Group)
 
 	err := s.db.View(func(tx *badger.Txn) error {
-		item, err := tx.Get(groupKey(groupID))
+		item, err := tx.Get(groupKey(id))
 		if err != nil {
 			if err == badger.ErrKeyNotFound {
 				return ErrGroupNotFound
 			}
 
-			return fmt.Errorf("failed to get stored user by ID %s: %s", groupID, err)
+			return fmt.Errorf("failed to get stored user by ID %s: %s", id, err)
 		}
 
 		return item.Value(func(payload []byte) error {
-			if err := gob.NewDecoder(bytes.NewReader(payload)).Decode(&g); err != nil {
-				return fmt.Errorf("failed to unserialize stored group: %s", err)
+			if err := json.Unmarshal(payload, g); err != nil {
+				return fmt.Errorf("failed to unmarshal stored group: %s", err)
 			}
 
 			return nil
@@ -101,26 +96,24 @@ func (s *DefaultGroupStore) Get(groupID ulid.ULID) (*Group, error) {
 	return g, nil
 }
 
-// GetAll retrieving all groups
-func (s *DefaultGroupStore) GetAll() ([]*Group, error) {
-	g := &Group{}
+// GetGroups retrieving all groups
+func (s *DefaultGroupStore) GetGroups() ([]*Group, error) {
 	gs := make([]*Group, 0)
 
 	err := s.db.View(func(tx *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte("group")
+		opts.Prefix = []byte("g:")
 		it := tx.NewIterator(opts)
 		defer it.Close()
 
-		// iterating over keys only
 		for it.Rewind(); it.Valid(); it.Next() {
 			err := it.Item().Value(func(payload []byte) error {
-				// decoding payload buffer
-				if err := gob.NewDecoder(bytes.NewReader(payload)).Decode(g); err != nil {
-					return fmt.Errorf("failed to decode group payload: %s", err)
+				g := new(Group)
+				if err := json.Unmarshal(payload, g); err != nil {
+					return fmt.Errorf("failed to unmarshal group payload: %s", err)
 				}
 
-				// appending group to result slice
+				// appending group to resulting slice
 				gs = append(gs, g)
 
 				return nil
@@ -155,6 +148,7 @@ func (s *DefaultGroupStore) Delete(groupID ulid.ULID) error {
 
 		return nil
 	})
+
 	if err != nil {
 		return fmt.Errorf("failed to delete stored group (%s) related key: %s", groupID, err)
 	}
@@ -198,6 +192,49 @@ func (s *DefaultGroupStore) HasRelation(groupID ulid.ULID, userID ulid.ULID) (bo
 	})
 
 	return result, err
+}
+
+// GetRelations retrieving all groups, returns a slice of user IDs
+func (s *DefaultGroupStore) GetRelations(groupID ulid.ULID) ([]ulid.ULID, error) {
+	relations := make([]ulid.ULID, 0)
+
+	err := s.db.View(func(tx *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		// gr stands for group relations
+		opts.PrefetchValues = false
+		opts.Prefix = []byte(fmt.Sprintf("gr:%s:", groupID.String()))
+		it := tx.NewIterator(opts)
+		defer it.Close()
+
+		// iterating over keys only
+		for it.Rewind(); it.Valid(); it.Next() {
+			// converting key to string and extracting user ID which is a suffix of the key
+			skey := string(it.Item().Key())
+			lspos := strings.LastIndex(skey, ":") // last separator position
+			if lspos == -1 {
+				return fmt.Errorf("GetRelations(%s): last separator not found in (%s)", groupID.String(), skey)
+			}
+
+			// string user ID
+			suid := skey[lspos:]
+			if len(suid) != 26 {
+				return fmt.Errorf("GetRelations(%s): invalid length of user string ID; must be 26 characters long (%s)", groupID.String(), suid)
+			}
+
+			// reconstructing user ID from the string
+			uid, err := ulid.Parse(suid)
+			if err != nil {
+				return fmt.Errorf("GetRelations(%s): failed to parse user ID(%s): %s", groupID.String(), suid, err)
+			}
+
+			// appending to resulting slice
+			relations = append(relations, uid)
+		}
+
+		return nil
+	})
+
+	return relations, err
 }
 
 // DeleteRelation deletes a group-user relation

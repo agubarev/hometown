@@ -43,10 +43,10 @@ const (
 // TODO add mutex and store to the group; store should be set implicitly upon addition to the container
 type Group struct {
 	ID          ulid.ULID `json:"id"`
-	Kind        GroupKind `json:"kind"`
-	Key         string    `json:"key" valid:"required,ascii"`
-	Name        string    `json:"name" valid:"required"`
-	Description string    `json:"desc" valid:"optional,length(0|200)"`
+	Kind        GroupKind `json:"k"`
+	Key         string    `json:"ky" valid:"required,ascii"`
+	Name        string    `json:"n" valid:"required"`
+	Description string    `json:"dsc" valid:"optional,length(0|200)"`
 
 	// these fields are basically just for the storage
 	DomainID ulid.ULID `json:"did"`
@@ -227,7 +227,7 @@ func (g *Group) IsMember(u *User) bool {
 	return false
 }
 
-func (g *Group) validateUser(u *User) error {
+func (g *Group) isUserEligible(u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
@@ -240,15 +240,10 @@ func (g *Group) validateUser(u *User) error {
 	return nil
 }
 
-// Register adding user to a group
-// TODO: separate split into Create and Add
-// TODO: separate split into Create and Add
-// TODO: separate split into Create and Add
-// TODO: separate split into Create and Add
-// TODO: separate split into Create and Add
-// TODO: separate split into Create and Add
-func (g *Group) Register(u *User) error {
-	if err := g.validateUser(u); err != nil {
+// Add adding user to a group
+func (g *Group) Add(u *User, storeRelation bool) error {
+	err := g.isUserEligible(u)
+	if err != nil {
 		return err
 	}
 
@@ -257,13 +252,14 @@ func (g *Group) Register(u *User) error {
 		return ErrAlreadyMember
 	}
 
-	// if store is set then storing new relation
-	if g.container.store != nil {
-		if err := g.container.store.PutRelation(g.ID, u.ID); err != nil {
+	if storeRelation {
+		if g.container.store == nil {
+			return ErrNilGroupStore
+		}
+
+		if err = g.container.store.PutRelation(g.ID, u.ID); err != nil {
 			return err
 		}
-	} else {
-		g.logger.Warn("registering member without storing", zap.String("gid", g.ID.String()), zap.String("uid", u.ID.String()))
 	}
 
 	// updating runtime data
@@ -285,9 +281,9 @@ func (g *Group) Register(u *User) error {
 	return nil
 }
 
-// Unregister adding user to a group
-func (g *Group) Unregister(u *User) error {
-	if err := g.validateUser(u); err != nil {
+// Remove removes user from a group
+func (g *Group) Remove(u *User) error {
+	if err := g.isUserEligible(u); err != nil {
 		return err
 	}
 
