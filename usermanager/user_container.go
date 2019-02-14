@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/blevesearch/bleve"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/oklog/ulid"
 )
 
@@ -27,7 +28,6 @@ type UserContainer struct {
 	store       UserStore
 	index       bleve.Index
 	passwords   PasswordManager
-
 	sync.RWMutex
 }
 
@@ -50,13 +50,21 @@ func NewUserContainer(s UserStore, idx bleve.Index) (*UserContainer, error) {
 		index:       idx,
 	}
 
-	// TODO: initialize bleve index
-
 	return c, nil
 }
 
-func (c *UserContainer) loadAllUsers() error {
-	// TODO: implement
+// Init initializes user container
+func (c *UserContainer) Init() error {
+	if c.store == nil {
+		return ErrNilUserStore
+	}
+
+	storedUsers, err := c.store.GetAll()
+	if err != nil {
+		return err
+	}
+
+	spew.Dump(storedUsers)
 
 	return nil
 }
@@ -92,39 +100,39 @@ func (c *UserContainer) CheckAvailability(username string, email string) error {
 	// runtime checks first
 	_, err := c.GetByUsername(username)
 	if err != nil {
-		if err == ErrUserNotFound {
-			return ErrUsernameTaken
+		if err != ErrUserNotFound {
+			return err
 		}
 
-		return err
+		return nil
 	}
 
 	_, err = c.GetByEmail(email)
 	if err != nil {
-		if err == ErrUserNotFound {
-			return ErrEmailTaken
+		if err != ErrUserNotFound {
+			return err
 		}
 
-		return err
+		return nil
 	}
 
 	// checking storage for just in case
 	_, err = c.store.GetByIndex("username", username)
 	if err != nil {
-		if err == ErrUserNotFound {
-			return ErrUsernameTaken
+		if err != ErrUserNotFound {
+			return err
 		}
 
-		return err
+		return nil
 	}
 
 	_, err = c.store.GetByIndex("email", email)
 	if err != nil {
-		if err == ErrUserNotFound {
-			return ErrEmailTaken
+		if err != ErrUserNotFound {
+			return err
 		}
 
-		return err
+		return nil
 	}
 
 	return nil
@@ -147,13 +155,32 @@ func (c *UserContainer) Create(username string, email string, userinfo map[strin
 		return nil, err
 	}
 
-	// adding to container's registry
-	if err = c.Add(u); err != nil {
+	// assigning info details
+	for k, v := range userinfo {
+		switch k {
+		case "firstname":
+			u.Firstname = v
+		case "lastname":
+			u.Lastname = v
+		case "middlename":
+			u.Middlename = v
+		default:
+			return nil, fmt.Errorf("unrecognized user info field: %s", k)
+		}
+	}
+
+	// validating user after assigning userinfo
+	if err := u.Validate(); err != nil {
 		return nil, err
 	}
 
-	// saving to the store
+	// saving to the store first
 	if err = c.store.Put(u); err != nil {
+		return nil, err
+	}
+
+	// adding to container's registry
+	if err = c.Add(u); err != nil {
 		return nil, err
 	}
 
@@ -180,7 +207,7 @@ func (c *UserContainer) CreateWithPassword(username, email, rawpass string, user
 			// TODO: devise a contingency plan for OSHI- if the recovery fails
 			if err := c.Delete(u); err != nil {
 				// OSHI-, it happened, flap your wings
-				err = fmt.Errorf("[CRITICAL] CreateWithPassword(): FAILED TO DELETE USER DURING RECOVERY FROM PANIC: %s", err)
+				err = fmt.Errorf("[CRITICAL] CreateWithPassword(): FAILED TO CREATE USER WITH PASSWORD AND FAILED TO DELETE USER DURING RECOVERY FROM PANIC: %s", err)
 			}
 
 			// attempting to pass the recovery error to an upper function's return
@@ -213,7 +240,7 @@ func (c *UserContainer) CreateWithPassword(username, email, rawpass string, user
 	return
 }
 
-// Delete deletes user
+// Delete deletes user from the store and container
 func (c *UserContainer) Delete(u *User) error {
 	// checking the store in advance
 	if c.store == nil {
@@ -227,15 +254,16 @@ func (c *UserContainer) Delete(u *User) error {
 		return fmt.Errorf("Delete(): failed to delete user %s: %s", u.ID, err)
 	}
 
-	err = c.Remove(u.ID)
-	if err != nil {
-		return fmt.Errorf("Delete(): failed to delete user %s: %s", u.ID, err)
-	}
-
 	// now deleting user from the store
 	err = c.store.Delete(u.ID)
 	if err != nil {
 		return fmt.Errorf("Delete() failed to delete user from the store: %s", err)
+	}
+
+	// removing runtime object
+	err = c.Remove(u.ID)
+	if err != nil {
+		return fmt.Errorf("Delete(): failed to delete user %s: %s", u.ID, err)
 	}
 
 	// and finally deleting user's password if the password manager is present
@@ -250,7 +278,7 @@ func (c *UserContainer) Delete(u *User) error {
 	return nil
 }
 
-// Add user to the container
+// Add user runtime object to the container
 func (c *UserContainer) Add(u *User) error {
 	if u == nil {
 		return ErrNilUser
@@ -274,7 +302,7 @@ func (c *UserContainer) Add(u *User) error {
 	return nil
 }
 
-// Remove user from the container
+// Remove removes runtime object from the container
 func (c *UserContainer) Remove(id ulid.ULID) error {
 	// just being explicit about the error for consistency
 	// not returning just nil if the user isn't found

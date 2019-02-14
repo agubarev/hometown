@@ -20,9 +20,9 @@ type User struct {
 	Email    string `json:"email" valid:"required,email"`
 
 	// the name
-	Firstname  string `json:"firstname" valid:"optional,alpha"`
-	Lastname   string `json:"lastname" valid:"optional,alpha"`
-	Middlename string `json:"middlename" valid:"optional,alpha"`
+	Firstname  string `json:"firstname" valid:"optional,utfletter"`
+	Lastname   string `json:"lastname" valid:"optional,utfletter"`
+	Middlename string `json:"middlename" valid:"optional,utfletter"`
 
 	// account related flags
 	IsConfirmed bool `json:"is_verified"`
@@ -116,6 +116,12 @@ func (u *User) Save() error {
 	if u == nil {
 		return ErrNilUser
 	}
+
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
+	// TODO: implement
 
 	return nil
 }

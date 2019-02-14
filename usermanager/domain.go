@@ -295,7 +295,7 @@ func (d *Domain) init() error {
 	// deferring log flush
 	defer d.logger.Sync()
 
-	d.logger.Info("initializing domain", zap.String("id", d.StringID()))
+	d.logger.Info("initializing domain", zap.String("did", d.StringID()))
 
 	//---------------------------------------------------------------------------
 	// initializing local storage
@@ -315,7 +315,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing local databases
 	//---------------------------------------------------------------------------
-	d.logger.Info("initializing domain storage", zap.String("id", d.StringID()))
+	d.logger.Info("initializing domain storage", zap.String("did", d.StringID()))
 
 	// general database
 	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), "data"))
@@ -332,7 +332,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing stores and indexes
 	//---------------------------------------------------------------------------
-	d.logger.Info("initializing domain stores", zap.String("id", d.StringID()))
+	d.logger.Info("initializing domain stores", zap.String("did", d.StringID()))
 
 	us, err := NewDefaultUserStore(db)
 	if err != nil {

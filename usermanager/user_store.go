@@ -1,8 +1,6 @@
 package usermanager
 
 import (
-	"bytes"
-	"encoding/gob"
 	"fmt"
 
 	"github.com/dgraph-io/badger"
@@ -11,20 +9,20 @@ import (
 )
 
 // UserStore represents a user storage contract
-// TODO: rework to use JSON instead of GOB
 type UserStore interface {
 	Put(u *User) error
 	Delete(id ulid.ULID) error
+	GetAll() ([]*User, error)
 	Get(id ulid.ULID) (*User, error)
 	GetByIndex(index string, value string) (*User, error)
 }
 
 func userKey(id ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("user:%s", id[:]))
+	return []byte(fmt.Sprintf("u:%s", id[:]))
 }
 
 func userIndexKey(index string, value string) []byte {
-	return []byte(fmt.Sprintf("uidx:%s:%s", index, value))
+	return []byte(fmt.Sprintf("ui:%s:%s", index, value))
 }
 
 // DefaultUserStore is a default user store implementation
@@ -52,15 +50,14 @@ func (s *DefaultUserStore) Put(u *User) error {
 	}
 
 	return s.db.Update(func(tx *badger.Txn) error {
-		var payload bytes.Buffer
-		err := gob.NewEncoder(&payload).Encode(u)
+		payload, err := json.Marshal(u)
 		if err != nil {
-			return fmt.Errorf("failed to encode user: %s", err)
+			return fmt.Errorf("failed to marshal user: %s", err)
 		}
 
 		// storing primary value
 		primaryKey := userKey(u.ID)
-		err = tx.Set(primaryKey, payload.Bytes())
+		err = tx.Set(primaryKey, payload)
 		if err != nil {
 			return fmt.Errorf("failed to store user %s: %s", primaryKey, err)
 		}
@@ -117,13 +114,12 @@ func (s *DefaultUserStore) Delete(id ulid.ULID) error {
 }
 
 // Get returns a User by ID
-// TODO: re-use getByByteKey()
 func (s *DefaultUserStore) Get(id ulid.ULID) (*User, error) {
 	return s.getByByteKey(userKey(id))
 }
 
 func (s *DefaultUserStore) getByByteKey(key []byte) (*User, error) {
-	u := &User{}
+	u := new(User)
 
 	err := s.db.View(func(tx *badger.Txn) error {
 		item, err := tx.Get(key)
@@ -135,9 +131,9 @@ func (s *DefaultUserStore) getByByteKey(key []byte) (*User, error) {
 			return fmt.Errorf("getByByteKey(): failed to get stored user by ID %s: %s", key, err)
 		}
 
-		return item.Value(func(val []byte) error {
-			if err := gob.NewDecoder(bytes.NewReader(val)).Decode(&u); err != nil {
-				return fmt.Errorf("getByByteKey(): failed to decode stored user: %s", err)
+		return item.Value(func(payload []byte) error {
+			if err := json.Unmarshal(payload, u); err != nil {
+				return fmt.Errorf("getByByteKey(): failed to unmarshal stored user: %s", err)
 			}
 
 			return nil
@@ -149,6 +145,39 @@ func (s *DefaultUserStore) getByByteKey(key []byte) (*User, error) {
 	}
 
 	return u, nil
+}
+
+// GetAll returns all stored users
+func (s *DefaultUserStore) GetAll() ([]*User, error) {
+	us := make([]*User, 0)
+
+	err := s.db.View(func(tx *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.Prefix = []byte("u:")
+		it := tx.NewIterator(opts)
+		defer it.Close()
+
+		for it.Rewind(); it.Valid(); it.Next() {
+			err := it.Item().Value(func(payload []byte) error {
+				u := new(User)
+				if err := json.Unmarshal(payload, u); err != nil {
+					return fmt.Errorf("failed to unmarshal user payload: %s", err)
+				}
+
+				us = append(us, u)
+
+				return nil
+			})
+
+			if err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
+	return us, err
 }
 
 // GetByIndex lookup a user by an index

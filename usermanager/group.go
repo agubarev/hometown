@@ -232,10 +232,13 @@ func (g *Group) isUserEligible(u *User) error {
 		return ErrNilUser
 	}
 
-	_, err := u.Container()
-	if err != nil {
-		return err
-	}
+	// TODO: decide how crucial it is to demand users to belong to a user container
+	/*
+		_, err := u.Container()
+		if err != nil {
+			return err
+		}
+	*/
 
 	return nil
 }

@@ -4,8 +4,11 @@ import (
 	"fmt"
 	"sync"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/oklog/ulid"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // UserManager is the super structure, a domain container
 // this is considered a dominion, a structure that manages

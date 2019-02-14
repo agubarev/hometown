@@ -5,11 +5,8 @@ import (
 	"strings"
 
 	"github.com/dgraph-io/badger"
-	jsoniter "github.com/json-iterator/go"
 	"github.com/oklog/ulid"
 )
-
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 // GroupStore describes a storage contract for groups specifically
 type GroupStore interface {

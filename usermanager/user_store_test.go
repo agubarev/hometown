@@ -1,8 +1,11 @@
 package usermanager_test
 
 import (
+	"fmt"
 	"os"
 	"testing"
+
+	"github.com/oklog/ulid"
 
 	"gitlab.com/agubarev/hometown/usermanager"
 
@@ -87,6 +90,49 @@ func TestUserStoreGetters(t *testing.T) {
 	u, err = s.GetByIndex("no such index", "absent value")
 	a.EqualError(err, usermanager.ErrUserNotFound.Error())
 	a.Nil(u)
+}
+
+func TestUserStoreGetAll(t *testing.T) {
+	t.Parallel()
+	a := assert.New(t)
+
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
+	a.NoError(err)
+	a.NotNil(db)
+
+	s, err := usermanager.NewDefaultUserStore(db)
+	a.NoError(err)
+	a.NotNil(s)
+
+	testUsers := make(map[ulid.ULID]*usermanager.User, 5)
+	for i := 0; i < 5; i++ {
+		u, err := usermanager.NewUser(fmt.Sprintf("testuser%d", i), fmt.Sprintf("testuser%d@example.com", i))
+		u.Firstname = fmt.Sprintf("Andrei %d", i)
+		u.Lastname = fmt.Sprintf("Gubarev %d", i)
+		u.Middlename = fmt.Sprintf("Anatolievich %d", i)
+
+		a.NotNil(u)
+		a.NoError(err)
+
+		err = s.Put(u)
+		a.NoError(err)
+
+		testUsers[u.ID] = u
+	}
+
+	loadedUsers, err := s.GetAll()
+	a.NoError(err)
+	a.Len(loadedUsers, 5)
+
+	for _, u := range loadedUsers {
+		a.Equal(u.ID, testUsers[u.ID].ID)
+		a.Equal(u.Username, testUsers[u.ID].Username)
+		a.Equal(u.Email, testUsers[u.ID].Email)
+		a.Equal(u.Firstname, testUsers[u.ID].Firstname)
+		a.Equal(u.Lastname, testUsers[u.ID].Lastname)
+		a.Equal(u.Middlename, testUsers[u.ID].Middlename)
+	}
 }
 
 func TestUserStoreDelete(t *testing.T) {
