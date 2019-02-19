@@ -49,6 +49,12 @@ func (s *DefaultUserStore) Put(u *User) error {
 		return ErrNilUser
 	}
 
+	// fetching a possibly existing stored user
+	su, err := s.Get(u.ID)
+	if err != nil && err != ErrUserNotFound {
+		return fmt.Errorf("failed to load user(%s): %s", u.ID, err)
+	}
+
 	return s.db.Update(func(tx *badger.Txn) error {
 		payload, err := json.Marshal(u)
 		if err != nil {
@@ -62,14 +68,30 @@ func (s *DefaultUserStore) Put(u *User) error {
 			return fmt.Errorf("failed to store user %s: %s", primaryKey, err)
 		}
 
+		// index keys
+		usernameIndexKey := userIndexKey("username", u.Username)
+		emailIndexKey := userIndexKey("email", u.Email)
+
+		// if username or email differs from a previously stored version,
+		// then erase previous and create new index
+		if su != nil {
+			if su.Username != u.Username {
+				tx.Delete(usernameIndexKey)
+			}
+
+			if su.Email != u.Email {
+				tx.Delete(emailIndexKey)
+			}
+		}
+
 		// storing username index with a primary key as value
-		err = tx.Set(userIndexKey("username", u.Username), primaryKey)
+		err = tx.Set(usernameIndexKey, primaryKey)
 		if err != nil {
 			return fmt.Errorf("failed to store username(%s) index: %s", u.Username, err)
 		}
 
 		// storing email index, same as above
-		err = tx.Set(userIndexKey("email", u.Email), primaryKey)
+		err = tx.Set(emailIndexKey, primaryKey)
 		if err != nil {
 			return fmt.Errorf("failed to store email(%s) index: %s", u.Email, err)
 		}
@@ -182,7 +204,7 @@ func (s *DefaultUserStore) GetAll() ([]*User, error) {
 
 // GetByIndex lookup a user by an index
 func (s *DefaultUserStore) GetByIndex(index string, value string) (*User, error) {
-	u := &User{}
+	u := new(User)
 
 	err := s.db.View(func(tx *badger.Txn) error {
 		// lookup user by ID

@@ -19,10 +19,12 @@ type User struct {
 	Username string `json:"username" valid:"required,alphanum"`
 	Email    string `json:"email" valid:"required,email"`
 
-	// the name
-	Firstname  string `json:"firstname" valid:"optional,utfletter"`
-	Lastname   string `json:"lastname" valid:"optional,utfletter"`
-	Middlename string `json:"middlename" valid:"optional,utfletter"`
+	// the name, birthdate, country
+	Firstname  string    `json:"firstname" valid:"optional,utfletter"`
+	Lastname   string    `json:"lastname" valid:"optional,utfletter"`
+	Middlename string    `json:"middlename" valid:"optional,utfletter"`
+	Birthdate  time.Time `json:"birthdate,omitempty"`
+	Phone      string    `json:"phone" valid:"optional,dialstring"`
 
 	// account related flags
 	IsConfirmed bool `json:"is_verified"`
@@ -52,9 +54,14 @@ type User struct {
 	groups []*Group
 }
 
-// StringID returns short info about the user
-func (u *User) StringID() string {
+// StringInfo returns short info about the user
+func (u *User) StringInfo() string {
 	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
+}
+
+// StringID returns string representation of ULID
+func (u *User) StringID() string {
+	return u.ID.String()
 }
 
 // Container returns the corresponding user container to
@@ -105,7 +112,7 @@ func (u *User) Validate() error {
 	}
 
 	if ok, err := govalidator.ValidateStruct(u); !ok || err != nil {
-		return fmt.Errorf("%s validation failed: %s", u.StringID(), err)
+		return fmt.Errorf("%s validation failed: %s", u.StringInfo(), err)
 	}
 
 	return nil
@@ -117,11 +124,15 @@ func (u *User) Save() error {
 		return ErrNilUser
 	}
 
-	// TODO: implement
-	// TODO: implement
-	// TODO: implement
-	// TODO: implement
-	// TODO: implement
+	c, err := u.Container()
+	if err != nil {
+		return err
+	}
+
+	err = c.Save(u)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

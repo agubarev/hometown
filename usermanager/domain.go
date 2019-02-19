@@ -211,6 +211,11 @@ func LoadDomain(id ulid.ULID) (*Domain, error) {
 	return d, nil
 }
 
+// Logger returns domain logger
+func (d *Domain) Logger() *zap.Logger {
+	return d.logger
+}
+
 func (d *Domain) initConfig() error {
 	// only doing it once
 	if d.config != nil {
@@ -295,7 +300,7 @@ func (d *Domain) init() error {
 	// deferring log flush
 	defer d.logger.Sync()
 
-	d.logger.Info("initializing domain", zap.String("did", d.StringID()))
+	d.logger.Info("initializing domain")
 
 	//---------------------------------------------------------------------------
 	// initializing local storage
@@ -315,7 +320,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing local databases
 	//---------------------------------------------------------------------------
-	d.logger.Info("initializing domain storage", zap.String("did", d.StringID()))
+	d.logger.Info("initializing storage")
 
 	// general database
 	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), "data"))
@@ -332,7 +337,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing stores and indexes
 	//---------------------------------------------------------------------------
-	d.logger.Info("initializing domain stores", zap.String("did", d.StringID()))
+	d.logger.Info("initializing domain stores")
 
 	us, err := NewDefaultUserStore(db)
 	if err != nil {
@@ -365,7 +370,7 @@ func (d *Domain) init() error {
 	// initializing and validating containers
 	//---------------------------------------------------------------------------
 
-	d.logger.Info("initializing user container", zap.String("did", d.StringID()))
+	d.logger.Info("initializing user container")
 	uc, err := NewUserContainer(us, uidx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user container: %s", err)
@@ -385,7 +390,7 @@ func (d *Domain) init() error {
 		return fmt.Errorf("Domain.Init() failed to validate user container: %s", err)
 	}
 
-	d.logger.Info("initializing group container", zap.String("did", d.StringID()))
+	d.logger.Info("initializing group container")
 	gc, err := NewGroupContainer(gs)
 	if err != nil {
 		return fmt.Errorf("failed to initialize group container: %s", err)

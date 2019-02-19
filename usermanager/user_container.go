@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/blevesearch/bleve"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/oklog/ulid"
+	"go.uber.org/zap"
 )
 
 // UserFilterFunc is a filter function parameter to be passed to List() function
@@ -28,6 +30,7 @@ type UserContainer struct {
 	store       UserStore
 	index       bleve.Index
 	passwords   PasswordManager
+	logger      *zap.Logger
 	sync.RWMutex
 }
 
@@ -90,6 +93,38 @@ func (c *UserContainer) Validate() error {
 	return nil
 }
 
+// Logger returns domain logger if domain is set, otherwise
+// returns the logger of this container; will initialize a new one if it's nil
+// NOTE: will panic if it finally fails to obtain a logger
+func (c *UserContainer) Logger() *zap.Logger {
+	if c.domain != nil {
+		return c.domain.Logger()
+	}
+
+	// domain is nil, attempting to use container's own logger
+	// NOTE: this is useful if the container is used outside of domain's context (i.e. another project)
+	if c.logger == nil {
+		l, err := zap.NewDevelopment()
+		if err != nil {
+			// having a working logger is crucial, thus must panic() if initialization fails
+			panic(fmt.Errorf("failed to initialize container logger: %s", err))
+		}
+
+		c.logger = l
+	}
+
+	return c.logger
+}
+
+// Store returns store if set
+func (c *UserContainer) Store() (UserStore, error) {
+	if c.store == nil {
+		return nil, ErrNilUserStore
+	}
+
+	return c.store, nil
+}
+
 // CheckAvailability tests whether someone with such username or email
 // is already registered
 func (c *UserContainer) CheckAvailability(username string, email string) error {
@@ -99,40 +134,40 @@ func (c *UserContainer) CheckAvailability(username string, email string) error {
 
 	// runtime checks first
 	_, err := c.GetByUsername(username)
-	if err != nil {
-		if err != ErrUserNotFound {
-			return err
-		}
+	if err == nil {
+		return ErrUsernameTaken
+	}
 
-		return nil
+	if err != ErrUserNotFound {
+		return err
 	}
 
 	_, err = c.GetByEmail(email)
-	if err != nil {
-		if err != ErrUserNotFound {
-			return err
-		}
+	if err == nil {
+		return ErrEmailTaken
+	}
 
-		return nil
+	if err != ErrUserNotFound {
+		return err
 	}
 
 	// checking storage for just in case
 	_, err = c.store.GetByIndex("username", username)
-	if err != nil {
-		if err != ErrUserNotFound {
-			return err
-		}
+	if err == nil {
+		return ErrUsernameTaken
+	}
 
-		return nil
+	if err != ErrUserNotFound {
+		return err
 	}
 
 	_, err = c.store.GetByIndex("email", email)
-	if err != nil {
-		if err != ErrUserNotFound {
-			return err
-		}
+	if err == nil {
+		return ErrEmailTaken
+	}
 
-		return nil
+	if err != ErrUserNotFound {
+		return err
 	}
 
 	return nil
@@ -175,7 +210,7 @@ func (c *UserContainer) Create(username string, email string, userinfo map[strin
 	}
 
 	// saving to the store first
-	if err = c.store.Put(u); err != nil {
+	if err = c.Save(u); err != nil {
 		return nil, err
 	}
 
@@ -369,6 +404,43 @@ func (c *UserContainer) SetPassword(u *User, p *Password) error {
 	return nil
 }
 
+// Save saves user to the store, will return an error if store is not set
+func (c *UserContainer) Save(u *User) error {
+	s, err := c.Store()
+	if err != nil {
+		return err
+	}
+
+	// pre-save modifications
+	u.UpdatedAt = time.Now()
+
+	// refreshing index
+	if c.index != nil {
+		// deleting previous index
+		// TODO: workaround error cases, add logging
+		err = c.index.Delete(u.StringID())
+		if err != nil {
+			return fmt.Errorf("failed to delete previous bleve index: %s", err)
+		}
+
+		// indexing current user object version
+		err = c.index.Index(u.StringID(), u)
+		if err != nil {
+			return fmt.Errorf("failed to index user object: %s", err)
+		}
+	}
+
+	// persisting to the store as a final step
+	err = s.Put(u)
+	if err != nil {
+		return err
+	}
+
+	c.Logger().Info("user saved", zap.String("id", u.StringID()), zap.String("username", u.Username))
+
+	return nil
+}
+
 // List returns all users by a given filter
 // IMPORTANT this function returns values and must be used only for listing
 // i.e. returning a list of users via API
@@ -412,6 +484,28 @@ func (c *UserContainer) SetPasswordManager(pm PasswordManager) error {
 	}
 
 	c.passwords = pm
+
+	return nil
+}
+
+// Confirm confirms a given user
+func (c *UserContainer) Confirm(u *User) error {
+	if u == nil {
+		return ErrNilUser
+	}
+
+	if u.IsConfirmed {
+		return ErrUserAlreadyConfirmed
+	}
+
+	u.IsConfirmed = true
+	u.ConfirmedAt = time.Now()
+
+	if err := c.Save(u); err != nil {
+		return fmt.Errorf("failed to confirm user(%s): %s", u.ID, err)
+	}
+
+	c.Logger().Info("user confirmed", zap.String("id", u.StringID()))
 
 	return nil
 }

@@ -107,6 +107,8 @@ func TestUserStoreGetAll(t *testing.T) {
 
 	testUsers := make(map[ulid.ULID]*usermanager.User, 5)
 	for i := 0; i < 5; i++ {
+		// NOTE: using numbers in names here only for the
+		// store testing purpose, normally only letters are allowed in the name
 		u, err := usermanager.NewUser(fmt.Sprintf("testuser%d", i), fmt.Sprintf("testuser%d@example.com", i))
 		u.Firstname = fmt.Sprintf("Andrei %d", i)
 		u.Lastname = fmt.Sprintf("Gubarev %d", i)

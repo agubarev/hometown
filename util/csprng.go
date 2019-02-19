@@ -5,7 +5,7 @@ import (
 	"math/rand"
 )
 
-// NewCSPRNG returns a random string token of a given length
+// NewCSPRNG returns a slice of random bytes
 func NewCSPRNG(nbytes int) ([]byte, error) {
 	buf := make([]byte, nbytes)
 

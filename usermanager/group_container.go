@@ -39,6 +39,15 @@ func NewGroupContainer(s GroupStore) (*GroupContainer, error) {
 	return c, nil
 }
 
+// Store returns store if set
+func (c *GroupContainer) Store() (GroupStore, error) {
+	if c.store == nil {
+		return nil, ErrNilGroupStore
+	}
+
+	return c.store, nil
+}
+
 // Validate this group container
 func (c *GroupContainer) Validate() error {
 	if c.domain == nil {
