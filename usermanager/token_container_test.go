@@ -88,3 +88,36 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	a.EqualError(usermanager.ErrTokenNotFound, err.Error())
 	a.Nil(tok3)
 }
+
+func TestTokenContainerCheckin(t *testing.T) {
+	a := assert.New(t)
+
+	db, dbPath, err := usermanager.CreateRandomBadgerDB()
+	defer os.RemoveAll(dbPath)
+	a.NoError(err)
+	a.NotNil(db)
+
+	s, err := usermanager.NewDefaultTokenStore(db)
+	a.NoError(err)
+	a.NotNil(s)
+
+	c, err := usermanager.NewTokenContainer(s)
+	a.NoError(err)
+	a.NotNil(c)
+	id := util.NewULID()
+
+	// creating new token; 10 sec expiration and one-time use
+	tok, err := c.Create(usermanager.TkUserConfirmation, id, 10*time.Second, 1)
+	a.NoError(err)
+	a.NotNil(tok)
+	a.Equal(usermanager.TkUserConfirmation, tok.Kind)
+	a.True(len(tok.Payload) > 0)
+	a.False(tok.ExpireAt.IsZero())
+
+	// checking in the token
+
+	// attempting to get it back from the container
+	tok3, err := c.Get(tok.Token)
+	a.EqualError(usermanager.ErrTokenNotFound, err.Error())
+	a.Nil(tok3)
+}
