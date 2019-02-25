@@ -10,7 +10,10 @@ import (
 func TestNewUser(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
-	u, err := usermanager.NewUser("testuser", "test@example.com")
+	u, err := usermanager.NewUser("testuser", "test@example.com", map[string]string{
+		"firstname": "Andrei",
+		"lastname":  "Gubarev",
+	})
 	a.NoError(err)
 	a.NotNil(u)
 }

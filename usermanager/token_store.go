@@ -2,6 +2,7 @@ package usermanager
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/dgraph-io/badger"
 )
@@ -47,7 +48,7 @@ func (s *defaultTokenStore) Put(t *Token) error {
 
 	// it's pretty much straightforward here
 	return s.db.Update(func(tx *badger.Txn) error {
-		return tx.Set(tokenKey(t.Token), buf)
+		return tx.SetWithTTL(tokenKey(t.Token), buf, t.ExpireAt.Sub(time.Now()))
 	})
 }
 

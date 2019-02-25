@@ -6,6 +6,11 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+const (
+	PasswordMinLength = 8
+	PasswordMaxLength = 50
+)
+
 // Password object
 type Password struct {
 	// password ID must be equal to the user ID
@@ -17,11 +22,11 @@ type Password struct {
 // complexity, characters used etc.
 func EvaluatePasswordStrength(rawpass string, userInputs []string) error {
 	pl := len(rawpass)
-	if pl < 8 {
+	if pl < PasswordMinLength {
 		return ErrShortPassword
 	}
 
-	if pl > 32 {
+	if pl > PasswordMaxLength {
 		return ErrLongPassword
 	}
 

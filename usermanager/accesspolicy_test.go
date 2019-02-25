@@ -6,6 +6,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var testReusableUserinfo = map[string]string{
+	"firstname": "Andrei",
+	"lastname":  "Gubarev",
+}
+
 func TestNewAccessPolicy(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
@@ -18,7 +23,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.False(p.IsExtended)
 
 	// with owner
-	user, err := NewUser("testuser", "testuser@example.com")
+	user, err := NewUser("testuser", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
 	p = NewAccessPolicy(user, nil, false, false)
@@ -60,10 +65,10 @@ func TestSetPublicRights(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor", "testuser@example.com")
+	assignor, err := NewUser("assignor", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser", "testuser@example.com")
+	testuser, err := NewUser("testuser", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -105,23 +110,23 @@ func TestSetGroupRights(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor", "testuser@example.com")
+	assignor, err := NewUser("assignor", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser", "testuser@example.com")
+	testuser, err := NewUser("testuser", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
 	group1, err := NewGroup(GKGroup, "test_group_1", "test group 1", nil)
 	a.NoError(err)
 
-	err = group1.Add(testuser, false)
+	err = group1.Add(testuser)
 	a.NoError(err)
 
 	group2, err := NewGroup(GKGroup, "test_group_2", "test group 2", nil)
 	a.NoError(err)
 
-	err = group2.Add(testuser, false)
+	err = group2.Add(testuser)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -164,23 +169,23 @@ func TestSetRoleRights(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor", "testuser@example.com")
+	assignor, err := NewUser("assignor", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser", "testuser@example.com")
+	testuser, err := NewUser("testuser", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
 	role1, err := NewGroup(GKRole, "test_role_1", "test role 1", nil)
 	a.NoError(err)
 
-	err = role1.Add(testuser, false)
+	err = role1.Add(testuser)
 	a.NoError(err)
 
 	role2, err := NewGroup(GKRole, "test_role_2", "test role 2", nil)
 	a.NoError(err)
 
-	err = role2.Add(testuser, false)
+	err = role2.Add(testuser)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -223,10 +228,10 @@ func TestSetUserRights(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	assignor, err := NewUser("assignor", "testuser@example.com")
+	assignor, err := NewUser("assignor", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
-	testuser, err := NewUser("testuser", "testuser@example.com")
+	testuser, err := NewUser("testuser", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
 	wantedRights := APView | APChange
@@ -269,10 +274,10 @@ func TestIsOwner(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
 
-	testuser, err := NewUser("testuser", "testuser@example.com")
+	testuser, err := NewUser("testuser", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
-	testuser2, err := NewUser("testuser2", "testuser@example.com")
+	testuser2, err := NewUser("testuser2", "testuser@example.com", testReusableUserinfo)
 	a.NoError(err)
 
 	p := NewAccessPolicy(testuser, nil, false, false)

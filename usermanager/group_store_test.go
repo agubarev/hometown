@@ -163,7 +163,7 @@ func TestGroupStoreRelations(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	u, err := usermanager.NewUser("testuser", "testuser@example.com")
+	u, err := usermanager.NewUser("testuser", "testuser@example.com", map[string]string{})
 	a.NoError(err)
 	a.NotNil(u)
 

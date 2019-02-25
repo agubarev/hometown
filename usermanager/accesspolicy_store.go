@@ -1,13 +1,6 @@
 package usermanager
 
-import (
-	"context"
-	"fmt"
-
-	"github.com/oklog/ulid"
-	"go.etcd.io/bbolt"
-)
-
+/*
 // AccessPolicyStore is a storage contract interface for the AccessPolicy objects
 // TODO: keep rights separate and segregated by it's kind i.e. Public, Group, Role, User etc.
 type AccessPolicyStore interface {
@@ -134,3 +127,4 @@ func (s *DefaultAccessPolicyStore) Delete(ctx context.Context, id ulid.ULID) err
 
 	return nil
 }
+*/

@@ -107,7 +107,7 @@ func TestUserContainerCreate(t *testing.T) {
 		a.Equal(testUsers[su.ID].Firstname, su.Firstname)
 		a.Equal(testUsers[su.ID].Lastname, su.Lastname)
 		a.Equal(testUsers[su.ID].Middlename, su.Middlename)
-		a.Equal(testUsers[su.ID].IsConfirmed, su.IsConfirmed)
+		a.Equal(testUsers[su.ID].EmailConfirmedAt, su.EmailConfirmedAt)
 	}
 }
 
@@ -198,15 +198,15 @@ func TestUserContainerAdd(t *testing.T) {
 
 	a.NoError(c.Validate())
 
-	u1, err := usermanager.NewUser("testuser1", "testuser1@example.com")
+	u1, err := usermanager.NewUser("testuser1", "testuser1@example.com", map[string]string{})
 	a.NoError(err)
 	a.NotNil(u1)
 
-	u2, err := usermanager.NewUser("testuser2", "testuser2@example.com")
+	u2, err := usermanager.NewUser("testuser2", "testuser2@example.com", map[string]string{})
 	a.NoError(err)
 	a.NotNil(u2)
 
-	u3, err := usermanager.NewUser("testuser3", "testuser3@example.com")
+	u3, err := usermanager.NewUser("testuser3", "testuser3@example.com", map[string]string{})
 	a.NoError(err)
 	a.NotNil(u3)
 

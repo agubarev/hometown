@@ -50,10 +50,6 @@ func (c *GroupContainer) Store() (GroupStore, error) {
 
 // Validate this group container
 func (c *GroupContainer) Validate() error {
-	if c.domain == nil {
-		return ErrNilDomain
-	}
-
 	if c.groups == nil {
 		return errors.New("groups slice is not initialized")
 	}
@@ -69,13 +65,9 @@ func (c *GroupContainer) Validate() error {
 	return nil
 }
 
-// SetDomain is called when this container is attached to a domain
+// SetDomain links this container to a given domain, nil is allowed
 func (c *GroupContainer) SetDomain(d *Domain) error {
-	if d == nil {
-		return ErrNilDomain
-	}
-
-	// link this container to a given domain
+	// merely this atm
 	c.domain = d
 
 	return nil
@@ -116,6 +108,8 @@ func (c *GroupContainer) Add(g *Group) error {
 	if err != ErrGroupNotFound {
 		return ErrGroupAlreadyRegistered
 	}
+
+	// TODO: store group
 
 	c.Lock()
 	c.groups = append(c.groups, g)
@@ -159,7 +153,7 @@ func (c *GroupContainer) Remove(id ulid.ULID) error {
 func (c *GroupContainer) List(kind GroupKind) []*Group {
 	gs := make([]*Group, 0)
 	for _, g := range c.groups {
-		if g.Kind == kind {
+		if g.Kind&kind != 0 {
 			gs = append(gs, g)
 		}
 	}

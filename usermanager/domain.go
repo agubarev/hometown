@@ -48,6 +48,7 @@ type Domain struct {
 	Owner        *User           `json:"-"`
 	Users        *UserContainer  `json:"-"`
 	Groups       *GroupContainer `json:"-"`
+	Tokens       *TokenContainer `json:"-"`
 	AccessPolicy *AccessPolicy   `json:"-"`
 
 	CreatedAt  time.Time `json:"t_cr"`
@@ -156,7 +157,7 @@ func NewDomain(owner *User, c *DomainOptions) (*Domain, error) {
 		// at this moment each policy is independent by default
 		// it doesn't have a parent by default, doesn't inherit nor extends anything
 		// TODO think through the default initial state of an AccessPolicy
-		// TODO: add domain ID as policy ID
+		// TODO: use domain ID as policy ID
 		AccessPolicy: NewAccessPolicy(owner, nil, false, false),
 
 		// domain-level logger
@@ -184,6 +185,8 @@ func NewDomain(owner *User, c *DomainOptions) (*Domain, error) {
 
 	// giving full access rights to the superuser role
 	d.AccessPolicy.SetRoleRights(owner, superuserRole, APFullAccess)
+
+	// adding owner to domain's user container
 
 	// creating initial access policies
 	// TODO: set owner rights
@@ -213,6 +216,16 @@ func LoadDomain(id ulid.ULID) (*Domain, error) {
 
 // Logger returns domain logger
 func (d *Domain) Logger() *zap.Logger {
+	if d.logger == nil {
+		logger, err := zap.NewDevelopment()
+		if err != nil {
+			// WARNING: doing panic() for now
+			panic(fmt.Errorf("failed to initialize domain logger: %s", err))
+		}
+
+		d.logger = logger
+	}
+
 	return d.logger
 }
 
@@ -236,7 +249,7 @@ func (d *Domain) initConfig() error {
 	if _, err := os.Stat(configFilepath); err != nil {
 		if os.IsNotExist(err) {
 			// just creating the empty config file
-			d.logger.Info("creating domain config", zap.String("path", configFilepath))
+			d.Logger().Info("creating domain config", zap.String("path", configFilepath))
 			if err := ioutil.WriteFile(configFilepath, []byte(""), localStorageFileMode); err != nil {
 				return fmt.Errorf("failed to create domain config: %s", err)
 			}
@@ -287,7 +300,7 @@ func (d *Domain) loadConfig() error {
 	}
 
 	// loading domain config
-	d.logger.Info("reading domain config", zap.String("config", d.config.ConfigFileUsed()))
+	d.Logger().Info("reading domain config", zap.String("config", d.config.ConfigFileUsed()))
 	if err := d.config.ReadInConfig(); err != nil {
 		return fmt.Errorf("failed to load config: %s", err)
 	}
@@ -298,15 +311,15 @@ func (d *Domain) loadConfig() error {
 // Init initializes domain
 func (d *Domain) init() error {
 	// deferring log flush
-	defer d.logger.Sync()
+	defer d.Logger().Sync()
 
-	d.logger.Info("initializing domain")
+	d.Logger().Info("initializing domain")
 
 	//---------------------------------------------------------------------------
 	// initializing local storage
 	//---------------------------------------------------------------------------
 	// precautious check
-	d.logger.Info("validating local storage directory")
+	d.Logger().Info("validating local storage directory")
 	if err := validateLocalStorageDirectory(); err != nil {
 		return err
 	}
@@ -320,7 +333,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing local databases
 	//---------------------------------------------------------------------------
-	d.logger.Info("initializing storage")
+	d.Logger().Info("initializing storage")
 
 	// general database
 	db, err := initLocalDatabase(filepath.Join(d.StoragePath(), "data"))
@@ -337,7 +350,7 @@ func (d *Domain) init() error {
 	//---------------------------------------------------------------------------
 	// initializing stores and indexes
 	//---------------------------------------------------------------------------
-	d.logger.Info("initializing domain stores")
+	d.Logger().Info("initializing domain stores")
 
 	us, err := NewDefaultUserStore(db)
 	if err != nil {
@@ -350,6 +363,11 @@ func (d *Domain) init() error {
 	}
 
 	uidx, err := initLocalIndex(filepath.Join(d.StoragePath(), "index", "users"))
+	if err != nil {
+		return err
+	}
+
+	ts, err := NewDefaultTokenStore(db)
 	if err != nil {
 		return err
 	}
@@ -370,34 +388,23 @@ func (d *Domain) init() error {
 	// initializing and validating containers
 	//---------------------------------------------------------------------------
 
-	d.logger.Info("initializing user container")
+	d.Logger().Info("initializing user container")
 	uc, err := NewUserContainer(us, uidx)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user container: %s", err)
 	}
 
 	// initializing and assigning a password manager to the user container
+	d.Logger().Info("initializing password manager")
 	pm, err := NewDefaultPasswordManager(ps)
 	if err != nil {
 		return fmt.Errorf("failed to initialize user password manager: %s", err)
 	}
 
-	if err = uc.SetPasswordManager(pm); err != nil {
-		return err
-	}
-
-	if err = uc.Validate(); err != nil {
-		return fmt.Errorf("Domain.Init() failed to validate user container: %s", err)
-	}
-
-	d.logger.Info("initializing group container")
+	d.Logger().Info("initializing group container")
 	gc, err := NewGroupContainer(gs)
 	if err != nil {
 		return fmt.Errorf("failed to initialize group container: %s", err)
-	}
-
-	if err = gc.Validate(); err != nil {
-		return fmt.Errorf("Domain.Init() failed to validate group container: %s", err)
 	}
 
 	if err = d.saveConfig(); err != nil {
@@ -408,6 +415,12 @@ func (d *Domain) init() error {
 	// TODO: load groups
 	// TODO: load users
 
+	// initializing token container
+	tc, err := NewTokenContainer(ts)
+	if err != nil {
+		return err
+	}
+
 	//---------------------------------------------------------------------------
 	// finalizing domain initialization
 	//---------------------------------------------------------------------------
@@ -417,6 +430,14 @@ func (d *Domain) init() error {
 	}
 
 	if err = d.SetGroupContainer(gc); err != nil {
+		return err
+	}
+
+	if err = uc.SetPasswordManager(pm); err != nil {
+		return err
+	}
+
+	if err = d.SetTokenContainer(tc); err != nil {
 		return err
 	}
 
@@ -461,6 +482,17 @@ func (d *Domain) setupDefaultGroups() error {
 		return err
 	}
 
+	// owner role
+	ownerRole, err := NewGroup(GKRole, "owner", "Domain Owner", superuserRole)
+	if err != nil {
+		return fmt.Errorf("failed to create domain owner role: %s", err)
+	}
+
+	err = d.Groups.Add(ownerRole)
+	if err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -477,12 +509,12 @@ func (d *Domain) SetUserContainer(uc *UserContainer) error {
 
 	err := uc.Validate()
 	if err != nil {
-		return fmt.Errorf("failed to set user container: %s", err)
+		return fmt.Errorf("failed to validate user container: %s", err)
 	}
 
 	err = uc.SetDomain(d)
 	if err != nil {
-		return fmt.Errorf("failed to set user container: %s", err)
+		return fmt.Errorf("failed to attach user container to domain: %s", err)
 	}
 
 	// assigning user container to this domain
@@ -499,7 +531,7 @@ func (d *Domain) SetGroupContainer(gc *GroupContainer) error {
 
 	err := gc.Validate()
 	if err != nil {
-		return fmt.Errorf("failed to set group container: %s", err)
+		return fmt.Errorf("failed to validate group container: %s", err)
 	}
 
 	err = gc.SetDomain(d)
@@ -508,6 +540,21 @@ func (d *Domain) SetGroupContainer(gc *GroupContainer) error {
 	}
 
 	d.Groups = gc
+
+	return nil
+}
+
+// SetTokenContainer assigns and bootstraps token container
+func (d *Domain) SetTokenContainer(tc *TokenContainer) error {
+	if tc == nil {
+		return ErrNilTokenContainer
+	}
+
+	if err := tc.Validate(); err != nil {
+		return fmt.Errorf("failed to validate token container: %s", err)
+	}
+
+	d.Tokens = tc
 
 	return nil
 }

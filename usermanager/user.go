@@ -3,6 +3,7 @@ package usermanager
 import (
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/asaskevich/govalidator"
@@ -26,9 +27,9 @@ type User struct {
 	Birthdate  time.Time `json:"birthdate,omitempty"`
 	Phone      string    `json:"phone" valid:"optional,dialstring"`
 
-	// account related flags
-	IsConfirmed bool `json:"is_verified"`
-	IsSuspended bool `json:"is_suspended"`
+	// account confirmation
+	EmailConfirmedAt time.Time `json:"email_confirmed_at"`
+	PhoneConfirmedAt time.Time `json:"phone_confirmed_at"`
 
 	// general timestamps
 	CreatedAt   time.Time `json:"t_cr"`
@@ -43,11 +44,12 @@ type User struct {
 	LoginAttempts int        `json:"login_attempts,omitempty"`
 
 	// account suspension
+	IsSuspended         bool      `json:"is_suspended"`
 	SuspendedAt         time.Time `json:"suspended_at,omitempty"`
 	SuspensionExpiresAt time.Time `json:"suspension_expires_at,omitempty"`
 	SuspensionReason    string    `json:"suspension_reason,omitempty"`
 
-	// corresponding container
+	// corresponding container for easier backtracking
 	container *UserContainer
 
 	// tracking all group kinds in one slice
@@ -84,18 +86,32 @@ func (u User) Fullname(withMiddlename bool) string {
 }
 
 // NewUser initializing a new User
-func NewUser(username string, email string) (*User, error) {
+// TODO: consider changing userinfo value type to interface{} to allow variable data
+func NewUser(username string, email string, userinfo map[string]string) (*User, error) {
 	u := &User{
-		ID:       util.NewULID(),
-		Username: username,
-		Email:    email,
-
-		// metadata
-		IsConfirmed: false,
-		IsSuspended: false,
-		CreatedAt:   time.Now(),
+		ID:        util.NewULID(),
+		Username:  username,
+		Email:     email,
+		CreatedAt: time.Now(),
 
 		groups: make([]*Group, 0),
+	}
+
+	// processing given userinfo
+	for k, v := range userinfo {
+		k = strings.ToLower(k)
+
+		// whitelist
+		switch k {
+		case "firstname":
+			u.Firstname = v
+		case "lastname":
+			u.Lastname = v
+		case "middlename":
+			u.Middlename = v
+		default:
+			return nil, fmt.Errorf("unrecognized user info field: %s", k)
+		}
 	}
 
 	if err := u.Validate(); err != nil {
@@ -116,6 +132,24 @@ func (u *User) Validate() error {
 	}
 
 	return nil
+}
+
+// HasPassword tests whether this user has password
+func (u *User) HasPassword() bool {
+	c, err := u.Container()
+	if err != nil {
+		return false
+	}
+
+	if err = c.Validate(); err != nil {
+		return false
+	}
+
+	if _, err = c.passwords.Get(u); err != nil {
+		return false
+	}
+
+	return true
 }
 
 // Save saves current user to the container's store
@@ -186,8 +220,8 @@ func (u *User) Groups(kind GroupKind) []*Group {
 	return groups
 }
 
-// SetContainer assigns user container
-func (u *User) SetContainer(c *UserContainer) error {
+// TrackContainer links user to container for easier backtracking
+func (u *User) TrackContainer(c *UserContainer) error {
 	u.container = c
 
 	return nil
@@ -195,7 +229,7 @@ func (u *User) SetContainer(c *UserContainer) error {
 
 // IsRegisteredAndStored returns true if the user is both:
 // 1. registered by user container
-// 2. persisted to the store
+// 2. stored to the database
 func (u *User) IsRegisteredAndStored() (bool, error) {
 	c, err := u.Container()
 	if err != nil {

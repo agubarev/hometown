@@ -12,6 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+var testUserinfo = map[string]string{
+	"firstname": "Andrei",
+	"lastname":  "Gubarev",
+}
+
 func TestUserStorePut(t *testing.T) {
 	t.Parallel()
 	a := assert.New(t)
@@ -25,7 +30,7 @@ func TestUserStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	a.NoError(err)
 	a.NotNil(newUser)
 
@@ -54,7 +59,7 @@ func TestUserStoreGetters(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	a.NoError(err)
 	a.NotNil(newUser)
 
@@ -109,7 +114,7 @@ func TestUserStoreGetAll(t *testing.T) {
 	for i := 0; i < 5; i++ {
 		// NOTE: using numbers in names here only for the
 		// store testing purpose, normally only letters are allowed in the name
-		u, err := usermanager.NewUser(fmt.Sprintf("testuser%d", i), fmt.Sprintf("testuser%d@example.com", i))
+		u, err := usermanager.NewUser(fmt.Sprintf("testuser%d", i), fmt.Sprintf("testuser%d@example.com", i), testUserinfo)
 		u.Firstname = fmt.Sprintf("Andrei %d", i)
 		u.Lastname = fmt.Sprintf("Gubarev %d", i)
 		u.Middlename = fmt.Sprintf("Anatolievich %d", i)
@@ -146,7 +151,7 @@ func TestUserStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	a.NoError(err)
 	a.NotNil(newUser)
 
@@ -193,7 +198,7 @@ func BenchmarkUserStorePutUser(b *testing.B) {
 	defer os.RemoveAll(dbPath)
 
 	s, err := usermanager.NewDefaultUserStore(db)
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	if err != nil {
 		panic(err)
 	}
@@ -213,7 +218,7 @@ func BenchmarkUserStoreGet(b *testing.B) {
 	defer os.RemoveAll(dbPath)
 
 	s, err := usermanager.NewDefaultUserStore(db)
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	err = s.Put(newUser)
 	if err != nil {
 		panic(err)
@@ -233,7 +238,7 @@ func BenchmarkUserStoreGetByUsername(b *testing.B) {
 	defer os.RemoveAll(dbPath)
 
 	s, err := usermanager.NewDefaultUserStore(db)
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	err = s.Put(newUser)
 	if err != nil {
 		panic(err)
@@ -253,7 +258,7 @@ func BenchmarkUserStoreGetByEmail(b *testing.B) {
 	defer os.RemoveAll(dbPath)
 
 	s, err := usermanager.NewDefaultUserStore(db)
-	newUser, err := usermanager.NewUser("testuser", "test@example.com")
+	newUser, err := usermanager.NewUser("testuser", "test@example.com", testUserinfo)
 	err = s.Put(newUser)
 	if err != nil {
 		panic(err)

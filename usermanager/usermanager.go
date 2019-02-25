@@ -2,10 +2,12 @@ package usermanager
 
 import (
 	"fmt"
+	"io/ioutil"
 	"sync"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/oklog/ulid"
+	"gitlab.com/agubarev/hometown/util"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -16,7 +18,8 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 // TODO: consider naming first release `Lidia`
 type UserManager struct {
 	// instance ID
-	ID      ulid.ULID
+	ID ulid.ULID
+
 	domains map[ulid.ULID]*Domain
 	sync.RWMutex
 }
@@ -27,6 +30,7 @@ type UserManager struct {
 func New() (*UserManager, error) {
 	// initializing the main struct
 	m := &UserManager{
+		ID:      util.NewULID(),
 		domains: make(map[ulid.ULID]*Domain, 0),
 	}
 
@@ -36,25 +40,23 @@ func New() (*UserManager, error) {
 // Init initializes user manager
 func (m *UserManager) Init() error {
 	// initializing the user manager, loading domains and users from the storage
-	/*
-		ds, err := m.LoadDomains()
+	ds, err := m.GetDomains()
+	if err != nil {
+		return fmt.Errorf("failed to load domains: %s", err)
+	}
+
+	// adding found domains to the user manager
+	for _, d := range ds {
+		// checking whether its already registered
+		if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
+			return ErrDuplicateDomain
+		}
+
+		err = m.RegisterDomain(d)
 		if err != nil {
-			return fmt.Errorf("failed to load domains: %s", err)
+			return fmt.Errorf("Init(): %s", err)
 		}
-
-		// adding found domains to the user manager
-		for _, d := range ds {
-			// checking whether its already registered
-			if _, err := m.GetDomain(d.ID); err != ErrDomainNotFound {
-				return ErrDuplicateDomain
-			}
-
-			err = m.RegisterDomain(d)
-			if err != nil {
-				return fmt.Errorf("Init(): %s", err)
-			}
-		}
-	*/
+	}
 
 	return nil
 }
@@ -124,4 +126,46 @@ func (m *UserManager) GetDomain(id ulid.ULID) (*Domain, error) {
 	}
 
 	return nil, ErrDomainNotFound
+}
+
+// GetDomains returns the list of domains registered within this instance
+func (m *UserManager) GetDomains() ([]*Domain, error) {
+	ds := make([]*Domain, 0)
+
+	err := validateLocalStorageDirectory()
+	if err != nil {
+		return nil, fmt.Errorf("failed to obtain domain list: %s", err)
+	}
+
+	// obtaining file listing
+	fs, err := ioutil.ReadDir(localStorageDirectory())
+	if err != nil {
+		return nil, fmt.Errorf("failed to read local storage directory %s: %s", localStorageDirectory(), err)
+	}
+
+	// iterating over files and considering each directory file as domain
+	for _, f := range fs {
+		if !f.IsDir() {
+			// just printing a warning
+			fmt.Printf("WARNING: non-directory file inside local storage directory [%s]", f.Name())
+			continue
+		}
+
+		// attempting to parse filename as id
+		id, err := ulid.ParseStrict(f.Name())
+		if err != nil {
+			return nil, err
+		}
+
+		// attempting to load this directory as domain
+		d, err := LoadDomain(id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load domain %s: %s", id, err)
+		}
+
+		// appending domain to resulting slice
+		ds = append(ds, d)
+	}
+
+	return ds, nil
 }

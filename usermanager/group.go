@@ -36,6 +36,7 @@ func (k GroupKind) String() string {
 const (
 	GKGroup GroupKind = iota + 1
 	GKRole
+	GKAll GroupKind = ^GroupKind(0)
 )
 
 // Group represents a user group
@@ -189,7 +190,7 @@ func (g *Group) SetParent(p *Group) error {
 
 		// ParentID is used to rebuild parent-child connections after
 		// loading groups from the store
-		g.Parent().ID = p.ID
+		g.ParentID = p.ID
 	}
 
 	// assingning a new parent
@@ -227,27 +228,21 @@ func (g *Group) IsMember(u *User) bool {
 	return false
 }
 
-func (g *Group) isUserEligible(u *User) error {
+// Add adding user to a group
+// NOTE: storing relation only if group has a store set is implicit and should at least
+// log/print about the occurrence
+func (g *Group) Add(u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
 
-	// TODO: decide how crucial it is to demand users to belong to a user container
-	/*
-		_, err := u.Container()
-		if err != nil {
-			return err
-		}
-	*/
-
-	return nil
-}
-
-// Add adding user to a group
-func (g *Group) Add(u *User, storeRelation bool) error {
-	err := g.isUserEligible(u)
+	ok, err := u.IsRegisteredAndStored()
 	if err != nil {
 		return err
+	}
+
+	if !ok {
+		return ErrUserNotEligible
 	}
 
 	// returning an error if this user already belongs to this group
@@ -255,13 +250,14 @@ func (g *Group) Add(u *User, storeRelation bool) error {
 		return ErrAlreadyMember
 	}
 
-	if storeRelation {
-		if g.container.store == nil {
-			return ErrNilGroupStore
-		}
-
-		if err = g.container.store.PutRelation(g.ID, u.ID); err != nil {
-			return err
+	// TODO: I don't like this implicity, find a better solution
+	if g.container != nil {
+		if g.container.store != nil {
+			if err = g.container.store.PutRelation(g.ID, u.ID); err != nil {
+				return err
+			}
+		} else {
+			log.Printf("WARNING: removing member user %s from group %s while store is not set\n", u.StringID(), g.StringID())
 		}
 	}
 
@@ -286,8 +282,8 @@ func (g *Group) Add(u *User, storeRelation bool) error {
 
 // Remove removes user from a group
 func (g *Group) Remove(u *User) error {
-	if err := g.isUserEligible(u); err != nil {
-		return err
+	if u == nil {
+		return ErrNilUser
 	}
 
 	// being consistent and returning an error for explicitness
@@ -301,7 +297,7 @@ func (g *Group) Remove(u *User) error {
 			return err
 		}
 	} else {
-		log.Printf("WARNING: unregistering %s member to %s without storing\n", u.StringID(), g.StringID())
+		log.Printf("WARNING: removing member user %s from group %s while store is not set\n", u.StringID(), g.StringID())
 	}
 
 	g.container.Lock()

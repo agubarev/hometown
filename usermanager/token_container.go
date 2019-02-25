@@ -18,12 +18,14 @@ const TokenLength = 30
 const TokenDefaultTTL = 1 * time.Hour
 
 // TokenKind represents the type of a token, used by a token container
-type TokenKind uint8
+type TokenKind uint16
 
 func (k TokenKind) String() string {
 	switch k {
-	case TkUserConfirmation:
-		return "user confirmation token"
+	case TkUserEmailConfirmation:
+		return "user email confirmation token"
+	case TkUserPhoneConfirmation:
+		return "user phone confirmation token"
 	default:
 		return fmt.Sprintf("unrecognized token kind: %d", k)
 	}
@@ -31,12 +33,16 @@ func (k TokenKind) String() string {
 
 // predefined token kinds
 const (
-	TkUserConfirmation TokenKind = 1 << iota
+	TkUserEmailConfirmation TokenKind = 1 << iota
+	TkUserPhoneConfirmation
+
+	TkAllTokens TokenKind = ^TokenKind(0)
 )
 
 // Token represents a general-purpose token
 // NOTE: the token will expire after certain conditions are met
 // i.e. after specific time or a set number of checkins
+// TODO: add complexity variations for different use cases, i.e. SMS code should be short
 type Token struct {
 	// the kind of operation this token is associated to
 	Kind TokenKind `json:"k"`
@@ -51,7 +57,7 @@ type Token struct {
 	ExpireAt time.Time `json:"e"`
 
 	// holds how many checkins could be performed before it's void
-	CheckinsLeft int `json:"c"`
+	CheckinRemainder int `json:"c"`
 }
 
 // Validate checks whether the token is expired or ran out of checkins left
@@ -70,11 +76,11 @@ func (t *Token) Validate() error {
 	// checked in and 0 means void (irrelevant whether it still hasn't expired on a
 	// time basis)
 	switch true {
-	case t.CheckinsLeft == -1: // unlimited checkins
+	case t.CheckinRemainder == -1: // unlimited checkins
 		return nil
-	case t.CheckinsLeft > 0: // still has checkins left
+	case t.CheckinRemainder > 0: // still has checkins left
 		return nil
-	case t.CheckinsLeft == 0: // no checkins remaining
+	case t.CheckinRemainder == 0: // no checkins remaining
 		return ErrTokenUsedUp
 	}
 
@@ -84,7 +90,7 @@ func (t *Token) Validate() error {
 // NewToken creates a new CSPRNG token
 // NOTE: payload is whatever token metadata that can be JSON-encoded for further
 // processing by checkin callbacks
-// NOTE: checkin remainder must be -1 (indefinite) or greater than 0
+// NOTE: checkin remainder must be -1 (indefinite) or greater than 0 (default: 1)
 func NewToken(k TokenKind, payload interface{}, ttl time.Duration, checkins int) (*Token, error) {
 	if checkins == 0 {
 		return nil, fmt.Errorf("failed to initialize new token: checkins remainder must be -1 or greater than 0")
@@ -110,11 +116,11 @@ func NewToken(k TokenKind, payload interface{}, ttl time.Duration, checkins int)
 	}
 
 	t := &Token{
-		Kind:         k,
-		Token:        base64.URLEncoding.EncodeToString(tokenBuf),
-		ExpireAt:     time.Now().Add(ttl),
-		CheckinsLeft: checkins,
-		Payload:      payloadBuf,
+		Kind:             k,
+		Token:            base64.URLEncoding.EncodeToString(tokenBuf),
+		ExpireAt:         time.Now().Add(ttl),
+		CheckinRemainder: checkins,
+		Payload:          payloadBuf,
 	}
 
 	return t, nil
@@ -122,23 +128,28 @@ func NewToken(k TokenKind, payload interface{}, ttl time.Duration, checkins int)
 
 // TokenContainer is a general-purpose token container
 type TokenContainer struct {
+	// base context for the token callback call chain
+	BaseContext context.Context
+
 	tokens    map[string]*Token
 	store     TokenStore
-	callbacks []tokenCallback
-	errorChan chan tokenError
+	callbacks []TokenCallback
+	errorChan chan TokenCallbackError
 	sync.RWMutex
 }
 
-type tokenCallback struct {
-	id       string
-	kind     TokenKind
-	callback func(ctx context.Context, t *Token) error
+// TokenCallback is a function metadata
+type TokenCallback struct {
+	ID       string
+	Kind     TokenKind
+	Function func(ctx context.Context, t *Token) error
 }
 
-type tokenError struct {
-	kind  TokenKind
-	token *Token
-	err   error
+// TokenCallbackError represents an error which could be produced by callback
+type TokenCallbackError struct {
+	Kind  TokenKind
+	Token *Token
+	Err   error
 }
 
 // NewTokenContainer returns an initialized token container
@@ -148,13 +159,52 @@ func NewTokenContainer(s TokenStore) (*TokenContainer, error) {
 	}
 
 	c := &TokenContainer{
-		tokens:    make(map[string]*Token),
-		store:     s,
-		callbacks: make([]tokenCallback, 0),
-		errorChan: make(chan tokenError, 100),
+		BaseContext: context.Background(),
+		tokens:      make(map[string]*Token),
+		store:       s,
+		callbacks:   make([]TokenCallback, 0),
+		errorChan:   make(chan TokenCallbackError, 100),
 	}
 
 	return c, nil
+}
+
+// Validate validates token container
+func (c *TokenContainer) Validate() error {
+	if c == nil {
+		return ErrNilTokenContainer
+	}
+
+	if c.tokens == nil {
+		return fmt.Errorf("token map is not initialized")
+	}
+
+	if c.store == nil {
+		return ErrNilTokenStore
+	}
+
+	if c.callbacks == nil {
+		return fmt.Errorf("callback slice is not initialized")
+	}
+
+	if c.errorChan == nil {
+		return fmt.Errorf("error channel is not initialized")
+	}
+
+	return nil
+}
+
+// List returns a slice of tokens filtered by a given kind mask
+func (c *TokenContainer) List(k TokenKind) []*Token {
+	ts := make([]*Token, 0)
+
+	for _, t := range c.tokens {
+		if t.Kind&k != 0 {
+			ts = append(ts, t)
+		}
+	}
+
+	return ts
 }
 
 // Create initializes, registers and returns a new token
@@ -164,9 +214,9 @@ func (c *TokenContainer) Create(k TokenKind, payload interface{}, ttl time.Durat
 		return nil, fmt.Errorf("failed to create new token(%s): %s", k, err)
 	}
 
-	// checking whether it's already registered
+	// paranoid check; making sure there is no existing token object with such token key string
 	if _, err := c.Get(t.Token); err == nil {
-		return nil, fmt.Errorf("failed to create new token(%s): duplicate value found %s", k, t.Token)
+		return nil, fmt.Errorf("failed to create new token(%s): found duplicate token %s", k, t.Token)
 	}
 
 	// storing new token
@@ -210,15 +260,16 @@ func (c *TokenContainer) Get(token string) (*Token, error) {
 }
 
 // Delete deletes a token from the container
-func (c *TokenContainer) Delete(token string) error {
-	if err := c.store.Delete(token); err != nil {
-		return err
-	}
-
+func (c *TokenContainer) Delete(t *Token) error {
 	// clearing token from the map
 	c.Lock()
-	delete(c.tokens, token)
+	delete(c.tokens, t.Token)
 	c.Unlock()
+
+	// removing from the store
+	if err := c.store.Delete(t.Token); err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -234,14 +285,55 @@ func (c *TokenContainer) Checkin(token string) error {
 		return err
 	}
 
+	// base context for this call chain
+	ctx := context.Background()
+
+	// obtaining callbacks for this kind
+	callbacks := c.GetCallbacks(t.Kind)
+	if len(callbacks) == 0 {
+		// there's no point proceeding without callbacks
+		return ErrTokenCallbackNotFound
+	}
+
+	// obtaining a list of callbacks attached to this token kind
+	// NOTE: this process is synchronous because the caller expects a response
+	// NOTE: checkin stops at first error returned by any callback because they're set for a reason
+	for _, cb := range callbacks {
+		if err = cb.Function(ctx, t); err != nil {
+			return fmt.Errorf("checkin failed (token=%s, kind=%s): %s", t.Token, t.Kind, err)
+		}
+	}
+
+	// post-checkin operations
+	if t.CheckinRemainder > 0 {
+		t.CheckinRemainder--
+	}
+
+	// now if validate returns an error, this means that this token is void,
+	// and can be safely removed, because all related callbacks ran successfully at this point
+	if err = t.Validate(); err != nil {
+		if err := c.Delete(t); err != nil {
+			return fmt.Errorf("failed to delete token(%s) after use: %s", t.Token, err)
+		}
+	}
+
 	return nil
 }
 
-// Cleanup performs a cleanup of container by removing expired tokens
-// NOTE: may perform regular full cleanups by iterating over all registered tokens
-// or irregular, partial cleanup by checking arbitrary tokens and removing expired ones
-func (c *TokenContainer) Cleanup() {
-	panic("not implemented")
+// Cleanup performs a full cleanup of the container by removing tokens
+// which failed to pass validation
+func (c *TokenContainer) Cleanup() error {
+	c.Lock()
+	for _, t := range c.tokens {
+		if err := t.Validate(); err != nil {
+			// ignoring errors from delete, because some tokens could possibly be
+			// already deleted other way i.e. records expired by the store
+			c.Delete(t)
+		}
+	}
+	c.Unlock()
+
+	return nil
 }
 
 // AddCallback adds callback function to container's callstack to be called upon token checkins
@@ -255,33 +347,59 @@ func (c *TokenContainer) AddCallback(k TokenKind, id string, fn func(ctx context
 
 	// making sure there isn't any callback registered with this ID
 	for _, cb := range c.callbacks {
-		if cb.id == id {
+		if cb.ID == id {
 			return ErrTokenDuplicateCallbackID
 		}
 	}
 
-	c.callbacks = append(c.callbacks, tokenCallback{
-		id:       id,
-		kind:     k,
-		callback: fn,
+	c.callbacks = append(c.callbacks, TokenCallback{
+		ID:       id,
+		Kind:     k,
+		Function: fn,
 	})
 
 	return nil
+}
+
+// GetCallback returns a named callback if it exists
+func (c *TokenContainer) GetCallback(id string) (*TokenCallback, error) {
+	// just looping over the slice
+	for _, cb := range c.callbacks {
+		if cb.ID == strings.ToLower(id) {
+			// returning pointer to callback object
+			return &cb, nil
+		}
+	}
+
+	return nil, ErrTokenCallbackNotFound
+}
+
+// GetCallbacks returns callback stack by a given token kind
+func (c *TokenContainer) GetCallbacks(k TokenKind) []TokenCallback {
+	cbstack := make([]TokenCallback, 0)
+	for _, cb := range c.callbacks {
+		if cb.Kind&k != 0 {
+			cbstack = append(cbstack, cb)
+		}
+	}
+
+	return cbstack
 }
 
 // RemoveCallback removes token callback by ID, returns ErrTokenCallbackNotfound
 func (c *TokenContainer) RemoveCallback(id string) error {
 	id = strings.ToLower(id)
 
-	// finding and removing callback
 	c.Lock()
+	defer c.Unlock()
+
+	// finding and removing callback
 	for i, cb := range c.callbacks {
-		if cb.id == id {
+		if cb.ID == id {
 			c.callbacks = append(c.callbacks[0:i], c.callbacks[i+1:]...)
 			return nil
 		}
 	}
-	c.Unlock()
 
 	return ErrTokenCallbackNotFound
 }

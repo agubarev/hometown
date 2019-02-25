@@ -21,6 +21,7 @@ type UserFilterFunc func(u []*User) []*User
 // TODO: add default groups which need not to be assigned
 // TODO: add contexts for cancellation
 // TODO: use radix tree for id, username and email indexing
+// TODO: consider storing user values inside users map and pointers in index maps
 type UserContainer struct {
 	domain      *Domain
 	users       []*User
@@ -185,27 +186,8 @@ func (c *UserContainer) Create(username string, email string, userinfo map[strin
 	}
 
 	// initializing new user
-	u, err := NewUser(username, email)
+	u, err := NewUser(username, email, userinfo)
 	if err != nil {
-		return nil, err
-	}
-
-	// assigning info details
-	for k, v := range userinfo {
-		switch k {
-		case "firstname":
-			u.Firstname = v
-		case "lastname":
-			u.Lastname = v
-		case "middlename":
-			u.Middlename = v
-		default:
-			return nil, fmt.Errorf("unrecognized user info field: %s", k)
-		}
-	}
-
-	// validating user after assigning userinfo
-	if err := u.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -242,7 +224,7 @@ func (c *UserContainer) CreateWithPassword(username, email, rawpass string, user
 			// TODO: devise a contingency plan for OSHI- if the recovery fails
 			if err := c.Delete(u); err != nil {
 				// OSHI-, it happened, flap your wings
-				err = fmt.Errorf("[CRITICAL] CreateWithPassword(): FAILED TO CREATE USER WITH PASSWORD AND FAILED TO DELETE USER DURING RECOVERY FROM PANIC: %s", err)
+				err = fmt.Errorf("[CRITICAL] FAILED TO CREATE USER WITH PASSWORD AND FAILED TO DELETE USER DURING RECOVERY FROM PANIC: %s", err)
 			}
 
 			// attempting to pass the recovery error to an upper function's return
@@ -269,7 +251,7 @@ func (c *UserContainer) CreateWithPassword(username, email, rawpass string, user
 		// so it has to be deleted in case of an error, panic now.
 		// NOTE: runtime must recover from panic, run it's contingency plan and set a proper error
 		// for return
-		panic(fmt.Errorf("SetPassword(): failed to delete the user after failing to create a password: %s", err))
+		panic(fmt.Errorf("failed to set user password: %s", err))
 	}
 
 	return
@@ -327,11 +309,44 @@ func (c *UserContainer) Add(u *User) error {
 
 	// looking inside the container itself
 	if _, err = c.Get(u.ID); err != ErrUserNotFound {
-		return ErrUserIsRegistered
+		return ErrUserAlreadyRegistered
+	}
+
+	// save user to the store if it's set
+	if store, err := c.Store(); err == nil {
+		// checking by user ID
+		_, err := store.Get(u.ID)
+		if err != nil {
+			if err != ErrUserNotFound {
+				return err
+			}
+
+			return ErrUserAlreadyRegistered
+		}
+
+		// checking username and email
+		err = c.CheckAvailability(u.Username, u.Email)
+		if err != nil {
+			return err
+		}
+
+		// saving to the store
+		err = store.Put(u)
+		if err != nil {
+			return err
+		}
+	}
+
+	// linking user to this container
+	if err = u.TrackContainer(c); err != nil {
+		return err
 	}
 
 	c.Lock()
 	c.users = append(c.users, u)
+	c.idMap[u.ID] = u
+	c.usernameMap[u.Username] = u
+	c.emailMap[u.Email] = u
 	c.Unlock()
 
 	return nil
@@ -349,7 +364,7 @@ func (c *UserContainer) Remove(id ulid.ULID) error {
 	for i, user := range c.users {
 		if user.ID == id {
 			// clearing container reference
-			c.idMap[c.users[i].ID].SetContainer(nil)
+			c.idMap[c.users[i].ID].TrackContainer(nil)
 
 			// clearing out index maps
 			delete(c.idMap, c.users[i].ID)
@@ -381,7 +396,7 @@ func (c *UserContainer) SetDomain(d *Domain) error {
 // SetPassword sets a new password for the user
 func (c *UserContainer) SetPassword(u *User, p *Password) error {
 	if u == nil {
-		return ErrNilUser
+		return fmt.Errorf("SetPassword(): %s", ErrNilUser)
 	}
 
 	// paranoid check of whether the user is eligible to have
@@ -392,7 +407,7 @@ func (c *UserContainer) SetPassword(u *User, p *Password) error {
 	}
 
 	if !ok {
-		return ErrUserPasswordNotEligible
+		return fmt.Errorf("SetPassword(): %s", ErrUserPasswordNotEligible)
 	}
 
 	// storing password
@@ -488,24 +503,27 @@ func (c *UserContainer) SetPasswordManager(pm PasswordManager) error {
 	return nil
 }
 
-// Confirm confirms a given user
-func (c *UserContainer) Confirm(u *User) error {
+// ConfirmEmail this function is used only when user's email is confirmed
+// TODO: make it one function to confirm by type (i.e. email, phone, etc.)
+func (c *UserContainer) ConfirmEmail(u *User) error {
 	if u == nil {
 		return ErrNilUser
 	}
 
-	if u.IsConfirmed {
+	if !u.EmailConfirmedAt.IsZero() {
 		return ErrUserAlreadyConfirmed
 	}
 
-	u.IsConfirmed = true
-	u.ConfirmedAt = time.Now()
+	u.EmailConfirmedAt = time.Now()
 
 	if err := c.Save(u); err != nil {
-		return fmt.Errorf("failed to confirm user(%s): %s", u.ID, err)
+		return fmt.Errorf("failed to confirm user email(%s:%s): %s", u.ID, u.Email, err)
 	}
 
-	c.Logger().Info("user confirmed", zap.String("id", u.StringID()))
+	c.Logger().Info("user email confirmed",
+		zap.String("id", u.StringID()),
+		zap.String("email", u.Email),
+	)
 
 	return nil
 }
