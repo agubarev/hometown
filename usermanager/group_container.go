@@ -83,7 +83,19 @@ func (c *GroupContainer) Create(kind GroupKind, key string, name string, parent 
 	// initializing new group
 	g, err := NewGroup(kind, key, name, parent)
 	if err != nil {
-		return nil, fmt.Errorf("Create(): failed to initialize new group(%s): %s", key, err)
+		return nil, fmt.Errorf("failed to initialize new group(%s): %s", key, err)
+	}
+
+	// checking whether there's already some group with such a key
+	_, err = c.GetByKey(key)
+	if err != nil {
+		// returning on unexpected error
+		if err != ErrGroupNotFound {
+			return nil, err
+		}
+	} else {
+		// no error means that the group key is already taken, thus canceling group creation
+		return nil, ErrGroupKeyTaken
 	}
 
 	// TODO: implement

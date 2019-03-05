@@ -180,24 +180,19 @@ func (c *UserContainer) Create(username string, email string, userinfo map[strin
 		return nil, ErrNilUserStore
 	}
 
-	// checking the availability of username and email
-	if err := c.CheckAvailability(username, email); err != nil {
-		return nil, err
-	}
-
 	// initializing new user
 	u, err := NewUser(username, email, userinfo)
 	if err != nil {
 		return nil, err
 	}
 
-	// saving to the store first
-	if err = c.Save(u); err != nil {
+	// adding to container's registry
+	if err = c.Add(u); err != nil {
 		return nil, err
 	}
 
-	// adding to container's registry
-	if err = c.Add(u); err != nil {
+	// saving to the store
+	if err = c.Save(u); err != nil {
 		return nil, err
 	}
 
@@ -301,7 +296,6 @@ func (c *UserContainer) Add(u *User) error {
 		return ErrNilUser
 	}
 
-	// paranoid check
 	err := u.Validate()
 	if err != nil {
 		return err
@@ -312,29 +306,9 @@ func (c *UserContainer) Add(u *User) error {
 		return ErrUserAlreadyRegistered
 	}
 
-	// save user to the store if it's set
-	if store, err := c.Store(); err == nil {
-		// checking by user ID
-		_, err := store.Get(u.ID)
-		if err != nil {
-			if err != ErrUserNotFound {
-				return err
-			}
-
-			return ErrUserAlreadyRegistered
-		}
-
-		// checking username and email
-		err = c.CheckAvailability(u.Username, u.Email)
-		if err != nil {
-			return err
-		}
-
-		// saving to the store
-		err = store.Put(u)
-		if err != nil {
-			return err
-		}
+	// checking the availability of username and email
+	if err = c.CheckAvailability(u.Username, u.Email); err != nil {
+		return err
 	}
 
 	// linking user to this container

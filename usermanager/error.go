@@ -54,6 +54,7 @@ var (
 	ErrNilGroup                   = errors.New("group is nil")
 	ErrNilGroupContainer          = errors.New("group container is nil")
 	ErrGroupNotFound              = errors.New("group not found")
+	ErrGroupKeyTaken              = errors.New("group key is already taken")
 	ErrUnknownUser                = errors.New("unknown user")
 	ErrNilContainer               = errors.New("container is nil")
 	ErrNotMember                  = errors.New("user is not a member")

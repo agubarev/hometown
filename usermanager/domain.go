@@ -176,17 +176,26 @@ func NewDomain(owner *User, c *DomainOptions) (*Domain, error) {
 	}
 
 	// configuring default groups
-	superuserRole, err := d.Groups.GetByKey("superuser")
+	ownerRole, err := d.Groups.GetByKey("owner")
 	if err != nil {
-		return nil, fmt.Errorf("failed to obtain superuser role: %s", err)
+		return nil, fmt.Errorf("failed to obtain owner role: %s", err)
 	}
 
 	// TODO: store access policy object
 
 	// giving full access rights to the superuser role
-	d.AccessPolicy.SetRoleRights(owner, superuserRole, APFullAccess)
+	d.AccessPolicy.SetRoleRights(owner, ownerRole, APFullAccess)
 
-	// adding owner to domain's user container
+	// TODO: implement backup plan or destroy the unfinished domain in case of an error
+	// adding owner to domain's user container and saving to the store
+	if err = d.Users.Add(owner); err != nil {
+		return nil, fmt.Errorf("failed to add domain owner to the user container: %s", err)
+	}
+
+	// saving owner user to the user store
+	if err = d.Users.Save(owner); err != nil {
+		return nil, fmt.Errorf("failed to store domain owner to the user store: %s", err)
+	}
 
 	// creating initial access policies
 	// TODO: set owner rights
@@ -236,7 +245,7 @@ func (d *Domain) initConfig() error {
 		return nil
 	}
 
-	// safety first checks
+	// safety first check
 	if d == nil {
 		return ErrNilDomain
 	}

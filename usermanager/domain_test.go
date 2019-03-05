@@ -177,13 +177,17 @@ func TestDomainLoadDomainFullTest(t *testing.T) {
 	a.NotNil(nestedRole2.Parent())
 	a.Equal(baseRole.ID, nestedRole2.Parent().ID)
 
+	for _, g := range d.Groups.List(usermanager.GKAll) {
+		fmt.Printf("%s: %s(%s)\n", g.ID, g.Name, g.Key)
+	}
+
 	// counting total groups
-	a.Len(d.Groups.List(usermanager.GKAll), 3)
+	a.Len(d.Groups.List(usermanager.GKAll), 6)
 
 	//---------------------------------------------------------------------------
 	// assigning users to groups and roles
 	// WARNING: this is a set of operations that must be done and reviewed with
-	// up utmost attention and accuracy.
+	// utmost attention and accuracy.
 	//---------------------------------------------------------------------------
 
 	// standard groups
