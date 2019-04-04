@@ -32,7 +32,7 @@ func DefaultLogger(debug bool, logDir string) (*zap.Logger, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create error log file %s: %s", errFilepath, err)
 	}
-	errFileLog := zapcore.AddSync(errFile)
+	errFileLog := zapcore.Lock(zapcore.AddSync(errFile))
 
 	//---------------------------------------------------------------------------
 	// regular logfile
@@ -42,7 +42,7 @@ func DefaultLogger(debug bool, logDir string) (*zap.Logger, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create standard log file %s: %s", errFilepath, err)
 	}
-	stdFileLog := zapcore.AddSync(stdFile)
+	stdFileLog := zapcore.Lock(zapcore.AddSync(stdFile))
 
 	//---------------------------------------------------------------------------
 	// log enablers and conjunction
