@@ -83,8 +83,10 @@ func (rr *RightsRoster) Summarize(u *User) AccessRight {
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
 // TODO: add caching mechanism to skip rights summarization
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights roster and enable extension by default
+// TODO: decide whether I want namespaces
 type AccessPolicy struct {
 	ID           ulid.ULID     `json:"id"`
+	Key          string        `json:"key"`
 	Namespace    string        `json:"namespace"`
 	OwnerID      ulid.ULID     `json:"owner_id"`
 	Owner        *User         `json:"-"`

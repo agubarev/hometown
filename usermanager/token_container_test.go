@@ -112,7 +112,6 @@ func TestTokenContainerCheckin(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// checking in the token (1 checkin, must be removed after successful checkin)
 	// this call must fail now, because there's no callback registered
-	// this must pass
 	//---------------------------------------------------------------------------
 	// creating new token; 10 sec expiration and one-time use
 	tok, err := c.Create(usermanager.TkUserEmailConfirmation, payload, 10*time.Second, 1)
