@@ -12,7 +12,7 @@ import (
 )
 
 // DefaultLogger initializing default logger
-func DefaultLogger(debug bool, logDir string) (*zap.Logger, error) {
+func DefaultLogger(debugMode bool, logDir string) (*zap.Logger, error) {
 	logDir = strings.TrimSpace(logDir)
 
 	if logDir == "" {
@@ -55,15 +55,25 @@ func DefaultLogger(debug bool, logDir string) (*zap.Logger, error) {
 		return lvl < zapcore.ErrorLevel
 	})
 
-	core := zapcore.NewTee(
-		// files
-		zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), errFileLog, highPriority),
-		zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), stdFileLog, lowPriority),
+	var core zapcore.Core
+	if debugMode {
+		core = zapcore.NewTee(
+			// files
+			zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), errFileLog, highPriority),
+			zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), stdFileLog, lowPriority),
 
-		// stdout, stderr
-		zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.Lock(zapcore.AddSync(os.Stderr)), highPriority),
-		zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.Lock(zapcore.AddSync(os.Stdout)), lowPriority),
-	)
+			// stdout, stderr
+			zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.Lock(zapcore.AddSync(os.Stderr)), highPriority),
+			zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.Lock(zapcore.AddSync(os.Stdout)), lowPriority),
+		)
+
+	} else {
+		core = zapcore.NewTee(
+			// files
+			zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), errFileLog, highPriority),
+			zapcore.NewCore(zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()), stdFileLog, lowPriority),
+		)
+	}
 
 	return zap.New(core), nil
 }
