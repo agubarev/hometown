@@ -1,24 +1,23 @@
 package usermanager_test
 
 import (
-	"os"
 	"testing"
 
-	"gitlab.com/agubarev/hometown/usermanager"
+	"github.com/agubarev/hometown/usermanager"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestGroupStorePut(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	db, dbPath, err := usermanager.CreateRandomBadgerDB()
-	defer os.RemoveAll(dbPath)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -26,20 +25,21 @@ func TestGroupStorePut(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	err = s.Put(g)
+	g, err = s.Put(g)
 	a.NoError(err)
+	a.NotNil(g)
 }
 
 func TestGroupStoreGet(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	db, dbPath, err := usermanager.CreateRandomBadgerDB()
-	defer os.RemoveAll(dbPath)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -47,10 +47,11 @@ func TestGroupStoreGet(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	err = s.Put(g)
+	g, err = s.Put(g)
 	a.NoError(err)
+	a.NotNil(g)
 
-	fg, err := s.Get(g.ID)
+	fg, err := s.Fetch(g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 	a.Equal(g.ID, fg.ID)
@@ -60,15 +61,15 @@ func TestGroupStoreGet(t *testing.T) {
 }
 
 func TestGroupStoreGetAll(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	db, dbPath, err := usermanager.CreateRandomBadgerDB()
-	defer os.RemoveAll(dbPath)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -84,16 +85,16 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.NotNil(g3)
 	a.NoError(err)
 
-	err = s.Put(g1)
+	g1, err = s.Put(g1)
 	a.NoError(err)
 
-	err = s.Put(g2)
+	g2, err = s.Put(g2)
 	a.NoError(err)
 
-	err = s.Put(g3)
+	g3, err = s.Put(g3)
 	a.NoError(err)
 
-	gs, err := s.GetGroups()
+	gs, err := s.FetchAllGroups()
 	a.NoError(err)
 	a.Len(gs, 3)
 
@@ -114,15 +115,15 @@ func TestGroupStoreGetAll(t *testing.T) {
 }
 
 func TestGroupStoreDelete(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	db, dbPath, err := usermanager.CreateRandomBadgerDB()
-	defer os.RemoveAll(dbPath)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -130,32 +131,32 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.NotNil(g)
 	a.NoError(err)
 
-	err = s.Put(g)
+	g, err = s.Put(g)
 	a.NoError(err)
 
-	fg, err := s.Get(g.ID)
+	fg, err := s.Fetch(g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 
 	err = s.Delete(g.ID)
 	a.NoError(err)
 
-	fg, err = s.Get(g.ID)
+	fg, err = s.Fetch(g.ID)
 	a.Nil(fg)
 	a.Error(err)
 	a.EqualError(err, usermanager.ErrGroupNotFound.Error())
 }
 
 func TestGroupStoreRelations(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	db, dbPath, err := usermanager.CreateRandomBadgerDB()
-	defer os.RemoveAll(dbPath)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := usermanager.NewDefaultGroupStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 

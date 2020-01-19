@@ -1,247 +1,367 @@
 package usermanager
 
 import (
-	"fmt"
-	"strings"
+	"database/sql"
+	"log"
 
-	"github.com/dgraph-io/badger"
-	"github.com/oklog/ulid"
+	"github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
+	"go.uber.org/zap"
 )
 
 // GroupStore describes a storage contract for groups specifically
 type GroupStore interface {
-	Put(g *Group) error
-	Get(groupID ulid.ULID) (*Group, error)
-	GetGroups() ([]*Group, error)
-	Delete(groupID ulid.ULID) error
-	GetRelations(groupID ulid.ULID) ([]ulid.ULID, error)
-	PutRelation(groupID ulid.ULID, userID ulid.ULID) error
-	HasRelation(groupID ulid.ULID, userID ulid.ULID) (bool, error)
-	DeleteRelation(groupID ulid.ULID, userID ulid.ULID) error
+	Put(g *Group) (*Group, error)
+	Fetch(groupID int64) (*Group, error)
+	FetchAllGroups() ([]*Group, error)
+	Delete(groupID int64) error
+	FetchAllRelations() (map[int64][]int64, error)
+	HasRelation(groupID, userID int64) (bool, error)
+	PutRelation(groupID int64, userID int64) error
+	DeleteRelation(groupID int64, userID int64) error
 }
 
-func groupKey(id ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("g:%s", id[:]))
+// GroupStoreMySQL is the default group store implementation
+type GroupStoreMySQL struct {
+	db *sqlx.DB
 }
 
-func groupUserKey(groupID ulid.ULID, userID ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("gr:%s:%s", groupID[:], userID[:]))
-}
-
-// DefaultGroupStore is the default group store implementation
-type DefaultGroupStore struct {
-	db *badger.DB
-}
-
-// NewDefaultGroupStore returns a group store with bbolt used as a backend
-func NewDefaultGroupStore(db *badger.DB) (GroupStore, error) {
+// NewGroupStore returns a group store with mysql used as a backend
+func NewGroupStore(db *sqlx.DB) (GroupStore, error) {
 	if db == nil {
 		return nil, ErrNilDB
 	}
 
-	return &DefaultGroupStore{db}, nil
+	return &GroupStoreMySQL{db}, nil
 }
 
-// Put storing group
-func (s *DefaultGroupStore) Put(g *Group) error {
-	if g == nil {
-		return ErrNilGroup
-	}
+//? BEGIN ->>>----------------------------------------------------------------
+//? unexported utility functions
 
-	return s.db.Update(func(tx *badger.Txn) error {
-		payload, err := json.Marshal(g)
-		if err != nil {
-			return fmt.Errorf("failed to marshal group: %s", err)
-		}
-
-		key := groupKey(g.ID)
-		if tx.Set(key, payload) != nil {
-			return fmt.Errorf("failed to store group key(%s): %s", key, err)
-		}
-
-		return nil
-	})
-}
-
-// Get retrieving a group by ID
-func (s *DefaultGroupStore) Get(id ulid.ULID) (*Group, error) {
+func (s *GroupStoreMySQL) get(q string, args ...interface{}) (*Group, error) {
 	g := new(Group)
 
-	err := s.db.View(func(tx *badger.Txn) error {
-		item, err := tx.Get(groupKey(id))
-		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				return ErrGroupNotFound
-			}
-
-			return fmt.Errorf("failed to get stored user by ID %s: %s", id, err)
+	err := s.db.Unsafe().Get(g, q, args...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrGroupNotFound
 		}
 
-		return item.Value(func(payload []byte) error {
-			if err := json.Unmarshal(payload, g); err != nil {
-				return fmt.Errorf("failed to unmarshal stored group: %s", err)
-			}
-
-			return nil
-		})
-	})
-
-	if err != nil {
 		return nil, err
 	}
 
 	return g, nil
 }
 
-// GetGroups retrieving all groups
-func (s *DefaultGroupStore) GetGroups() ([]*Group, error) {
+func (s *GroupStoreMySQL) getMany(q string, args ...interface{}) ([]*Group, error) {
 	gs := make([]*Group, 0)
 
-	err := s.db.View(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte("g:")
-		it := tx.NewIterator(opts)
-		defer it.Close()
-
-		for it.Rewind(); it.Valid(); it.Next() {
-			err := it.Item().Value(func(payload []byte) error {
-				g := new(Group)
-				if err := json.Unmarshal(payload, g); err != nil {
-					return fmt.Errorf("failed to unmarshal group payload: %s", err)
-				}
-
-				// appending group to resulting slice
-				gs = append(gs, g)
-
-				return nil
-			})
-
-			if err != nil {
-				return err
-			}
+	err := s.db.Unsafe().Select(&gs, q, args...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return gs, nil
 		}
 
-		return nil
-	})
+		return nil, err
+	}
 
-	return gs, err
+	return gs, nil
+}
+
+//? unexported utility functions
+//? END ---<<<----------------------------------------------------------------
+
+// Put storing group
+func (s *GroupStoreMySQL) Put(g *Group) (*Group, error) {
+	if g == nil {
+		return nil, ErrNilGroup
+	}
+
+	// if an object has ID other than 0, then it's considered
+	// as being already created, thus requiring an update
+	if g.ID != 0 {
+		return s.Update(g)
+	}
+
+	return s.Create(g)
+}
+
+// Create creates a new database record
+func (s *GroupStoreMySQL) Create(g *Group) (*Group, error) {
+	// if ID is not 0, then it's not considered as new
+	if g.ID != 0 {
+		return nil, ErrObjectIsNotNew
+	}
+
+	// constructing statement
+	q := "INSERT INTO `groups`(parent_id, kind, `key`, name, description) VALUES(:parent_id, :kind, :key, :name, :description)"
+
+	// executing statement
+	result, err := s.db.NamedExec(q, g)
+
+	// error handling
+	if err != nil {
+		switch err := err.(*mysql.MySQLError); err.Number {
+		case 1062:
+			return nil, ErrDuplicateEntry
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	newID, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
+
+	// setting new ID
+	g.ID = newID
+
+	return g, nil
+}
+
+// Update updates an existing group
+func (s *GroupStoreMySQL) Update(g *Group) (*Group, error) {
+	if g.ID == 0 {
+		return nil, ErrObjectIsNew
+	}
+
+	// update record statement
+	q := "UPDATE `groups` SET key = :key, name = :name, description = :description WHERE id = :id LIMIT 1"
+
+	// just executing query but not refetching the updated version
+	res, err := s.db.NamedExec(q, &g)
+	if err != nil {
+		return nil, err
+	}
+
+	// checking whether anything was updated at all
+	ra, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	// if no rows were affected then returning this as a non-critical error
+	if ra == 0 {
+		return nil, ErrNothingChanged
+	}
+
+	return g, nil
+}
+
+// Fetch retrieving a group by ID
+func (s *GroupStoreMySQL) Fetch(id int64) (*Group, error) {
+	return s.get("SELECT * FROM `groups` WHERE id = ? LIMIT 1", id)
+}
+
+// FetchAllGroups retrieving all groups
+func (s *GroupStoreMySQL) FetchAllGroups() ([]*Group, error) {
+	return s.getMany("SELECT * FROM `groups`")
 }
 
 // Delete from the store by group ID
-func (s *DefaultGroupStore) Delete(groupID ulid.ULID) error {
-	err := s.db.Update(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		opts.Prefix = groupKey(groupID) // this will also delete all group relations
-		it := tx.NewIterator(opts)
-		defer it.Close()
+func (s *GroupStoreMySQL) Delete(id int64) error {
+	g, err := s.Fetch(id)
+	if err != nil {
+		return err
+	}
 
-		// iterating over found keys and deleting them one by one
-		for it.Rewind(); it.Valid(); it.Next() {
-			if err := tx.Delete(it.Item().Key()); err != nil {
-				return err
-			}
+	// beginning transaction
+	tx, err := s.db.Beginx()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("GroupStore.Delete(): recovering from panic, transaction rollback: %s", p)
+			tx.Rollback()
+		}
+	}()
+
+	//? BEGIN ->>>----------------------------------------------------------------
+	//? deleting records which are only relevant to this group
+
+	// group-user relations
+	_, err = tx.Exec("DELETE FROM `group_users` WHERE group_id = ? LIMIT 1", g.ID)
+	if err != nil {
+		if err2 := tx.Rollback(); err2 != nil {
+			g.Logger().Warn("rollback failed", zap.Error(err2))
 		}
 
-		return nil
-	})
+		return err
+	}
 
+	// actual groups
+	_, err = tx.Exec("DELETE FROM `groups` WHERE id = ? LIMIT 1", g.ID)
 	if err != nil {
-		return fmt.Errorf("failed to delete stored group (%s) related key: %s", groupID, err)
+		if err2 := tx.Rollback(); err2 != nil {
+			g.Logger().Warn("rollback failed", zap.Error(err2))
+		}
+
+		return err
+	}
+
+	//? deleting records which are only relevant to this group
+	//? END ---<<<----------------------------------------------------------------
+
+	return tx.Commit()
+}
+
+// PutRelation store a relation flagging that user belongs to a group
+func (s *GroupStoreMySQL) PutRelation(groupID int64, userID int64) error {
+	_, err := s.db.Exec(
+		"INSERT IGNORE INTO `group_users`(group_id, user_id) VALUES(?, ?)",
+		groupID,
+		userID,
+	)
+
+	// error handling
+	if err != nil {
+		switch err := err.(*mysql.MySQLError); err.Number {
+		case 1062:
+			return ErrDuplicateEntry
+		default:
+			return err
+		}
 	}
 
 	return nil
 }
 
-// PutRelation store a relation flagging that user belongs to a group
-func (s *DefaultGroupStore) PutRelation(groupID ulid.ULID, userID ulid.ULID) error {
-	return s.db.Update(func(tx *badger.Txn) error {
-		err := tx.Set(groupUserKey(groupID, userID), []byte{1})
-		if err != nil {
-			return fmt.Errorf("failed to store group(%s) relation: %s", groupID, err)
+// FetchAllRelations retrieving all relations
+// NOTE: a map of users IDs -> a slice of group IDs
+func (s *GroupStoreMySQL) FetchAllRelations() (map[int64][]int64, error) {
+	relations := make(map[int64][]int64)
+
+	// querying for just one column (user_id)
+	rows, err := s.db.Queryx("SELECT group_id, user_id FROM `group_users`")
+	defer rows.Close()
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrRelationNotFound
 		}
 
-		return nil
-	})
+		return nil, err
+	}
+
+	// iterating over and scanning found relations
+	for rows.Next() {
+		var gid, uid int64
+		if err := rows.Scan(&gid, &uid); err != nil {
+			return nil, err
+		}
+
+		// initializing a nested slice if it's nil
+		if relations[uid] == nil {
+			relations[uid] = make([]int64, 0)
+		}
+
+		// adding user ID to the resulting slice
+		relations[uid] = append(relations[uid], gid)
+	}
+
+	return relations, nil
 }
 
-// HasRelation returns boolean denoting whether user is related to a group
-func (s *DefaultGroupStore) HasRelation(groupID ulid.ULID, userID ulid.ULID) (bool, error) {
-	result := false
-	err := s.db.View(func(tx *badger.Txn) error {
-		_, err := tx.Get(groupUserKey(groupID, userID))
-		if err != nil {
-			// relation exists if the key exists
-			if err == badger.ErrKeyNotFound {
-				// no relation found, normal return
-				// the result is still false
-				return nil
-			}
+// GetGroupRelations retrieving all group-user relations
+func (s *GroupStoreMySQL) GetGroupRelations(id int64) ([]int64, error) {
+	relations := make([]int64, 0)
 
-			// unexpected error
-			return err
+	// querying for just one column (user_id)
+	rows, err := s.db.Queryx("SELECT user_id FROM `group_users` WHERE group_id = ?", id)
+	defer rows.Close()
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return relations, nil
 		}
 
-		// relation exists
-		result = true
+		return nil, err
+	}
 
-		return nil
-	})
+	// iterating over and scanning found relations
+	for rows.Next() {
+		var userID int64
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
 
-	return result, err
+		// adding user ID to the resulting slice
+		relations = append(relations, userID)
+	}
+
+	return relations, nil
 }
 
-// GetRelations retrieving all groups, returns a slice of user IDs
-func (s *DefaultGroupStore) GetRelations(groupID ulid.ULID) ([]ulid.ULID, error) {
-	relations := make([]ulid.ULID, 0)
+// HasRelation checks whether group-user relation exists
+func (s *GroupStoreMySQL) HasRelation(groupID, userID int64) (bool, error) {
+	// querying for just one column (user_id)
+	rows, err := s.db.Queryx(
+		"SELECT group_id, user_id FROM `group_users` WHERE group_id = ? AND user_id = ? LIMIT 1",
+		groupID,
+		userID,
+	)
 
-	err := s.db.View(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		// gr stands for group relations
-		opts.PrefetchValues = false
-		opts.Prefix = []byte(fmt.Sprintf("gr:%s:", groupID.String()))
-		it := tx.NewIterator(opts)
-		defer it.Close()
+	defer rows.Close()
 
-		// iterating over keys only
-		for it.Rewind(); it.Valid(); it.Next() {
-			// converting key to string and extracting user ID which is a suffix of the key
-			skey := string(it.Item().Key())
-			lspos := strings.LastIndex(skey, ":") // last separator position
-			if lspos == -1 {
-				return fmt.Errorf("GetRelations(%s): last separator not found in (%s)", groupID.String(), skey)
-			}
-
-			// string user ID
-			suid := skey[lspos:]
-			if len(suid) != 26 {
-				return fmt.Errorf("GetRelations(%s): invalid length of user string ID; must be 26 characters long (%s)", groupID.String(), suid)
-			}
-
-			// reconstructing user ID from the string
-			uid, err := ulid.Parse(suid)
-			if err != nil {
-				return fmt.Errorf("GetRelations(%s): failed to parse user ID(%s): %s", groupID.String(), suid, err)
-			}
-
-			// appending to resulting slice
-			relations = append(relations, uid)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return false, nil
 		}
 
-		return nil
-	})
+		return false, err
+	}
 
-	return relations, err
+	// iterating over and scanning found relations
+	for rows.Next() {
+		var foundGroupID, foundUserID int64
+		if err := rows.Scan(&foundGroupID, &foundUserID); err != nil {
+			return false, err
+		}
+
+		// paranoid check
+		if foundGroupID == groupID && foundUserID == userID {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 // DeleteRelation deletes a group-user relation
-func (s *DefaultGroupStore) DeleteRelation(groupID ulid.ULID, userID ulid.ULID) error {
-	return s.db.Update(func(tx *badger.Txn) error {
-		err := tx.Delete(groupUserKey(groupID, userID))
-		if err != nil {
-			return fmt.Errorf("failed to delete stored group-user relation (%s -> %s): %s", groupID, userID, err)
-		}
+func (s *GroupStoreMySQL) DeleteRelation(groupID int64, userID int64) error {
+	res, err := s.db.Exec(
+		"DELETE FROM `group_users` WHERE group_id = ? AND user_id = ? LIMIT 1",
+		groupID,
+		userID,
+	)
 
-		return nil
-	})
+	// error handling
+	if err != nil {
+		switch err := err.(*mysql.MySQLError); err.Number {
+		//---------------------------------------------------------------------------
+		// reserved for possible error code handling
+		//---------------------------------------------------------------------------
+
+		default:
+			return err
+		}
+	}
+
+	// checking whether anything was updated at all
+	ra, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	// if no rows were affected then returning this as a non-critical error
+	if ra == 0 {
+		return ErrNothingChanged
+	}
+
+	return nil
 }

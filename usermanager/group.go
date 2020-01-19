@@ -2,7 +2,6 @@ package usermanager
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -10,16 +9,13 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/asaskevich/govalidator"
-
-	"github.com/oklog/ulid"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 // GroupMembers is a slice of users, typed for the ease of sorting
 type GroupMembers []*User
 
 // GroupKind designates a group kind i.e. Group, Role etc...
-type GroupKind uint8
+type GroupKind int8
 
 func (k GroupKind) String() string {
 	switch k {
@@ -43,29 +39,22 @@ const (
 // TODO custom JSON marshalling
 // TODO add mutex and store to the group; store should be set implicitly upon addition to the container
 type Group struct {
-	ID          ulid.ULID `json:"id"`
-	Kind        GroupKind `json:"k"`
-	Key         string    `json:"ky" valid:"required,ascii"`
-	Name        string    `json:"n" valid:"required"`
-	Description string    `json:"dsc" valid:"optional,length(0|200)"`
+	ID          int64     `json:"id" db:"id"`
+	Kind        GroupKind `json:"k" db:"kind"`
+	Key         string    `json:"ky" db:"key" valid:"required,ascii"`
+	Name        string    `json:"n" db:"name" valid:"required"`
+	Description string    `json:"dsc" db:"description" valid:"optional,length(0|200)"`
 
 	// these fields are basically just for the storage
-	DomainID ulid.ULID `json:"did"`
-	ParentID ulid.ULID `json:"pid"`
+	ParentID int64 `json:"pid" db:"parent_id"`
 
-	domain    *Domain
-	parent    *Group
-	container *GroupContainer
-	members   GroupMembers
-	memberMap map[ulid.ULID]*User
-	ap        *AccessPolicy
-	logger    *zap.Logger
-	mu        sync.RWMutex
-}
-
-// Domain returns the domain to which this group belongs
-func (g *Group) Domain() *Domain {
-	return g.domain
+	parent  *Group
+	manager *GroupManager
+	members GroupMembers
+	idMap   map[int64]*User
+	ap      *AccessPolicy
+	logger  *zap.Logger
+	sync.RWMutex
 }
 
 // Parent returns parent group or nil
@@ -74,7 +63,7 @@ func (g *Group) Parent() *Group {
 }
 
 // NewGroup initializing a new group struct
-// IMPORTANT: group kind is permanent and must never change
+// ! IMPORTANT: group kind is permanent and must never change
 func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, error) {
 	if parent != nil {
 		if err := parent.Validate(); err != nil {
@@ -83,12 +72,12 @@ func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, e
 	}
 
 	g := &Group{
-		ID:        util.NewULID(),
-		Kind:      kind,
-		Key:       strings.ToLower(key),
-		Name:      name,
-		members:   make(GroupMembers, 0),
-		memberMap: make(map[ulid.ULID]*User),
+		ID:      0,
+		Kind:    kind,
+		Key:     strings.ToLower(key),
+		Name:    name,
+		members: make(GroupMembers, 0),
+		idMap:   make(map[int64]*User),
 	}
 
 	if err := g.SetParent(parent); err != nil {
@@ -98,9 +87,41 @@ func NewGroup(kind GroupKind, key string, name string, parent *Group) (*Group, e
 	return g, g.Validate()
 }
 
+// SetLogger assigns a logger for this group
+func (g *Group) SetLogger(logger *zap.Logger) error {
+	if logger != nil {
+		logger = logger.Named(g.StringID())
+
+		logger.With(
+			zap.Int64("gid", g.ID),
+			zap.String("key", g.Key),
+			zap.String("kind", g.Kind.String()),
+			zap.String("name", g.Name),
+		)
+	}
+
+	g.logger = logger
+
+	return nil
+}
+
+// Logger returns group logger
+func (g *Group) Logger() *zap.Logger {
+	if g.logger == nil {
+		l, err := zap.NewDevelopment()
+		if err != nil {
+			panic(fmt.Errorf("failed to initialize group logger: %s", err))
+		}
+
+		g.logger = l
+	}
+
+	return g.logger
+}
+
 // StringID returns short object info
 func (g *Group) StringID() string {
-	return fmt.Sprintf("%s(%s:%s:%s)", g.Kind, g.ID, g.Key, g.Name)
+	return fmt.Sprintf("%s(%d:%s:%s)", g.Kind, g.ID, g.Key, g.Name)
 }
 
 // Validate tells a group to perform self-check and return errors if something's wrong
@@ -123,6 +144,34 @@ func (g *Group) Validate() error {
 	// general field validations
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
 		return fmt.Errorf("%s validation failed: %s", g.Kind, err)
+	}
+
+	return nil
+}
+
+// Init initializes current group
+// NOTE: used after loading a group from the store and before
+// adding/distributing any members
+func (g *Group) Init() error {
+	// initializing necessary fields (in case they're not)
+	if g.members == nil {
+		g.members = make(GroupMembers, 0)
+	}
+
+	if g.idMap == nil {
+		g.idMap = make(map[int64]*User)
+	}
+
+	// using manager's logger if it's set
+	if g.manager != nil && g.manager.logger != nil {
+		g.logger = g.manager.logger.Named(g.StringID())
+
+		g.logger.With(
+			zap.Int64("gid", g.ID),
+			zap.String("key", g.Key),
+			zap.String("kind", g.Kind.String()),
+			zap.String("name", g.Name),
+		)
 	}
 
 	return nil
@@ -151,8 +200,8 @@ func (g *Group) IsCircuited() (bool, error) {
 	return false, ErrCircuitCheckTimeout
 }
 
-// SetDescription sets text description for this domain
-func (g *Domain) SetDescription(desc string) error {
+// SetDescription sets text description for this group
+func (g *Group) SetDescription(text string) error {
 	// TODO: implement
 
 	return nil
@@ -201,13 +250,19 @@ func (g *Group) SetParent(p *Group) error {
 
 // Save this group to the store
 func (g *Group) Save() error {
-	if g.container.store == nil {
+	if g.manager.store == nil {
 		return ErrNilGroupStore
 	}
 
-	if err := g.container.store.Put(g); err != nil {
+	// saving itself
+	newGroup, err := g.manager.store.Put(g)
+	if err != nil {
 		return fmt.Errorf("failed to store a group: %s", err)
 	}
+
+	// replacing itself with retrieved group contents
+	// *g = *newGroup
+	g.ID = newGroup.ID
 
 	return nil
 }
@@ -218,24 +273,30 @@ func (g *Group) IsMember(u *User) bool {
 		return false
 	}
 
-	g.mu.RLock()
-	defer g.mu.RUnlock()
+	g.RLock()
+	_, ok := g.idMap[u.ID]
+	g.RUnlock()
 
-	if _, ok := g.memberMap[u.ID]; ok {
+	if ok {
 		return true
 	}
 
 	return false
 }
 
-// Add adding user to a group
+// AddMember adding user to a group
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
-func (g *Group) Add(u *User) error {
+func (g *Group) AddMember(u *User) error {
+	logger := g.Logger()
+	defer logger.Sync()
+
 	if u == nil {
 		return ErrNilUser
 	}
 
+	// to proceed, the user must be previously properly registered,
+	// and persisted to the store
 	ok, err := u.IsRegisteredAndStored()
 	if err != nil {
 		return err
@@ -245,62 +306,84 @@ func (g *Group) Add(u *User) error {
 		return ErrUserNotEligible
 	}
 
-	// returning an error if this user already belongs to this group
-	if g.IsMember(u) {
-		return ErrAlreadyMember
+	// adding user to this group members
+	if err := g.LinkMember(u); err != nil {
+		return err
 	}
 
-	// TODO: I don't like this implicity, find a better solution
-	if g.container != nil {
-		if g.container.store != nil {
-			if err = g.container.store.PutRelation(g.ID, u.ID); err != nil {
+	if g.manager != nil {
+		if g.manager.store != nil {
+			logger.Info("storing group user relation", zap.Int64("gid", g.ID), zap.Int64("uid", u.ID))
+
+			// if container is set, then storing group user relation
+			if err = g.manager.store.PutRelation(g.ID, u.ID); err != nil {
+				logger.Info("failed to store group user relation", zap.Int64("gid", g.ID), zap.Int64("uid", u.ID), zap.Error(err))
 				return err
 			}
 		} else {
-			log.Printf("WARNING: removing member user %s from group %s while store is not set\n", u.StringID(), g.StringID())
+			logger.Info("removing member user from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", u.ID), zap.Error(err))
 		}
-	}
-
-	// updating runtime data
-	g.mu.Lock()
-	g.members = append(g.members, u)
-	g.memberMap[u.ID] = u
-	g.mu.Unlock()
-
-	// updating group tracklist for this user
-	if err := u.TrackGroup(g); err != nil {
-		g.logger.Error(
-			"user failed to track group",
-			zap.String("gid", g.ID.String()),
-			zap.String("uid", u.ID.String()),
-			zap.Error(err),
-		)
 	}
 
 	return nil
 }
 
-// Remove removes user from a group
-func (g *Group) Remove(u *User) error {
+// RemoveMember removes user from a group
+func (g *Group) RemoveMember(u *User) error {
+	l := g.logger
+	defer l.Sync()
+
 	if u == nil {
 		return ErrNilUser
 	}
 
-	// being consistent and returning an error for explicitness
+	// removing user from group members
+	if err := g.LinkMember(u); err != nil {
+		return err
+	}
+
+	if g.manager.store != nil {
+		l.Info("deleting group user relation", zap.Int64("gid", g.ID), zap.Int64("uid", u.ID))
+
+		// deleting a stored relation
+		if err := g.manager.store.DeleteRelation(g.ID, u.ID); err != nil {
+			return err
+		}
+	} else {
+		l.Info("removing member user from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", u.ID))
+	}
+
+	return nil
+}
+
+// LinkMember adds a user to the group members
+// NOTE: does not affect the store
+func (g *Group) LinkMember(u *User) error {
+	if g.IsMember(u) {
+		return ErrAlreadyMember
+	}
+
+	g.Lock()
+	g.members = append(g.members, u)
+	g.idMap[u.ID] = u
+	g.Unlock()
+
+	// creating a backlink
+	if err := u.LinkGroup(g); err != nil {
+		return fmt.Errorf("failed to link group to the user: %s", err)
+	}
+
+	return nil
+}
+
+// UnlinkMember removes a user from the group members
+// NOTE: does not affect the store
+func (g *Group) UnlinkMember(u *User) error {
 	if !g.IsMember(u) {
 		return ErrNotMember
 	}
 
-	if g.container.store != nil {
-		// deleting a stored relation
-		if err := g.container.store.DeleteRelation(g.ID, u.ID); err != nil {
-			return err
-		}
-	} else {
-		log.Printf("WARNING: removing member user %s from group %s while store is not set\n", u.StringID(), g.StringID())
-	}
-
-	g.container.Lock()
+	g.Lock()
 
 	// removing group from the main slice
 	for i, m := range g.members {
@@ -312,18 +395,13 @@ func (g *Group) Remove(u *User) error {
 	}
 
 	// removing user from the group members
-	delete(g.memberMap, u.ID)
+	delete(g.idMap, u.ID)
 
-	g.container.Unlock()
+	g.Unlock()
 
-	// updating group tracklist for this user
-	if err := u.UntrackGroup(g.ID); err != nil {
-		g.logger.Error(
-			"user failed to untrack group",
-			zap.String("gid", g.ID.String()),
-			zap.String("uid", u.ID.String()),
-			zap.Error(err),
-		)
+	// creating a backlink
+	if err := u.UnlinkGroup(g); err != nil {
+		return fmt.Errorf("failed to link group to the user: %s", err)
 	}
 
 	return nil

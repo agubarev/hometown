@@ -1,10 +1,9 @@
 package usermanager
 
 import (
-	"fmt"
-	"time"
+	"database/sql"
 
-	"github.com/dgraph-io/badger"
+	"github.com/jmoiron/sqlx"
 )
 
 // TokenStore describes the token store contract interface
@@ -14,25 +13,21 @@ type TokenStore interface {
 	Delete(token string) error
 }
 
-func tokenKey(token string) []byte {
-	return []byte(fmt.Sprintf("t:%s", token))
+type tokenStore struct {
+	db *sqlx.DB
 }
 
-type defaultTokenStore struct {
-	db *badger.DB
-}
-
-// NewDefaultTokenStore initializes and returns a new default token store
-func NewDefaultTokenStore(db *badger.DB) (TokenStore, error) {
+// NewTokenStore initializes and returns a new default token store
+func NewTokenStore(db *sqlx.DB) (TokenStore, error) {
 	if db == nil {
 		return nil, ErrNilDB
 	}
 
-	return &defaultTokenStore{db}, nil
+	return &tokenStore{db}, nil
 }
 
 // Put puts token into a store
-func (s *defaultTokenStore) Put(t *Token) error {
+func (s *tokenStore) Put(t *Token) error {
 	if s.db == nil {
 		return ErrNilDB
 	}
@@ -41,54 +36,59 @@ func (s *defaultTokenStore) Put(t *Token) error {
 		return ErrNilToken
 	}
 
-	buf, err := json.Marshal(t)
+	// query statement
+	q := `INSERT INTO tokens(kind, token, payload, c_total, c_remainder, created_at, expire_at) 
+			VALUES(:kind, :token, :payload, :c_total, :c_remainder, :created_at, :expire_at)`
+
+	_, err := s.db.NamedExec(q, &t)
 	if err != nil {
 		return err
 	}
 
-	// it's pretty much straightforward here
-	return s.db.Update(func(tx *badger.Txn) error {
-		return tx.SetWithTTL(tokenKey(t.Token), buf, t.ExpireAt.Sub(time.Now()))
-	})
+	return nil
 }
 
 // Get retrieves token from a store
-func (s *defaultTokenStore) Get(token string) (*Token, error) {
+func (s *tokenStore) Get(token string) (*Token, error) {
 	if s.db == nil {
 		return nil, ErrNilDB
 	}
 
 	t := new(Token)
 
-	err := s.db.View(func(tx *badger.Txn) error {
-		item, err := tx.Get(tokenKey(token))
-		if err != nil {
-			return err
-		}
-
-		return item.Value(func(payload []byte) error {
-			return json.Unmarshal(payload, t)
-		})
-	})
-
+	err := s.db.Get(t, "SELECT * FROM tokens WHERE token = ? LIMIT 1", token)
 	if err != nil {
-		if err != badger.ErrKeyNotFound {
-			return nil, err
+		if err == sql.ErrNoRows {
+			return nil, ErrTokenNotFound
 		}
 
-		return nil, ErrTokenNotFound
+		return nil, err
 	}
 
 	return t, nil
 }
 
 // Delete deletes token from a store
-func (s *defaultTokenStore) Delete(token string) error {
+func (s *tokenStore) Delete(token string) error {
 	if s.db == nil {
 		return ErrNilDB
 	}
 
-	return s.db.Update(func(tx *badger.Txn) error {
-		return tx.Delete(tokenKey(token))
-	})
+	res, err := s.db.Exec("DELETE FROM tokens WHERE token = ? LIMIT 1", token)
+	if err != nil {
+		return err
+	}
+
+	// checking whether anything was updated at all
+	ra, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	// if no rows were affected then returning this as a non-critical error
+	if ra == 0 {
+		return ErrNothingChanged
+	}
+
+	return nil
 }

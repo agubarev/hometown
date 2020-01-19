@@ -6,12 +6,10 @@ import (
 	"github.com/dgraph-io/badger"
 )
 
+// CreateRandomBadgerDB creates a badger database with a random filename
 func CreateRandomBadgerDB() (*badger.DB, string, error) {
 	dbDir := fmt.Sprintf("/tmp/testdb-%s.dat", NewULID())
-	opts := badger.DefaultOptions
-	opts.Dir = dbDir
-	opts.ValueDir = dbDir
-	db, err := badger.Open(opts)
+	db, err := badger.Open(badger.DefaultOptions(dbDir))
 	if err != nil {
 		return nil, "", err
 	}

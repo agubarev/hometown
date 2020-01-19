@@ -37,7 +37,7 @@ func (pm *defaultPasswordManager) Set(u *User, p *Password) error {
 		return ErrNilUser
 	}
 
-	return pm.ps.Put(u.ID, p.Hash)
+	return pm.ps.Create(p)
 }
 
 func (pm *defaultPasswordManager) Get(u *User) (*Password, error) {
@@ -49,17 +49,7 @@ func (pm *defaultPasswordManager) Get(u *User) (*Password, error) {
 		return nil, ErrNilUser
 	}
 
-	pbytes, err := pm.ps.Get(u.ID)
-	if err != nil {
-		return nil, err
-	}
-
-	p := &Password{
-		ID:   u.ID,
-		Hash: pbytes,
-	}
-
-	return p, nil
+	return pm.ps.Get(u.ID)
 }
 
 func (pm *defaultPasswordManager) Delete(u *User) error {

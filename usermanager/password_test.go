@@ -3,8 +3,7 @@ package usermanager_test
 import (
 	"testing"
 
-	"gitlab.com/agubarev/hometown/usermanager"
-	"gitlab.com/agubarev/hometown/util"
+	"github.com/agubarev/hometown/usermanager"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -14,7 +13,7 @@ func TestNewPassword(t *testing.T) {
 
 	correctPassword := "1j20nmdoansd-[afkcq0ofecimwq1"
 	wrongPassword := "wrongpassword"
-	p, err := usermanager.NewPassword(util.NewULID(), correctPassword, []string{})
+	p, err := usermanager.NewPassword(1, correctPassword, []string{})
 	a.NoError(err)
 	a.NotNil(p)
 	a.True(p.Compare(correctPassword))
@@ -37,12 +36,12 @@ func TestEvaluatePassword(t *testing.T) {
 	p = "12345678"
 	ui = []string{}
 	err = usermanager.EvaluatePasswordStrength(p, ui)
-	a.EqualError(usermanager.ErrUnsafePassword, err.Error())
+	a.EqualError(usermanager.ErrWeakPassword, err.Error())
 
 	p = "123Andrei9991superp@ss"
 	ui = []string{"Andrei", "Gubarev"}
 	err = usermanager.EvaluatePasswordStrength(p, ui)
-	a.EqualError(usermanager.ErrUnsafePassword, err.Error())
+	a.EqualError(usermanager.ErrWeakPassword, err.Error())
 
 	p = "s@fer!@()*!p@ssw0rd"
 	ui = []string{}

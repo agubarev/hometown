@@ -1,104 +1,94 @@
 package usermanager_test
 
 import (
-	"fmt"
-	"os"
 	"testing"
 
-	"gitlab.com/agubarev/hometown/usermanager"
+	"github.com/agubarev/hometown/usermanager"
 
-	"github.com/dgraph-io/badger"
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 func TestPasswordStorePut(t *testing.T) {
-	t.Parallel()
+
 	a := assert.New(t)
 
-	dbDir := fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID())
-	opts := badger.DefaultOptions
-	opts.Dir = dbDir
-	opts.ValueDir = dbDir
-
-	db, err := badger.Open(opts)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.RemoveAll(opts.Dir)
 
-	s, err := usermanager.NewDefaultPasswordStore(db)
+	s, err := usermanager.NewPasswordStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	id := util.NewULID()
-	pass := []byte("test123")
-
-	err = s.Put(id, pass)
+	p, err := usermanager.NewPassword(1, "namelimilenivonalimalovili", nil)
 	a.NoError(err)
+	a.NotNil(p)
+
+	a.NoError(s.Create(p))
+	a.NoError(s.Delete(p.OwnerID))
 }
 
 func TestPasswordStoreGet(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	dbDir := fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID())
-	opts := badger.DefaultOptions
-	opts.Dir = dbDir
-	opts.ValueDir = dbDir
-
-	db, err := badger.Open(opts)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.RemoveAll(opts.Dir)
 
-	s, err := usermanager.NewDefaultPasswordStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewPasswordStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	id := util.NewULID()
-	pass := []byte("test123")
+	ownerID := int64(1)
+	pass := "namelimilenivonalimalovili"
 
-	err = s.Put(id, pass)
+	p, err := usermanager.NewPassword(ownerID, pass, nil)
+	a.NoError(err)
+	a.NotNil(p)
+
+	err = s.Create(p)
 	a.NoError(err)
 
-	p, err := s.Get(id)
+	p2, err := s.Get(ownerID)
 	a.NoError(err)
-	a.Len(p, len(pass))
-	a.Equal(pass, p)
+	a.Len(p.Hash, len(p2.Hash))
+	a.Equal(p.Hash, p2.Hash)
 }
 
 func TestPasswordStoreDelete(t *testing.T) {
-	t.Parallel()
 	a := assert.New(t)
 
-	dbDir := fmt.Sprintf("/tmp/hometown-%s.dat", util.NewULID())
-	opts := badger.DefaultOptions
-	opts.Dir = dbDir
-	opts.ValueDir = dbDir
-
-	db, err := badger.Open(opts)
+	db, err := usermanager.DatabaseForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-	defer os.RemoveAll(opts.Dir)
 
-	s, err := usermanager.NewDefaultPasswordStore(db)
+	a.NoError(usermanager.TruncateDatabaseForTesting(db))
+
+	s, err := usermanager.NewPasswordStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	id := util.NewULID()
-	pass := []byte("test123")
+	ownerID := int64(1)
+	pass := "namelimilenivonalimalovili"
 
-	err = s.Put(id, pass)
+	original, err := usermanager.NewPassword(ownerID, pass, nil)
+	a.NoError(err)
+	a.NotNil(original)
+
+	err = s.Create(original)
 	a.NoError(err)
 
-	p, err := s.Get(id)
+	p, err := s.Get(ownerID)
 	a.NoError(err)
-	a.Len(p, len(pass))
-	a.Equal(pass, p)
+	a.Len(p.Hash, len(original.Hash))
+	a.Equal(p.Hash, original.Hash)
 
-	err = s.Delete(id)
+	err = s.Delete(ownerID)
 	a.NoError(err)
 
-	p, err = s.Get(id)
+	p2, err := s.Get(ownerID)
 	a.Error(err)
+	a.Nil(p2)
 }

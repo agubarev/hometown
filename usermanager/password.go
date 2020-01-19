@@ -1,11 +1,13 @@
 package usermanager
 
 import (
+	"time"
+
 	zxcvbn "github.com/nbutton23/zxcvbn-go"
-	"github.com/oklog/ulid"
 	"golang.org/x/crypto/bcrypt"
 )
 
+// constant rules
 const (
 	PasswordMinLength = 8
 	PasswordMaxLength = 50
@@ -14,8 +16,10 @@ const (
 // Password object
 type Password struct {
 	// password ID must be equal to the user ID
-	ID   ulid.ULID `json:"id"`
-	Hash []byte    `json:"h"`
+	OwnerID          int64     `json:"-" db:"owner_id"`
+	Hash             []byte    `json:"-" db:"hash"`
+	CreatedAt        time.Time `json:"-" db:"created_at"`
+	IsChangeRequired bool      `json:"-" db:"is_change_req"`
 }
 
 // EvaluatePasswordStrength evaluates password's strength by checking length,
@@ -34,14 +38,14 @@ func EvaluatePasswordStrength(rawpass string, userInputs []string) error {
 	// the score must be at least 3
 	result := zxcvbn.PasswordStrength(rawpass, userInputs)
 	if result.Score < 3 {
-		return ErrUnsafePassword
+		return ErrWeakPassword
 	}
 
 	return nil
 }
 
 // NewPassword creates a hash from a given raw string
-func NewPassword(id ulid.ULID, rawpass string, userInput []string) (*Password, error) {
+func NewPassword(ownerID int64, rawpass string, userInput []string) (*Password, error) {
 	err := EvaluatePasswordStrength(rawpass, userInput)
 	if err != nil {
 		return nil, err
@@ -53,8 +57,9 @@ func NewPassword(id ulid.ULID, rawpass string, userInput []string) (*Password, e
 	}
 
 	p := &Password{
-		ID:   id,
-		Hash: h,
+		OwnerID:   ownerID,
+		Hash:      h,
+		CreatedAt: time.Now(),
 	}
 
 	return p, nil

@@ -1,235 +1,240 @@
 package usermanager
 
 import (
-	"fmt"
+	"database/sql"
+	"log"
+	"time"
 
-	"github.com/dgraph-io/badger"
+	"gopkg.in/guregu/null.v3"
 
-	"github.com/oklog/ulid"
+	"github.com/go-sql-driver/mysql"
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 // UserStore represents a user storage contract
 type UserStore interface {
-	Put(u *User) error
-	Delete(id ulid.ULID) error
-	GetAll() ([]*User, error)
-	Get(id ulid.ULID) (*User, error)
-	GetByIndex(index string, value string) (*User, error)
+	Put(u *User) (*User, error)
+	Delete(id int64) error
+	FetchAll() ([]*User, error)
+	FetchByID(id int64) (*User, error)
+	FetchByKey(index string, value interface{}) (*User, error)
 }
 
-func userKey(id ulid.ULID) []byte {
-	return []byte(fmt.Sprintf("u:%s", id[:]))
+// UserStoreMySQL is a default user store implementation
+type UserStoreMySQL struct {
+	db *sqlx.DB
 }
 
-func userIndexKey(index string, value string) []byte {
-	return []byte(fmt.Sprintf("ui:%s:%s", index, value))
-}
-
-// DefaultUserStore is a default user store implementation
-type DefaultUserStore struct {
-	db *badger.DB
-}
-
-// NewDefaultUserStore initializing bbolt store
-func NewDefaultUserStore(db *badger.DB) (UserStore, error) {
+// NewUserStore initializing new user store
+func NewUserStore(db *sqlx.DB) (UserStore, error) {
 	if db == nil {
 		return nil, ErrNilDB
 	}
 
-	s := &DefaultUserStore{
+	s := &UserStoreMySQL{
 		db: db,
 	}
 
 	return s, nil
 }
 
-// Put stores a User
-func (s *DefaultUserStore) Put(u *User) error {
+//? BEGIN ->>>----------------------------------------------------------------
+//? unexported utility functions
+
+func (s *UserStoreMySQL) fetchOne(q string, args ...interface{}) (*User, error) {
+	u := new(User)
+
+	err := s.db.Unsafe().Get(u, q, args...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, ErrUserNotFound
+		}
+
+		return nil, err
+	}
+
+	return u, nil
+}
+
+func (s *UserStoreMySQL) fetchMany(q string, args ...interface{}) ([]*User, error) {
+	us := make([]*User, 0)
+
+	err := s.db.Unsafe().Select(&us, q, args...)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return us, nil
+		}
+
+		return nil, err
+	}
+
+	return us, nil
+}
+
+//? unexported utility functions
+//? END ---<<<----------------------------------------------------------------
+
+// Put stores a User to the database
+// NOTE: creates a user if user's new or updates
+func (s *UserStoreMySQL) Put(u *User) (*User, error) {
 	if u == nil {
-		return ErrNilUser
+		return nil, ErrNilUser
 	}
 
-	// fetching a possibly existing stored user
-	su, err := s.Get(u.ID)
-	if err != nil && err != ErrUserNotFound {
-		return fmt.Errorf("failed to load user(%s): %s", u.ID, err)
+	// if an object has ID other than 0, then it's considered
+	// as being already created, thus requiring an update
+	if u.ID != 0 {
+		return s.Update(u)
 	}
 
-	return s.db.Update(func(tx *badger.Txn) error {
-		payload, err := json.Marshal(u)
-		if err != nil {
-			return fmt.Errorf("failed to marshal user: %s", err)
+	return s.Create(u)
+}
+
+// Create creates a new database record
+func (s *UserStoreMySQL) Create(u *User) (*User, error) {
+	// if ID is not 0, then it's not considered as new
+	if u.ID != 0 {
+		return nil, ErrObjectIsNotNew
+	}
+
+	// constructing statement
+	q := `
+	INSERT INTO users(id, username, created_at, created_by_id, updated_at, updated_by_id, firstname, middlename, 
+		lastname, user_ref, language, phone, email, ru_id, is_suspended, suspension_reason, is_pass_change_req) 
+	VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	`
+
+	// executing statement
+	result, err := s.db.Exec(q,
+		u.ID, u.Username, u.CreatedAt, u.CreatedByID, null.TimeFrom(time.Now()),
+		u.UpdatedByID, u.Firstname, u.Middlename, u.Lastname, u.UserReference,
+		u.Language, u.Phone, u.Email, u.ReadingUnitID, u.IsSuspended,
+		u.SuspensionReason, u.IsPasswordChangeRequested,
+	)
+
+	// error handling
+	if err != nil {
+		switch err := err.(*mysql.MySQLError); err.Number {
+		case 1062:
+			return nil, ErrDuplicateEntry
 		}
+	}
 
-		// storing primary value
-		primaryKey := userKey(u.ID)
-		err = tx.Set(primaryKey, payload)
-		if err != nil {
-			return fmt.Errorf("failed to store user %s: %s", primaryKey, err)
-		}
+	if err != nil {
+		return nil, err
+	}
 
-		// index keys
-		usernameIndexKey := userIndexKey("username", u.Username)
-		emailIndexKey := userIndexKey("email", u.Email)
+	newID, err := result.LastInsertId()
+	if err != nil {
+		return nil, err
+	}
 
-		// if username or email differs from a previously stored version,
-		// then erase previous and create new index
-		if su != nil {
-			if su.Username != u.Username {
-				tx.Delete(usernameIndexKey)
-			}
+	// setting new ID
+	u.ID = newID
 
-			if su.Email != u.Email {
-				tx.Delete(emailIndexKey)
-			}
-		}
+	return u, nil
+}
 
-		// storing username index with a primary key as value
-		err = tx.Set(usernameIndexKey, primaryKey)
-		if err != nil {
-			return fmt.Errorf("failed to store username(%s) index: %s", u.Username, err)
-		}
+// Update updates an existing user in a database
+func (s *UserStoreMySQL) Update(u *User) (*User, error) {
+	if u.ID == 0 {
+		return nil, ErrObjectIsNew
+	}
 
-		// storing email index, same as above
-		err = tx.Set(emailIndexKey, primaryKey)
-		if err != nil {
-			return fmt.Errorf("failed to store email(%s) index: %s", u.Email, err)
-		}
+	// update record statement
+	q := `
+	UPDATE users 
+	SET firstname = :firstname, lastname = :lastname, middlename = :middlename, user_ref = :user_ref,
+		language = :language, phone = :phone, is_suspended = :is_suspended, suspension_reason = :suspension_reason, 
+		is_pass_change_req = :is_pass_change_req, last_login_at = :last_login_at, last_login_ip = :last_login_ip,
+		last_login_failed_at = :last_login_failed_at, last_login_failed_ip = :last_login_failed_ip,
+		last_login_attempts = :last_login_attempts, ru_id = :ru_id, confirmed_at = :confirmed_at,
+		suspended_at = :suspended_at, suspension_expires_at = :suspension_expires_at
+	WHERE id = :id
+	LIMIT 1
+	`
 
-		return nil
-	})
+	// just executing query but not refetching the updated version
+	res, err := s.db.NamedExec(q, u)
+	if err != nil {
+		return nil, err
+	}
+
+	// checking whether anything was updated at all
+	ra, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	// if no rows were affected then returning this as a non-critical error
+	if ra == 0 {
+		return nil, ErrNothingChanged
+	}
+
+	return u, nil
 }
 
 // Delete a user from the store
-func (s *DefaultUserStore) Delete(id ulid.ULID) error {
-	u, err := s.Get(id)
+func (s *UserStoreMySQL) Delete(id int64) error {
+	// checking user for existence just to be consistent,
+	// and warn when attempting to delete a user which doesn't exist
+	u, err := s.FetchByID(id)
 	if err != nil {
-		return fmt.Errorf("Delete(): %s", err)
+		return err
 	}
 
-	return s.db.Update(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = false
-		opts.PrefetchSize = 5
-		opts.Prefix = userKey(id)
-		it := tx.NewIterator(opts)
-		defer it.Close()
-
-		for it.Rewind(); it.Valid(); it.Next() {
-			// deleting user indexes
-			err = tx.Delete(userIndexKey("username", u.Username))
-			if err != nil {
-				return fmt.Errorf("Delete(): failed to delete username(%s) index: %s", u.Username, err)
-			}
-
-			err = tx.Delete(userIndexKey("email", u.Email))
-			if err != nil {
-				return fmt.Errorf("Delete(): failed to delete email(%s) index: %s", u.Email, err)
-			}
-
-			// deleting user
-			return tx.Delete(it.Item().Key())
-		}
-
-		return nil
-	})
-}
-
-// Get returns a User by ID
-func (s *DefaultUserStore) Get(id ulid.ULID) (*User, error) {
-	return s.getByByteKey(userKey(id))
-}
-
-func (s *DefaultUserStore) getByByteKey(key []byte) (*User, error) {
-	u := new(User)
-
-	err := s.db.View(func(tx *badger.Txn) error {
-		item, err := tx.Get(key)
-		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				return ErrUserNotFound
-			}
-
-			return fmt.Errorf("getByByteKey(): failed to get stored user by ID %s: %s", key, err)
-		}
-
-		return item.Value(func(payload []byte) error {
-			if err := json.Unmarshal(payload, u); err != nil {
-				return fmt.Errorf("getByByteKey(): failed to unmarshal stored user: %s", err)
-			}
-
-			return nil
-		})
-	})
-
+	// beginning transaction
+	tx, err := s.db.Beginx()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	return u, nil
+	defer func() {
+		if p := recover(); p != nil {
+			log.Printf("UserStore.Delete(): recovering from panic, transaction rollback: %s", p)
+			tx.Rollback()
+		}
+	}()
+
+	// deleting user from the store
+	tx.Exec("DELETE FROM users WHERE id = ? LIMIT 1", u.ID)
+
+	return tx.Commit()
 }
 
-// GetAll returns all stored users
-func (s *DefaultUserStore) GetAll() ([]*User, error) {
-	us := make([]*User, 0)
-
-	err := s.db.View(func(tx *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.Prefix = []byte("u:")
-		it := tx.NewIterator(opts)
-		defer it.Close()
-
-		for it.Rewind(); it.Valid(); it.Next() {
-			err := it.Item().Value(func(payload []byte) error {
-				u := new(User)
-				if err := json.Unmarshal(payload, u); err != nil {
-					return fmt.Errorf("failed to unmarshal user payload: %s", err)
-				}
-
-				us = append(us, u)
-
-				return nil
-			})
-
-			if err != nil {
-				return err
-			}
-		}
-
-		return nil
-	})
-
-	return us, err
+// FetchByID returns a User by ID
+func (s *UserStoreMySQL) FetchByID(id int64) (*User, error) {
+	return s.FetchByKey("id", id)
 }
 
-// GetByIndex lookup a user by an index
-func (s *DefaultUserStore) GetByIndex(index string, value string) (*User, error) {
-	u := new(User)
+// FetchAll returns all stored users
+func (s *UserStoreMySQL) FetchAll() ([]*User, error) {
+	return s.fetchMany("SELECT * FROM users")
+}
 
-	err := s.db.View(func(tx *badger.Txn) error {
-		// lookup user by ID
-		item, err := tx.Get(userIndexKey(index, value))
-		if err != nil {
-			if err == badger.ErrKeyNotFound {
-				return ErrUserNotFound
-			}
-
-			return fmt.Errorf("GetByIndex(): failed to get stored user by index(%s=%s): %s", index, value, err)
-		}
-
-		return item.Value(func(primaryKey []byte) error {
-			u, err = s.getByByteKey(primaryKey)
-			if err != nil {
-				return err
-			}
-
-			return nil
-		})
-	})
-
-	if err != nil {
-		return nil, err
+// FetchByKey lookup a user by an index
+func (s *UserStoreMySQL) FetchByKey(index string, value interface{}) (*User, error) {
+	switch index {
+	case "id":
+		return s.getByID(value.(int64))
+	case "username":
+		return s.getByUsername(value.(string))
+	case "email":
+		return s.getByEmail(value.(string))
+	default:
+		return nil, ErrUnknownIndex
 	}
+}
 
-	return u, nil
+func (s *UserStoreMySQL) getByID(id int64) (*User, error) {
+	return s.fetchOne("SELECT * FROM users WHERE id = ? LIMIT 1", id)
+}
+
+func (s *UserStoreMySQL) getByUsername(username string) (*User, error) {
+	return s.fetchOne("SELECT * FROM users WHERE username = ? LIMIT 1", username)
+}
+
+func (s *UserStoreMySQL) getByEmail(email string) (*User, error) {
+	return s.fetchOne("SELECT * FROM users WHERE email = ? LIMIT 1", email)
 }

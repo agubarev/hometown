@@ -3,8 +3,9 @@ package util_test
 import (
 	"testing"
 
+	"bitbucket.org/maviance-development/resource-manager-service/util"
+
 	"github.com/stretchr/testify/assert"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 func TestNewULID(t *testing.T) {

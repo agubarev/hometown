@@ -2,52 +2,66 @@ package usermanager
 
 import (
 	"fmt"
-	"net"
+	"log"
 	"strings"
 	"time"
 
+	"github.com/agubarev/hometown/util"
 	"github.com/asaskevich/govalidator"
+	"github.com/go-sql-driver/mysql"
 	"github.com/oklog/ulid"
-	"gitlab.com/agubarev/hometown/util"
 )
 
 // User represents a user account, a unique entity
 // TODO: workout the length restrictions
 type User struct {
-	ID ulid.ULID `json:"id"`
+	ID   int64     `json:"id" db:"id"`
+	ULID ulid.ULID `json:"uid" db:"uid"`
 
 	// Username and Email are the primary IDs associated with the user account
-	Username string `json:"username" valid:"required,alphanum"`
-	Email    string `json:"email" valid:"required,email"`
+	Username string `json:"username" valid:"required,alphanum" db:"username"`
+	Email    string `json:"email" valid:"required,email" db:"email"`
+
+	// project-specific fields
+	UserReference             string        `json:"user_reference" db:"user_ref"`
+	IsPasswordChangeRequested bool          `json:"is_pass_change_req" db:"is_pass_change_req"`
+	ReadingUnitID             int64         `json:"reading_unit_id" db:"ru_id"`
+	ReadingUnit               interface{}   `json:"reading_unit" db:"-"`
+	ReadingCenters            []interface{} `json:"reading_centers" db:"-"`
+	Devices                   []interface{} `json:"devices" db:"-"`
 
 	// the name, birthdate, country
-	Firstname  string    `json:"firstname" valid:"optional,utfletter"`
-	Lastname   string    `json:"lastname" valid:"optional,utfletter"`
-	Middlename string    `json:"middlename" valid:"optional,utfletter"`
-	Birthdate  time.Time `json:"birthdate,omitempty"`
-	Phone      string    `json:"phone" valid:"optional,dialstring"`
+	Firstname  string `json:"firstname" valid:"optional,utfletter" db:"firstname"`
+	Lastname   string `json:"lastname" valid:"optional,utfletter" db:"lastname"`
+	Middlename string `json:"middlename,omitempty" valid:"optional,utfletter" db:"middlename"`
+	Phone      string `json:"phone" valid:"optional,dialstring" db:"phone"`
+	Language   string `json:"language" valid:"optional,utfletter" db:"language"`
 
 	// account confirmation
-	EmailConfirmedAt time.Time `json:"email_confirmed_at"`
-	PhoneConfirmedAt time.Time `json:"phone_confirmed_at"`
+	EmailConfirmedAt mysql.NullTime `json:"email_confirmed_at,omitempty" db:"-"`
+	PhoneConfirmedAt mysql.NullTime `json:"phone_confirmed_at,omitempty" db:"-"`
 
-	// general timestamps
-	CreatedAt   time.Time `json:"t_cr"`
-	UpdatedAt   time.Time `json:"t_up,omitempty"`
-	ConfirmedAt time.Time `json:"t_co,omitempty"`
+	// timestamps
+	CreatedAt   time.Time      `json:"t_cr" db:"created_at"`
+	UpdatedAt   mysql.NullTime `json:"t_up,omitempty" db:"updated_at"`
+	ConfirmedAt mysql.NullTime `json:"t_co,omitempty" db:"confirmed_at"`
+
+	// metadata
+	CreatedByID int64 `json:"created_by_id" db:"created_by_id"`
+	UpdatedByID int64 `json:"updated_by_id" db:"updated_by_id"`
 
 	// the most recent authentication information
-	LoginAt       time.Time  `json:"login_at,omitempty"`
-	LoginIP       net.IPAddr `json:"login_ip,omitempty"`
-	LoginFailedAt time.Time  `json:"login_failed_at,omitempty"`
-	LoginFailedIP net.IPAddr `json:"login_failed_ip,omitempty"`
-	LoginAttempts int        `json:"login_attempts,omitempty"`
+	LastLoginAt       mysql.NullTime `json:"last_login_at,omitempty" db:"last_login_at"`
+	LastLoginIP       string         `json:"last_login_ip,omitempty" db:"last_login_ip"`
+	LastLoginFailedAt mysql.NullTime `json:"last_login_failed_at,omitempty" db:"last_login_failed_at"`
+	LastLoginFailedIP string         `json:"last_login_failed_ip,omitempty" db:"last_login_failed_ip"`
+	LastLoginAttempts uint8          `json:"last_login_attempts,omitempty" db:"last_login_attempts"`
 
 	// account suspension
-	IsSuspended         bool      `json:"is_suspended"`
-	SuspendedAt         time.Time `json:"suspended_at,omitempty"`
-	SuspensionExpiresAt time.Time `json:"suspension_expires_at,omitempty"`
-	SuspensionReason    string    `json:"suspension_reason,omitempty"`
+	IsSuspended         bool           `json:"is_suspended,omitempty" db:"is_suspended"`
+	SuspendedAt         mysql.NullTime `json:"suspended_at,omitempty" db:"suspended_at"`
+	SuspensionExpiresAt mysql.NullTime `json:"suspension_expires_at,omitempty" db:"suspension_expires_at"`
+	SuspensionReason    string         `json:"suspension_reason,omitempty" db:"suspension_reason"`
 
 	// corresponding container for easier backtracking
 	container *UserContainer
@@ -58,12 +72,7 @@ type User struct {
 
 // StringInfo returns short info about the user
 func (u *User) StringInfo() string {
-	return fmt.Sprintf("user(%s:%s)", u.ID, u.Username)
-}
-
-// StringID returns string representation of ULID
-func (u *User) StringID() string {
-	return u.ID.String()
+	return fmt.Sprintf("user(%d:%s)", u.ID, u.Username)
 }
 
 // Container returns the corresponding user container to
@@ -89,7 +98,8 @@ func (u User) Fullname(withMiddlename bool) string {
 // TODO: consider changing userinfo value type to interface{} to allow variable data
 func NewUser(username string, email string, userinfo map[string]string) (*User, error) {
 	u := &User{
-		ID:        util.NewULID(),
+		ID:        0,
+		ULID:      util.NewULID(),
 		Username:  username,
 		Email:     email,
 		CreatedAt: time.Now(),
@@ -100,6 +110,7 @@ func NewUser(username string, email string, userinfo map[string]string) (*User, 
 	// processing given userinfo
 	for k, v := range userinfo {
 		k = strings.ToLower(k)
+		v = strings.TrimSpace(v)
 
 		// whitelist
 		switch k {
@@ -109,11 +120,19 @@ func NewUser(username string, email string, userinfo map[string]string) (*User, 
 			u.Lastname = v
 		case "middlename":
 			u.Middlename = v
+		case "language":
+			u.Language = v
 		default:
 			return nil, fmt.Errorf("unrecognized user info field: %s", k)
 		}
 	}
 
+	// setting defaults if they're not specified
+	if u.Language == "" {
+		u.Language = "en"
+	}
+
+	// final pre-initialization validation
 	if err := u.Validate(); err != nil {
 		return nil, err
 	}
@@ -127,8 +146,14 @@ func (u *User) Validate() error {
 		return ErrNilUser
 	}
 
-	if ok, err := govalidator.ValidateStruct(u); !ok || err != nil {
+	ok, err := govalidator.ValidateStruct(u)
+	if err != nil {
 		return fmt.Errorf("%s validation failed: %s", u.StringInfo(), err)
+	}
+
+	if !ok {
+		// haven't figured why govalidator sometimes returns
+		// false and no error
 	}
 
 	return nil
@@ -136,16 +161,22 @@ func (u *User) Validate() error {
 
 // HasPassword tests whether this user has password
 func (u *User) HasPassword() bool {
-	c, err := u.Container()
+	userContainer, err := u.Container()
 	if err != nil {
 		return false
 	}
 
-	if err = c.Validate(); err != nil {
+	userManager, err := userContainer.Manager()
+	if err != nil {
 		return false
 	}
 
-	if _, err = c.passwords.Get(u); err != nil {
+	passwordManager, err := userManager.PasswordManager()
+	if err != nil {
+		return false
+	}
+
+	if _, err = passwordManager.Get(u); err != nil {
 		return false
 	}
 
@@ -158,12 +189,20 @@ func (u *User) Save() error {
 		return ErrNilUser
 	}
 
+	// first, obtaining the container in which this user resides
 	c, err := u.Container()
 	if err != nil {
 		return err
 	}
 
-	err = c.Save(u)
+	// second, obtaining the user manager to which this container belongs
+	m, err := c.Manager()
+	if err != nil {
+		return err
+	}
+
+	// saving through the user manager
+	err = m.Save(u)
 	if err != nil {
 		return err
 	}
@@ -171,8 +210,8 @@ func (u *User) Save() error {
 	return nil
 }
 
-// TrackGroup tracking which groups this user is a member of
-func (u *User) TrackGroup(g *Group) error {
+// LinkGroup tracking which groups this user is a member of
+func (u *User) LinkGroup(g *Group) error {
 	if g == nil {
 		return ErrNilGroup
 	}
@@ -188,8 +227,8 @@ func (u *User) TrackGroup(g *Group) error {
 	return nil
 }
 
-// UntrackGroup removing group from the tracklist
-func (u *User) UntrackGroup(id ulid.ULID) error {
+// UnlinkGroup removing group from the tracklist
+func (u *User) UnlinkGroup(g *Group) error {
 	if u.groups == nil {
 		// initializing just in case
 		u.groups = make([]*Group, 0)
@@ -198,8 +237,8 @@ func (u *User) UntrackGroup(id ulid.ULID) error {
 	}
 
 	// removing group from the tracklist
-	for i, g := range u.groups {
-		if g.ID == id {
+	for i, ug := range u.groups {
+		if ug.ID == g.ID {
 			u.groups = append(u.groups[0:i], u.groups[i+1:]...)
 			break
 		}
@@ -209,10 +248,14 @@ func (u *User) UntrackGroup(id ulid.ULID) error {
 }
 
 // Groups to which the user belongs
-func (u *User) Groups(kind GroupKind) []*Group {
+func (u *User) Groups(mask GroupKind) []*Group {
+	if u.groups == nil {
+		u.groups = make([]*Group, 0)
+	}
+
 	groups := make([]*Group, 0)
 	for _, g := range u.groups {
-		if g.Kind == kind {
+		if (g.Kind | mask) == mask {
 			groups = append(groups, g)
 		}
 	}
@@ -220,43 +263,33 @@ func (u *User) Groups(kind GroupKind) []*Group {
 	return groups
 }
 
-// TrackContainer links user to container for easier backtracking
-func (u *User) TrackContainer(c *UserContainer) error {
+// LinkContainer links user to container for easier backtracking
+func (u *User) LinkContainer(c *UserContainer) error {
 	u.container = c
 
 	return nil
 }
 
 // IsRegisteredAndStored returns true if the user is both:
-// 1. registered by user container
-// 2. stored to the database
+// 1. registered within a user container
+// 2. persisted to the store
 func (u *User) IsRegisteredAndStored() (bool, error) {
 	c, err := u.Container()
 	if err != nil {
+		// for convenience, the user is allowed to not be inside a container
+		if err == ErrNilUserContainer {
+			log.Printf("IsRegisteredAndStored(%d:%s): %s", u.ID, u.Username, err)
+			return false, nil
+		}
+
 		return false, fmt.Errorf("IsRegisteredAndStored(): failed to obtain user container: %s", err)
 	}
 
-	// checking whether the user is registered during runtime
-	if _, err = c.Get(u.ID); err != nil {
-		if err == ErrUserNotFound {
-			// user isn't registered, normal return
-			return false, nil
-		}
-
-		// unexpected error
-		return false, fmt.Errorf("IsRegisteredAndStored(): %s", err)
+	// obtaining the user manager
+	m, err := c.Manager()
+	if err != nil {
+		return false, err
 	}
 
-	// checking container's store
-	if _, err = c.store.Get(u.ID); err != nil {
-		if err == ErrUserNotFound {
-			// user isn't in the store yet, normal return
-			return false, nil
-		}
-
-		// unexpected error
-		return false, fmt.Errorf("IsRegisteredAndStored(): %s", err)
-	}
-
-	return true, nil
+	return m.IsRegisteredAndStored(u)
 }
