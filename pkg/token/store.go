@@ -1,0 +1,91 @@
+package token
+
+import (
+	"context"
+	"database/sql"
+
+	"github.com/agubarev/hometown/internal/core"
+	"github.com/gocraft/dbr/v2"
+)
+
+// TokenStore describes the token store contract interface
+type TokenStore interface {
+	Put(ctx context.Context, t *Token) error
+	Get(ctx context.Context, token string) (*Token, error)
+	DeleteByToken(ctx context.Context, token string) error
+}
+
+type tokenStore struct {
+	db *dbr.Connection
+}
+
+// NewTokenStore initializes and returns a new default token store
+func NewTokenStore(db *dbr.Connection) (TokenStore, error) {
+	if db == nil {
+		return nil, core.ErrNilDB
+	}
+
+	return &tokenStore{db}, nil
+}
+
+// UpdateAccessPolicy puts token into a store
+func (s *tokenStore) Put(ctx context.Context, t *Token) error {
+	if t == nil {
+		return core.ErrNilToken
+	}
+
+	_, err := s.db.NewSession(nil).
+		InsertInto("token").
+		Record(t).
+		ExecContext(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// Get retrieves token from a store
+func (s *tokenStore) Get(ctx context.Context, token string) (*Token, error) {
+	t := new(Token)
+
+	err := s.db.NewSession(nil).
+		SelectBySql("SELECT * FROM tokens WHERE token = ? LIMIT 1", token).
+		LoadOneContext(ctx, t)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, core.ErrTokenNotFound
+		}
+
+		return nil, err
+	}
+
+	return t, nil
+}
+
+// Delete deletes token from a store
+func (s *tokenStore) DeleteByToken(ctx context.Context, token string) error {
+	result, err := s.db.NewSession(nil).
+		DeleteFrom("token").
+		Where("token = ?", token).
+		ExecContext(ctx)
+
+	if err != nil {
+		return err
+	}
+
+	// checking whether anything was updated at all
+	ra, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	// if no rows were affected then returning this as a non-critical error
+	if ra == 0 {
+		return core.ErrNothingChanged
+	}
+
+	return nil
+}

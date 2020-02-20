@@ -6,7 +6,7 @@ import (
 	"io"
 	"net/http"
 
-	"gitlab.com/agubarev/hometown/usermanager"
+	"github.com/agubarev/hometown/internal/core"
 )
 
 type contextKey string
@@ -41,7 +41,7 @@ func MiddlewareAuth(next http.Handler) http.Handler {
 		}
 
 		// passing just the test user for now
-		user, err := usermanager.NewUser("testauthuser", "testme@example.com")
+		user, err := user.UserNew("testauthuser", "testme@example.com")
 		if err != nil {
 			http.Error(w, "failed to initialize test user", http.StatusInternalServerError)
 			return

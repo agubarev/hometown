@@ -14,7 +14,7 @@
 
 package main
 
-import "gitlab.com/agubarev/hometown/cmd"
+import "github.com/agubarev/hometown/cmd"
 
 func main() {
 	cmd.Execute()
