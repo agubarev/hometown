@@ -9,7 +9,7 @@ var (
 	ErrRelationNotFound   = errors.New("relation not found")
 	ErrUserNotFound       = errors.New("user not found")
 	ErrEmailNotFound      = errors.New("email not found")
-	ErrInvalidID          = errors.New("invalid GroupMemberID")
+	ErrInvalidID          = errors.New("invalid ObjectID")
 	ErrNilDominion        = errors.New("dominion is nil")
 	ErrDuplicateDomain    = errors.New("found a duplicate domain")
 	ErrNilDomain          = errors.New("domain is nil")

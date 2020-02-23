@@ -42,7 +42,7 @@ type Phone struct {
 }
 
 func (p *Phone) hashKey() {
-	// panic if GroupMemberID is zero or a name is empty
+	// panic if ObjectID is zero or a name is empty
 	if p.UserID == 0 || p.Number[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -54,7 +54,7 @@ func (p *Phone) hashKey() {
 	key.WriteString("phone")
 	key.Write(p.Number[:])
 
-	// adding user GroupMemberID to the key
+	// adding user ObjectID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash phone key"))
 	}

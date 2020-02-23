@@ -33,12 +33,12 @@ type Metadata struct {
 
 	// timestamps
 	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
-	CreatedByID int          `db:"created_by_id" json:"created_by_id"`
+	CreatedByID uint32       `db:"created_by_id" json:"created_by_id"`
 	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
-	UpdatedByID int          `db:"updated_by_id" json:"updated_by_id"`
+	UpdatedByID uint32       `db:"updated_by_id" json:"updated_by_id"`
 	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
 	DeletedAt   dbr.NullTime `db:"deleted_at" json:"deleted_at"`
-	DeletedByID int          `db:"deleted_by_id" json:"deleted_by_id"`
+	DeletedByID uint32       `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
 	LastLoginAt       dbr.NullTime `db:"last_login_at" json:"last_login_at"`
@@ -57,7 +57,7 @@ type Metadata struct {
 // User represents certain users which are custom
 // and are handled by the customer
 type User struct {
-	ID   int       `db:"id" json:"id"`
+	ID   uint32    `db:"id" json:"id"`
 	ULID ulid.ULID `db:"ulid" json:"ulid"`
 
 	Essential
@@ -91,7 +91,7 @@ func (u *User) calculateChecksum() uint64 {
 }
 
 func (u *User) hashKey() {
-	// panic if GroupMemberID is zero or a name is empty
+	// panic if ObjectID is zero or a name is empty
 	if u.ID == 0 || u.Username[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -103,7 +103,7 @@ func (u *User) hashKey() {
 	key.WriteString("user")
 	key.Write(u.Username[:])
 
-	// adding GroupMemberID to the key
+	// adding ObjectID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(u.ID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash user key"))
 	}

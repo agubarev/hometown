@@ -49,7 +49,7 @@ func (s *MySQLStore) CreateEmail(ctx context.Context, e *Email) (_ *Email, err e
 		return nil, ErrNilEmail
 	}
 
-	// if GroupMemberID is not 0, then it's not considered as new
+	// if ObjectID is not 0, then it's not considered as new
 	if e.UserID != 0 {
 		return nil, ErrZeroUserID
 	}

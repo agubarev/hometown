@@ -9,7 +9,7 @@ import (
 )
 
 // Store interface
-// NOTE: ownerID represents the GroupMemberID of whoever owns a given password
+// NOTE: ownerID represents the ObjectID of whoever owns a given password
 type Store interface {
 	Upsert(ctx context.Context, p *Password) error
 	Update(ctx context.Context, k Kind, ownerID int, newpass []byte) error
@@ -28,7 +28,7 @@ func NewPasswordStore(db *dbr.Connection) (Store, error) {
 }
 
 // Upsert stores password
-// GroupMemberID must be equal to the user's GroupMemberID
+// ObjectID must be equal to the user's ObjectID
 func (s *passwordStore) Upsert(ctx context.Context, p *Password) (err error) {
 	if p == nil {
 		return ErrNilPassword
@@ -48,7 +48,7 @@ func (s *passwordStore) Upsert(ctx context.Context, p *Password) (err error) {
 	return nil
 }
 
-// UpdateAccessPolicy updates an existing password record
+// UpdatePolicy updates an existing password record
 func (s *passwordStore) Update(ctx context.Context, k Kind, ownerID int, newpass []byte) (err error) {
 	if len(newpass) == 0 {
 		return ErrEmptyPassword
@@ -89,7 +89,7 @@ func (s *passwordStore) Get(ctx context.Context, k Kind, userID int) (p *Passwor
 	return p, nil
 }
 
-// Delete deletes a stored password
+// DeletePolicy deletes a stored password
 func (s *passwordStore) Delete(ctx context.Context, k Kind, ownerID int) (err error) {
 	_, err = s.db.NewSession(nil).DeleteFrom("password").Where("kind = ? AND id = ?", k, ownerID).ExecContext(ctx)
 	if err != nil {

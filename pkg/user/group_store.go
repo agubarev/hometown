@@ -1,4 +1,4 @@
-package group
+package user
 
 import (
 	"context"
@@ -11,55 +11,53 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Store describes a storage contract for groups specifically
-type Store interface {
-	Put(g *Group) (*Group, error)
-	PutRelation(groupID uint32, userID uint32) error
-	FetchByID(ctx context.Context, groupID uint32) (*Group, error)
-	FetchAllGroups(ctx context.Context) ([]*Group, error)
+// GroupStore describes a storage contract for groups specifically
+type GroupStore interface {
+	Put(ctx context.Context, g Group) (Group, error)
+	PutRelation(ctx context.Context, groupID uint32, userID uint32) error
+	FetchByID(ctx context.Context, groupID uint32) (Group, error)
+	FetchAllGroups(ctx context.Context) ([]Group, error)
 	FetchAllRelations(ctx context.Context) (map[uint32][]uint32, error)
 	HasRelation(ctx context.Context, groupID uint32, userID uint32) (bool, error)
 	DeleteByID(ctx context.Context, groupID uint32) error
-	DeleteRelation(groupID uint32, userID uint32) error
+	DeleteRelation(ctx context.Context, groupID uint32, userID uint32) error
 }
 
-// MySQLStore is the default group store implementation
-type MySQLStore struct {
+// GroupMySQLStore is the default group store implementation
+type GroupMySQLStore struct {
 	db *dbr.Connection
 }
 
 // NewGroupStore returns a group store with mysql used as a backend
-func NewGroupStore(db *dbr.Connection) (Store, error) {
+func NewGroupStore(db *dbr.Connection) (GroupStore, error) {
 	if db == nil {
 		return nil, ErrNilDatabase
 	}
 
-	return &MySQLStore{db}, nil
+	return &GroupMySQLStore{db}, nil
 }
 
 //? BEGIN ->>>----------------------------------------------------------------
 //? unexported utility functions
 
-func (s *MySQLStore) get(ctx context.Context, q string, args ...interface{}) (*Group, error) {
-	g := new(Group)
-
-	err := s.db.NewSession(nil).SelectBySql(q, args).LoadOneContext(ctx, g)
+func (s *GroupMySQLStore) get(ctx context.Context, q string, args ...interface{}) (g Group, err error) {
+	err = s.db.NewSession(nil).
+		SelectBySql(q, args).
+		LoadOneContext(ctx, &g)
 
 	if err != nil {
 		if err == dbr.ErrNotFound {
-			return nil, ErrGroupNotFound
+			return g, ErrGroupNotFound
 		}
 
-		return nil, err
+		return g, err
 	}
 
 	return g, nil
 }
 
-func (s *MySQLStore) getMany(ctx context.Context, q string, args ...interface{}) ([]*Group, error) {
-	gs := make([]*Group, 0)
-
-	if _, err := s.db.NewSession(nil).SelectBySql(q, args).LoadContext(ctx, gs); err != nil {
+func (s *GroupMySQLStore) getMany(ctx context.Context, q string, args ...interface{}) (gs []Group, err error) {
+	if _, err := s.db.NewSession(nil).SelectBySql(q, args).LoadContext(ctx, &gs); err != nil {
 		return nil, err
 	}
 
@@ -69,54 +67,49 @@ func (s *MySQLStore) getMany(ctx context.Context, q string, args ...interface{})
 //? unexported utility functions
 //? END ---<<<----------------------------------------------------------------
 
-// UpdateAccessPolicy storing group
-func (s *MySQLStore) Put(g *Group) (*Group, error) {
-	if g == nil {
-		return nil, ErrNilGroup
-	}
-
-	// if an object has GroupMemberID other than 0, then it's considered
+// UpdatePolicy storing group
+func (s *GroupMySQLStore) Put(ctx context.Context, g Group) (Group, error) {
+	// if an object has ObjectID other than 0, then it's considered
 	// as being already created, thus requiring an update
 	if g.ID != 0 {
-		return s.Update(context.TODO(), g)
+		return s.Update(ctx, g)
 	}
 
-	return s.Create(context.TODO(), g)
+	return s.Create(ctx, g)
 }
 
 // Upsert creates a new database record
-func (s *MySQLStore) Create(ctx context.Context, g *Group) (*Group, error) {
-	// if GroupMemberID is not 0, then it's not considered as new
+func (s *GroupMySQLStore) Create(ctx context.Context, g Group) (Group, error) {
+	// if ObjectID is not 0, then it's not considered as new
 	if g.ID != 0 {
-		return nil, ErrNonZeroID
+		return g, ErrNonZeroID
 	}
 
-	sess := s.db.NewSession(nil)
-
-	_, err := sess.InsertInto("group").Record(&g).ExecContext(ctx)
+	_, err := s.db.NewSession(nil).
+		InsertInto("group").
+		Record(&g).
+		ExecContext(ctx)
 
 	// error handling
 	if err != nil {
 		switch err := err.(*mysql.MySQLError); err.Number {
 		case 1062:
-			return nil, ErrDuplicateGroup
+			return g, ErrDuplicateGroup
 		}
 	}
 
 	if err != nil {
-		return nil, err
+		return g, err
 	}
 
 	return g, nil
 }
 
-// UpdateAccessPolicy updates an existing group
-func (s *MySQLStore) Update(ctx context.Context, g *Group) (*Group, error) {
+// UpdatePolicy updates an existing group
+func (s *GroupMySQLStore) Update(ctx context.Context, g Group) (Group, error) {
 	if g.ID == 0 {
-		return nil, ErrZeroID
+		return g, ErrZeroID
 	}
-
-	sess := s.db.NewSession(nil)
 
 	updates := map[string]interface{}{
 		"key":         g.Key,
@@ -125,37 +118,37 @@ func (s *MySQLStore) Update(ctx context.Context, g *Group) (*Group, error) {
 	}
 
 	// just executing query but not refetching the updated version
-	res, err := sess.Update("group").SetMap(updates).Where("id = ?", g.ID).ExecContext(ctx)
+	res, err := s.db.NewSession(nil).Update("group").SetMap(updates).Where("id = ?", g.ID).ExecContext(ctx)
 	if err != nil {
-		return nil, err
+		return g, err
 	}
 
 	// checking whether anything was updated at all
 	ra, err := res.RowsAffected()
 	if err != nil {
-		return nil, err
+		return g, err
 	}
 
 	// if no rows were affected then returning this as a non-critical error
 	if ra == 0 {
-		return nil, ErrNothingChanged
+		return g, ErrNothingChanged
 	}
 
 	return g, nil
 }
 
-// UserByID retrieving a group by GroupMemberID
-func (s *MySQLStore) FetchByID(ctx context.Context, id uint32) (*Group, error) {
+// UserByID retrieving a group by ObjectID
+func (s *GroupMySQLStore) FetchByID(ctx context.Context, id uint32) (Group, error) {
 	return s.get(ctx, "SELECT * FROM `group` WHERE id = ? LIMIT 1", id)
 }
 
 // FetchAllGroups retrieving all groups
-func (s *MySQLStore) FetchAllGroups(ctx context.Context) ([]*Group, error) {
+func (s *GroupMySQLStore) FetchAllGroups(ctx context.Context) ([]Group, error) {
 	return s.getMany(ctx, "SELECT * FROM `group`")
 }
 
-// Delete from the store by group GroupMemberID
-func (s *MySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
+// DeletePolicy from the store by group ObjectID
+func (s *GroupMySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
 	g, err := s.FetchByID(ctx, id)
 	if err != nil {
 		return err
@@ -178,7 +171,7 @@ func (s *MySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
 		if p := recover(); p != nil {
 			err = p.(error)
 
-			log.Printf("Store.Delete(): recovering from panic, transaction rollback: %s", p)
+			log.Printf("GroupStore.DeletePolicy(): recovering from panic, transaction rollback: %s", p)
 
 			if xerr := tx.Rollback(); xerr != nil {
 				panic(errors.Wrapf(err, "rollback failed: %s", xerr))
@@ -194,8 +187,9 @@ func (s *MySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
 }
 
 // PutRelation store a relation flagging that user belongs to a group
-func (s *MySQLStore) PutRelation(groupID uint32, userID uint32) error {
-	_, err := s.db.Exec(
+func (s *GroupMySQLStore) PutRelation(ctx context.Context, groupID uint32, userID uint32) (err error) {
+	_, err = s.db.ExecContext(
+		ctx,
 		"INSERT IGNORE INTO `group_users`(group_id, user_id) VALUES(?, ?)",
 		groupID,
 		userID,
@@ -216,13 +210,11 @@ func (s *MySQLStore) PutRelation(groupID uint32, userID uint32) error {
 
 // FetchAllRelations retrieving all relations
 // NOTE: a map of users IDs -> a slice of group IDs
-func (s *MySQLStore) FetchAllRelations(ctx context.Context) (_ map[uint32][]uint32, err error) {
-	relations := make(map[uint32][]uint32)
-
-	sess := s.db.NewSession(nil)
+func (s *GroupMySQLStore) FetchAllRelations(ctx context.Context) (relations map[uint32][]uint32, err error) {
+	relations = make(map[uint32][]uint32, 0)
 
 	// querying for just one column (user_id)
-	rows, err := sess.QueryContext(ctx, "SELECT group_id, user_id FROM `group_users`")
+	rows, err := s.db.NewSession(nil).QueryContext(ctx, "SELECT group_id, user_id FROM `group_users`")
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, ErrRelationNotFound
@@ -249,7 +241,7 @@ func (s *MySQLStore) FetchAllRelations(ctx context.Context) (_ map[uint32][]uint
 			relations[uid] = make([]uint32, 0)
 		}
 
-		// adding user GroupMemberID to the resulting slice
+		// adding user ObjectID to the resulting slice
 		relations[uid] = append(relations[uid], gid)
 	}
 
@@ -257,7 +249,7 @@ func (s *MySQLStore) FetchAllRelations(ctx context.Context) (_ map[uint32][]uint
 }
 
 // GetGroupRelations retrieving all group-user relations
-func (s *MySQLStore) GetGroupRelations(ctx context.Context, id uint32) ([]uint32, error) {
+func (s *GroupMySQLStore) GetGroupRelations(ctx context.Context, id uint32) ([]uint32, error) {
 	relations := make([]uint32, 0)
 
 	sess := s.db.NewSession(nil)
@@ -286,7 +278,7 @@ func (s *MySQLStore) GetGroupRelations(ctx context.Context, id uint32) ([]uint32
 			return nil, err
 		}
 
-		// adding user GroupMemberID to the resulting slice
+		// adding user ObjectID to the resulting slice
 		relations = append(relations, userID)
 	}
 
@@ -294,7 +286,7 @@ func (s *MySQLStore) GetGroupRelations(ctx context.Context, id uint32) ([]uint32
 }
 
 // HasRelation checks whether group-user relation exists
-func (s *MySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uint32) (bool, error) {
+func (s *GroupMySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uint32) (bool, error) {
 	sess := s.db.NewSession(nil)
 
 	// querying for just one column (user_id)
@@ -341,8 +333,9 @@ func (s *MySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uin
 }
 
 // DeleteRelation deletes a group-user relation
-func (s *MySQLStore) DeleteRelation(groupID uint32, userID uint32) error {
-	res, err := s.db.Exec(
+func (s *GroupMySQLStore) DeleteRelation(ctx context.Context, groupID uint32, userID uint32) error {
+	res, err := s.db.ExecContext(
+		ctx,
 		"DELETE FROM `group_users` WHERE group_id = ? AND user_id = ? LIMIT 1",
 		groupID,
 		userID,

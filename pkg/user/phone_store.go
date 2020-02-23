@@ -49,7 +49,7 @@ func (s *MySQLStore) CreatePhone(ctx context.Context, p *Phone) (_ *Phone, err e
 		return nil, ErrNilPhone
 	}
 
-	// if GroupMemberID is not 0, then it's not considered as new
+	// if ObjectID is not 0, then it's not considered as new
 	if p.UserID != 0 {
 		return nil, ErrZeroUserID
 	}

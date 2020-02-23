@@ -1,10 +1,11 @@
-package group_test
+package user_test
 
 import (
 	"testing"
 
 	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/user"
 )
 
 func TestManager_Create(t *testing.T) {
@@ -15,23 +16,23 @@ func TestManager_Create(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(gm)
 
-	g1, err := gm.Create(group.GKGroup, "group_1", "Group 1", nil)
+	g1, err := gm.Create(user.GKGroup, "group_1", "Group 1", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(group.GKGroup, "group_2", "Group 2", nil)
+	g2, err := gm.Create(user.GKGroup, "group_2", "Group 2", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(group.GKGroup, "group_3", "Group 3 (sub-group of Group 2)", g2)
+	g3, err := gm.Create(user.GKGroup, "group_3", "Group 3 (sub-group of Group 2)", g2)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(group.GKRole, "role_1", "Role 1", nil)
+	r1, err := gm.Create(user.GKRole, "role_1", "Role 1", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(group.GKRole, "role_2", "Role 2", nil)
+	r2, err := gm.Create(user.GKRole, "role_2", "Role 2", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 

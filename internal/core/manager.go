@@ -3,27 +3,19 @@ package core
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"time"
 
-	"github.com/agubarev/hometown/pkg/accesspolicy"
-	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
-	"github.com/agubarev/hometown/pkg/util"
-	"github.com/gocraft/dbr/v2"
-	"github.com/pkg/errors"
-	"github.com/r3labs/diff"
 	"go.uber.org/zap"
 )
 
 // userManager represents an aggregate of Hometown's core functionality
 type Manager struct {
 	users     *user.Manager
-	groups    *group.Manager
+	groups    *user.GroupManager
 	tokens    *token.Manager
-	policies  *accesspolicy.Manager
+	policies  *user.AccessPolicyManager
 	passwords password.Manager
 }
 
@@ -56,7 +48,7 @@ func (m *Manager) Init(ctx context.Context) error {
 	for _, u := range users {
 		// initializing necessary fields after fetching
 		if u.groups == nil {
-			u.groups = make([]*group.Group, 0)
+			u.groups = make([]*user.Group, 0)
 		}
 
 		// adding user to container
@@ -129,7 +121,7 @@ func (m *Manager) PasswordManager() (password.Manager, error) {
 }
 
 // userManager returns a group manager object
-func (m *Manager) GroupManager() (*group.Manager, error) {
+func (m *Manager) GroupManager() (*user.GroupManager, error) {
 	if m.groups == nil {
 		return nil, ErrNilGroupManager
 	}
@@ -211,7 +203,7 @@ func (m *Manager) setupDefaultGroups() error {
 	}
 
 	// regular user
-	userRole, err := group.NewGroup(group.GKRole, "user", "Regular User", nil)
+	userRole, err := user.NewGroup(user.GKRole, "user", "Regular User", nil)
 	if err != nil {
 		return fmt.Errorf("failed to create regular user role: %s", err)
 	}
@@ -222,7 +214,7 @@ func (m *Manager) setupDefaultGroups() error {
 	}
 
 	// manager
-	managerRole, err := group.NewGroup(group.GKRole, "manager", "userManager", userRole)
+	managerRole, err := user.NewGroup(user.GKRole, "manager", "userManager", userRole)
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
@@ -233,7 +225,7 @@ func (m *Manager) setupDefaultGroups() error {
 	}
 
 	// superuser
-	superuserRole, err := group.NewGroup(group.GKRole, "superuser", "Super User", managerRole)
+	superuserRole, err := user.NewGroup(user.GKRole, "superuser", "Super User", managerRole)
 	if err != nil {
 		return fmt.Errorf("failed to create superuser role: %s", err)
 	}
@@ -247,7 +239,7 @@ func (m *Manager) setupDefaultGroups() error {
 }
 
 // SetGroupManager assigns a group manager
-func (m *Manager) SetGroupManager(gm *group.Manager) error {
+func (m *Manager) SetGroupManager(gm *user.GroupManager) error {
 	if gm == nil {
 		return ErrNilGroupManager
 	}
@@ -279,7 +271,7 @@ func (m *Manager) SetTokenManager(tm *token.Manager) error {
 }
 
 // SetAccessPolicyManager assigns access policy manager
-func (m *Manager) SetAccessPolicyManager(c *accesspolicy.Manager) error {
+func (m *Manager) SetAccessPolicyManager(c *user.AccessPolicyManager) error {
 	if c == nil {
 		return ErrNilAccessPolicyContainer
 	}

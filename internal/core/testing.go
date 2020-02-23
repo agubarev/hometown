@@ -1,7 +1,6 @@
 package core
 
 import (
-	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/password"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
@@ -9,13 +8,13 @@ import (
 )
 
 // NewGroupContainerForTesting initializes a group container for testing
-func NewGroupContainerForTesting(db *dbr.Connection) (*group.Manager, error) {
-	s, err := group.NewGroupStore(db)
+func NewGroupContainerForTesting(db *dbr.Connection) (*user.GroupManager, error) {
+	s, err := user.NewGroupStore(db)
 	if err != nil {
 		return nil, err
 	}
 
-	return group.NewGroupManager(s)
+	return user.NewGroupManager(s)
 }
 
 // NewUserManagerForTesting returns a fully initialized user manager for testing

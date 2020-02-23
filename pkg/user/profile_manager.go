@@ -83,7 +83,7 @@ func (m *Manager) BulkCreateProfile(ctx context.Context, newProfiles []*Profile)
 	return profiles, nil
 }
 
-// GetProfileByID returns a profile if found by GroupMemberID
+// GetProfileByID returns a profile if found by ObjectID
 func (m *Manager) GetProfileByID(ctx context.Context, id int) (profile *Profile, err error) {
 	if id == 0 {
 		return nil, ErrProfileNotFound

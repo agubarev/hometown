@@ -14,7 +14,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
@@ -183,7 +182,7 @@ type Authenticator struct {
 	users      *user.Manager
 	passwords  password.Manager
 	tokens     *token.Manager
-	groups     *group.Manager
+	groups     *user.GroupManager
 	backend    Backend
 	privateKey *rsa.PrivateKey
 	logger     *zap.Logger
@@ -263,7 +262,7 @@ func (a *Authenticator) UserManager() *user.Manager {
 	return a.users
 }
 
-func (a *Authenticator) GroupManager() *group.Manager {
+func (a *Authenticator) GroupManager() *user.GroupManager {
 	if a.groups == nil {
 		panic(ErrNilGroupManager)
 	}
@@ -484,11 +483,11 @@ func (a *Authenticator) GenerateAccessToken(u *user.User) (string, string, error
 	gs := make([]string, 0)
 	rs := make([]string, 0)
 
-	for _, g := range gm.GroupsByUserID(group.GKAll) {
+	for _, g := range gm.GroupsByUserID(user.GKAll) {
 		switch g.Kind {
-		case group.GKRole:
+		case user.GKRole:
 			rs = append(rs, g.Key)
-		case group.GKGroup:
+		case user.GKGroup:
 			gs = append(gs, g.Key)
 		}
 	}
@@ -638,7 +637,7 @@ func (a *Authenticator) UserFromToken(tok string) (*user.User, error) {
 	return a.users.GetByKey("id", claims.UserID)
 }
 
-// RevokeAccessToken adds a given token GroupMemberID to the blacklist for the duration
+// RevokeAccessToken adds a given token ObjectID to the blacklist for the duration
 // of an access token expiration time + 1 minute
 func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
 	return a.backend.PutRevokedAccessToken(RevokedAccessToken{
@@ -647,7 +646,7 @@ func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
 	})
 }
 
-// IsRevoked checks whether a given token GroupMemberID is among the blacklisted tokens
+// IsRevoked checks whether a given token ObjectID is among the blacklisted tokens
 // NOTE: blacklisted token IDs are cleansed from the registry shortly
 // after their respective access tokens expire
 func (a *Authenticator) IsRevoked(tokenID string) bool {

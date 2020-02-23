@@ -18,9 +18,23 @@ type (
 	TUsername    = [32]byte
 	TDisplayName = [200]byte
 	TIPAddr      = [15]byte
-	TName        = [120]byte
+	TPersonName  = [120]byte
 	TLanguage    = [2]byte
 )
+
+type ContextKey uint16
+
+const (
+	CKUserManager ContextKey = iota
+	CKGroupManager
+	CKAccessPolicyManager
+)
+
+// Member represents a group member contract
+type Object interface {
+	ObjectID() uint32
+	ObjectKind() uint8
+}
 
 // userManager handles business logic of its underlying objects
 // TODO: consider naming first release `Lidia`
@@ -36,7 +50,7 @@ type Manager struct {
 // also initializing by loading necessary data from a given store
 func NewManager(s Store, idx bleve.Index) (*Manager, error) {
 	if s == nil {
-		return nil, errors.Wrap(ErrNilStore, "failed to initialize user manager")
+		return nil, errors.Wrap(ErrNilUserStore, "failed to initialize user manager")
 	}
 
 	// initializing the user manager
@@ -65,7 +79,7 @@ func (m *Manager) Validate() error {
 	}
 
 	if m.store == nil {
-		return ErrNilStore
+		return ErrNilUserStore
 	}
 
 	return nil
@@ -74,7 +88,7 @@ func (m *Manager) Validate() error {
 // Store returns store if set
 func (m *Manager) Store() (Store, error) {
 	if m.store == nil {
-		return nil, ErrNilStore
+		return nil, ErrNilUserStore
 	}
 
 	return m.store, nil

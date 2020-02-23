@@ -49,7 +49,7 @@ func (s *MySQLStore) CreateProfile(ctx context.Context, profile *Profile) (_ *Pr
 		return nil, ErrNilProfile
 	}
 
-	// if GroupMemberID is not 0, then it's not considered as new
+	// if ObjectID is not 0, then it's not considered as new
 	if profile.UserID == 0 {
 		return nil, ErrZeroUserID
 	}

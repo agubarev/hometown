@@ -42,7 +42,7 @@ type Email struct {
 }
 
 func (email *Email) hashKey() {
-	// panic if GroupMemberID is zero or a name is empty
+	// panic if ObjectID is zero or a name is empty
 	if email.UserID == 0 || email.Addr[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -54,7 +54,7 @@ func (email *Email) hashKey() {
 	key.WriteString("email")
 	key.Write(email.Addr[:])
 
-	// adding user GroupMemberID to the key
+	// adding user ObjectID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(email.UserID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash email key"))
 	}

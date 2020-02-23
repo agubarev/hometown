@@ -1,23 +1,23 @@
-package accesspolicy_test
+package user_test
 
 import (
 	"reflect"
 	"testing"
 
 	"github.com/agubarev/hometown/internal/core"
-	"github.com/agubarev/hometown/pkg/accesspolicy"
-	group3 "github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewAccessPolicyContainer(t *testing.T) {
 	a := assert.New(t)
 
-	s, err := accesspolicy.NewMemoryStore()
+	s, err := user.NewMemoryStore()
 	a.NoError(err)
 	a.NotNil(s)
 
-	c, err := accesspolicy.NewManager(s)
+	c, err := user.NewAccessPolicyManager(s)
 	a.NoError(err)
 	a.NotNil(c)
 }
@@ -28,16 +28,16 @@ func TestAccessPolicyContainerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// preparing testdata
 	//---------------------------------------------------------------------------
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	accessPolicyStore, err := accesspolicy.NewDefaultAccessPolicyStore(db)
+	accessPolicyStore, err := user.NewDefaultAccessPolicyStore(db)
 	a.NoError(err)
 	a.NotNil(accessPolicyStore)
 
-	accessPolicyContainer, err := accesspolicy.NewManager(accessPolicyStore)
+	accessPolicyContainer, err := user.NewAccessPolicyManager(accessPolicyStore)
 	a.NoError(err)
 	a.NotNil(accessPolicyContainer)
 
@@ -65,7 +65,7 @@ func TestAccessPolicyContainerCreate(t *testing.T) {
 	a.False(ap.IsInherited)
 	a.False(ap.IsExtended)
 
-	// creating a policy with only its kind set, without an GroupMemberID
+	// creating a policy with only its kind set, without an ObjectID
 	ap, err = accessPolicyContainer.Create(context.Background(), nil, nil, "", "test_kind", 0, false)
 	a.Error(err)
 
@@ -150,16 +150,16 @@ func TestAccessPolicyContainerUpdate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// preparing testdata
 	//---------------------------------------------------------------------------
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	accessPolicyStore, err := accesspolicy.NewDefaultAccessPolicyStore(db)
+	accessPolicyStore, err := user.NewDefaultAccessPolicyStore(db)
 	a.NoError(err)
 	a.NotNil(accessPolicyStore)
 
-	accessPolicyContainer, err := accesspolicy.NewManager(accessPolicyStore)
+	accessPolicyContainer, err := user.NewAccessPolicyManager(accessPolicyStore)
 	a.NoError(err)
 	a.NotNil(accessPolicyContainer)
 
@@ -218,7 +218,7 @@ func TestAccessPolicyContainerUpdate(t *testing.T) {
 	a.Equal("updated key", ap.Key)
 
 	// set user rights
-	a.NoError(accessPolicyContainer.SetRights(ap, user, assignee, accesspolicy.APView))
+	a.NoError(accessPolicyContainer.SetRights(ap, user, assignee, user.APView))
 	a.NoError(accessPolicyContainer.Save(ap))
 }
 
@@ -228,16 +228,16 @@ func TestAccessPolicyContainerSetRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// preparing testdata
 	//---------------------------------------------------------------------------
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	accessPolicyStore, err := accesspolicy.NewDefaultAccessPolicyStore(db)
+	accessPolicyStore, err := user.NewDefaultAccessPolicyStore(db)
 	a.NoError(err)
 	a.NotNil(accessPolicyStore)
 
-	accessPolicyContainer, err := accesspolicy.NewManager(accessPolicyStore)
+	accessPolicyContainer, err := user.NewAccessPolicyManager(accessPolicyStore)
 	a.NoError(err)
 	a.NotNil(accessPolicyContainer)
 
@@ -271,20 +271,20 @@ func TestAccessPolicyContainerSetRights(t *testing.T) {
 	a.NotNil(assignor)
 
 	// roles
-	role, err := groupContainer.Create(group3.GKRole, "test_role_group", "Test Role Group", nil)
+	role, err := groupContainer.Create(user.GKRole, "test_role_group", "Test Role Group", nil)
 	a.NoError(err)
 
-	role2, err := groupContainer.Create(group3.GKRole, "test_role_group2", "Test Role Group 2", nil)
+	role2, err := groupContainer.Create(user.GKRole, "test_role_group2", "Test Role Group 2", nil)
 	a.NoError(err)
 
 	// groups
-	group, err := groupContainer.Create(group3.GKGroup, "test_group", "Test Group", nil)
+	group, err := groupContainer.Create(user.GKGroup, "test_group", "Test Group", nil)
 	a.NoError(err)
 
-	group2, err := groupContainer.Create(group3.GKGroup, "test_group2", "Test Group 2", nil)
+	group2, err := groupContainer.Create(group.GKGroup, "test_group2", "Test Group 2", nil)
 	a.NoError(err)
 
-	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APDelete
+	wantedRights := user.APView | user.APChange | user.APDelete
 
 	//---------------------------------------------------------------------------
 	// proceeding with the test
@@ -323,16 +323,16 @@ func TestAccessPolicyContainerBackupAndRestore(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// preparing testdata
 	//---------------------------------------------------------------------------
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	accessPolicyStore, err := accesspolicy.NewDefaultAccessPolicyStore(db)
+	accessPolicyStore, err := user.NewDefaultAccessPolicyStore(db)
 	a.NoError(err)
 	a.NotNil(accessPolicyStore)
 
-	accessPolicyContainer, err := accesspolicy.NewManager(accessPolicyStore)
+	accessPolicyContainer, err := user.NewAccessPolicyManager(accessPolicyStore)
 	a.NoError(err)
 	a.NotNil(accessPolicyContainer)
 
@@ -366,20 +366,20 @@ func TestAccessPolicyContainerBackupAndRestore(t *testing.T) {
 	a.NotNil(assignor)
 
 	// roles
-	role, err := groupContainer.Create(group3.GKRole, "test_role_group", "Test Role Group", nil)
+	role, err := groupContainer.Create(user.GKRole, "test_role_group", "Test Role Group", nil)
 	a.NoError(err)
 
-	role2, err := groupContainer.Create(group3.GKRole, "test_role_group2", "Test Role Group 2", nil)
+	role2, err := groupContainer.Create(user.GKRole, "test_role_group2", "Test Role Group 2", nil)
 	a.NoError(err)
 
 	// groups
-	group, err := groupContainer.Create(group3.GKGroup, "test_group", "Test Group", nil)
+	group, err := groupContainer.Create(user.GKGroup, "test_group", "Test Group", nil)
 	a.NoError(err)
 
-	group2, err := groupContainer.Create(group3.GKGroup, "test_group2", "Test Group 2", nil)
+	group2, err := groupContainer.Create(group.GKGroup, "test_group2", "Test Group 2", nil)
 	a.NoError(err)
 
-	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APDelete
+	wantedRights := user.APView | user.APChange | user.APDelete
 
 	//---------------------------------------------------------------------------
 	// testing backup restore
@@ -393,21 +393,21 @@ func TestAccessPolicyContainerBackupAndRestore(t *testing.T) {
 	a.False(ap.IsExtended)
 
 	// making sure that this roster has no rights set yet
-	a.Equal(accesspolicy.APNoAccess, ap.RightsRoster.Everyone)
+	a.Equal(user.APNoAccess, ap.RightsRoster.Everyone)
 	a.Empty(ap.RightsRoster.User)
 	a.Empty(ap.RightsRoster.Role)
 	a.Empty(ap.RightsRoster.Group)
 
-	a.NoError(accessPolicyContainer.SetRights(ap, assignor, nil, accesspolicy.APView))
-	a.NoError(accessPolicyContainer.SetRights(ap, assignor, user, accesspolicy.APView))
-	a.NoError(accessPolicyContainer.SetRights(ap, assignor, role, accesspolicy.APView))
-	a.NoError(accessPolicyContainer.SetRights(ap, assignor, group, accesspolicy.APView))
+	a.NoError(accessPolicyContainer.SetRights(ap, assignor, nil, user.APView))
+	a.NoError(accessPolicyContainer.SetRights(ap, assignor, user, user.APView))
+	a.NoError(accessPolicyContainer.SetRights(ap, assignor, role, user.APView))
+	a.NoError(accessPolicyContainer.SetRights(ap, assignor, group, user.APView))
 
 	// checking rights that were just set
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Everyone)
-	a.Equal(accesspolicy.APView, ap.RightsRoster.User[user.ID])
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Role[role.ID])
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Group[group.ID])
+	a.Equal(user.APView, ap.RightsRoster.Everyone)
+	a.Equal(user.APView, ap.RightsRoster.User[user.ID])
+	a.Equal(user.APView, ap.RightsRoster.Role[role.ID])
+	a.Equal(user.APView, ap.RightsRoster.Group[group.ID])
 
 	// checking backup and saving policy
 	// NOTE: at this point all the changes must be stored,
@@ -417,10 +417,10 @@ func TestAccessPolicyContainerBackupAndRestore(t *testing.T) {
 	a.Nil(ap.Backup())
 
 	// checking rights before making more policy changes
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Everyone)
-	a.Equal(accesspolicy.APView, ap.RightsRoster.User[user.ID])
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Role[role.ID])
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Group[group.ID])
+	a.Equal(user.APView, ap.RightsRoster.Everyone)
+	a.Equal(user.APView, ap.RightsRoster.User[user.ID])
+	a.Equal(user.APView, ap.RightsRoster.Role[role.ID])
+	a.Equal(user.APView, ap.RightsRoster.Group[group.ID])
 
 	//---------------------------------------------------------------------------
 	// more policy changes
@@ -447,10 +447,10 @@ func TestAccessPolicyContainerBackupAndRestore(t *testing.T) {
 	a.NoError(ap.RestoreBackup())
 
 	// checking roster after backup restoration
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Everyone)
-	a.Equal(accesspolicy.APView, ap.RightsRoster.User[user.ID])
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Role[role.ID])
-	a.Equal(accesspolicy.APView, ap.RightsRoster.Group[group.ID])
+	a.Equal(user.APView, ap.RightsRoster.Everyone)
+	a.Equal(user.APView, ap.RightsRoster.User[user.ID])
+	a.Equal(user.APView, ap.RightsRoster.Role[role.ID])
+	a.Equal(user.APView, ap.RightsRoster.Group[group.ID])
 	a.Len(ap.RightsRoster.User, 1)
 	a.Len(ap.RightsRoster.Role, 1)
 	a.Len(ap.RightsRoster.Group, 1)
@@ -462,24 +462,23 @@ func TestAccessPolicyContainerDelete(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// preparing testdata
 	//---------------------------------------------------------------------------
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	accessPolicyStore, err := accesspolicy.NewDefaultAccessPolicyStore(db)
+	accessPolicyStore, err := user.NewDefaultAccessPolicyStore(db)
 	a.NoError(err)
 	a.NotNil(accessPolicyStore)
 
-	accessPolicyContainer, err := accesspolicy.NewManager(accessPolicyStore)
+	accessPolicyContainer, err := user.NewAccessPolicyManager(accessPolicyStore)
 	a.NoError(err)
 	a.NotNil(accessPolicyContainer)
 
-	userStore, err := core.NewUserStore(db)
+	userStore, err := NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(userStore)
 
-	userManager, err := core.NewUserManager(userStore, nil)
+	userManager, err := NewManager(userStore, nil)
 	a.NoError(err)
 	a.NotNil(userManager)
 
@@ -487,38 +486,38 @@ func TestAccessPolicyContainerDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(groupContainer)
 
-	assignor, err := userManager.Create("assignor")
+	assignor, err := userManager.CreateUser("assignor")
 	a.NoError(err)
 	a.NotNil(assignor)
 
 	// users
-	user, err := userManager.Create("testuser")
+	user, err := userManager.CreateUser("testuser")
 	a.NoError(err)
 	a.NotNil(assignor)
 
-	user2, err := userManager.Create("testuser2")
+	user2, err := userManager.CreateUser("testuser2")
 	a.NoError(err)
 	a.NotNil(assignor)
 
-	user3, err := userManager.Create("testuser3")
+	user3, err := userManager.CreateUser("testuser3")
 	a.NoError(err)
 	a.NotNil(assignor)
 
 	// roles
-	role, err := groupContainer.Create(group3.GKRole, "test_role_group", "Test Role Group", nil)
+	role, err := groupContainer.Create(user.GKRole, "test_role_group", "Test Role Group", nil)
 	a.NoError(err)
 
-	role2, err := groupContainer.Create(group3.GKRole, "test_role_group2", "Test Role Group 2", nil)
+	role2, err := groupContainer.Create(user.GKRole, "test_role_group2", "Test Role Group 2", nil)
 	a.NoError(err)
 
 	// groups
-	group, err := groupContainer.Create(group3.GKGroup, "test_group", "Test Group", nil)
+	group, err := groupContainer.Create(user.GKGroup, "test_group", "Test Group", nil)
 	a.NoError(err)
 
-	group2, err := groupContainer.Create(group3.GKGroup, "test_group2", "Test Group 2", nil)
+	group2, err := groupContainer.Create(group.GKGroup, "test_group2", "Test Group 2", nil)
 	a.NoError(err)
 
-	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APDelete | accesspolicy.APCopy
+	wantedRights := user.APView | user.APChange | user.APDelete | user.APCopy
 
 	//---------------------------------------------------------------------------
 	// creating policy and setting rights
@@ -554,17 +553,17 @@ func TestAccessPolicyContainerDelete(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// making sure it's inside the container
 	//---------------------------------------------------------------------------
-	newPolicy, err := accessPolicyContainer.GetByID(ap.ID)
+	newPolicy, err := accessPolicyContainer.PolicyByID(ap.ID)
 	a.NoError(err)
 	a.NotNil(newPolicy)
 	a.True(reflect.DeepEqual(ap, newPolicy))
 
-	newPolicy, err = accessPolicyContainer.GetByName(ap.Key)
+	newPolicy, err = accessPolicyContainer.PolicyByName(ap.Key)
 	a.NoError(err)
 	a.NotNil(newPolicy)
 	a.True(reflect.DeepEqual(ap, newPolicy))
 
-	newPolicy, err = accessPolicyContainer.GetByObjectTypeAndID(ap.ObjectType, ap.ObjectID)
+	newPolicy, err = accessPolicyContainer.PolicyByObjectTypeAndID(ap.ObjectType, ap.ObjectID)
 	a.NoError(err)
 	a.NotNil(newPolicy)
 	a.True(reflect.DeepEqual(ap, newPolicy))
@@ -572,20 +571,20 @@ func TestAccessPolicyContainerDelete(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// deleting policy
 	//---------------------------------------------------------------------------
-	a.NoError(accessPolicyContainer.Delete(ap))
+	a.NoError(accessPolicyContainer.DeletePolicy(ap))
 
 	//---------------------------------------------------------------------------
 	// attempting to get policies after their deletion
 	//---------------------------------------------------------------------------
-	newPolicy, err = accessPolicyContainer.GetByID(ap.ID)
+	newPolicy, err = accessPolicyContainer.PolicyByID(ap.ID)
 	a.EqualError(core.ErrAccessPolicyNotFound, err.Error())
 	a.Nil(newPolicy)
 
-	newPolicy, err = accessPolicyContainer.GetByName(ap.Key)
+	newPolicy, err = accessPolicyContainer.PolicyByName(ap.Key)
 	a.EqualError(core.ErrAccessPolicyNotFound, err.Error())
 	a.Nil(newPolicy)
 
-	newPolicy, err = accessPolicyContainer.GetByObjectTypeAndID(ap.ObjectType, ap.ObjectID)
+	newPolicy, err = accessPolicyContainer.PolicyByObjectTypeAndID(ap.ObjectType, ap.ObjectID)
 	a.EqualError(core.ErrAccessPolicyNotFound, err.Error())
 	a.Nil(newPolicy)
 }

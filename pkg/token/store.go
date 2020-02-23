@@ -27,7 +27,7 @@ func NewTokenStore(db *dbr.Connection) (Store, error) {
 	return &tokenStore{db}, nil
 }
 
-// UpdateAccessPolicy puts token into a store
+// UpdatePolicy puts token into a store
 func (s *tokenStore) Put(ctx context.Context, t *Token) error {
 	if t == nil {
 		return ErrNilToken
@@ -64,7 +64,7 @@ func (s *tokenStore) Get(ctx context.Context, token string) (*Token, error) {
 	return t, nil
 }
 
-// Delete deletes token from a store
+// DeletePolicy deletes token from a store
 func (s *tokenStore) DeleteByToken(ctx context.Context, token string) error {
 	result, err := s.db.NewSession(nil).
 		DeleteFrom("token").

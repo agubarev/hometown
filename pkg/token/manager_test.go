@@ -59,7 +59,7 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	id := util.NewULID()
 
 	// creating new token
-	tok, err := c.Create(token.TkUserEmailConfirmation, id, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TkUserEmailConfirmation, id, 10*time.Second, 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -67,7 +67,7 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	a.False(tok.ExpireAt.IsZero())
 
 	// obtaining token from the container
-	tok2, err := c.Get(tok.Token)
+	tok2, err := c.Get(context.Background(), tok.Token)
 	a.NoError(err)
 	a.NotNil(tok2)
 	a.Equal(tok.Token, tok2.Token)
@@ -76,15 +76,15 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	a.Equal(tok.CheckinRemainder, tok2.CheckinRemainder)
 
 	// trying to get nonexistent token
-	nonexistentToken, err := c.Get("nonexistent token")
+	nonexistentToken, err := c.Get(context.Background(), "nonexistent token")
 	a.EqualError(token.ErrTokenNotFound, err.Error())
 	a.Nil(nonexistentToken)
 
 	// deleting token
-	a.NoError(c.Delete(tok2))
+	a.NoError(c.Delete(context.Background(), tok2))
 
 	// attempting to get it back from the container
-	tok3, err := c.Get(tok.Token)
+	tok3, err := c.Get(context.Background(), tok.Token)
 	a.EqualError(token.ErrTokenNotFound, err.Error())
 	a.Nil(tok3)
 }

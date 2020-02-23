@@ -1,11 +1,11 @@
-package group_test
+package user_test
 
 import (
 	context2 "context"
 	"testing"
 
 	"github.com/agubarev/hometown/internal/core"
-	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/user"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -19,11 +19,11 @@ func TestGroupStorePut(t *testing.T) {
 
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	s, err := group.NewGroupStore(db)
+	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := group.NewGroup(group.GKGroup, "test_group", "test group", nil)
+	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
 	a.NotNil(g)
 	a.NoError(err)
 
@@ -41,11 +41,11 @@ func TestGroupStoreGet(t *testing.T) {
 
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	s, err := group.NewGroupStore(db)
+	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := group.NewGroup(group.GKGroup, "test_group", "test group", nil)
+	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
 	a.NotNil(g)
 	a.NoError(err)
 
@@ -71,19 +71,19 @@ func TestGroupStoreGetAll(t *testing.T) {
 
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	s, err := group.NewGroupStore(db)
+	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g1, err := group.NewGroup(group.GKGroup, "test_group", "test group", nil)
+	g1, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
 	a.NotNil(g1)
 	a.NoError(err)
 
-	g2, err := group.NewGroup(group.GKRole, "test_role", "test role", nil)
+	g2, err := user.NewGroup(user.GKRole, "test_role", "test role", nil)
 	a.NotNil(g2)
 	a.NoError(err)
 
-	g3, err := group.NewGroup(group.GKGroup, "test_group123", "test group 123", nil)
+	g3, err := user.NewGroup(user.GKGroup, "test_group123", "test group 123", nil)
 	a.NotNil(g3)
 	a.NoError(err)
 
@@ -125,11 +125,11 @@ func TestGroupStoreDelete(t *testing.T) {
 
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	s, err := group.NewGroupStore(db)
+	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := group.NewGroup(group.GKGroup, "test_group", "test group", nil)
+	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
 	a.NotNil(g)
 	a.NoError(err)
 
@@ -158,11 +158,11 @@ func TestGroupStoreRelations(t *testing.T) {
 
 	a.NoError(core.TruncateDatabaseForTesting(db))
 
-	s, err := group.NewGroupStore(db)
+	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := group.NewGroup(group.GKGroup, "test_group", "test group", nil)
+	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
 	a.NotNil(g)
 	a.NoError(err)
 

@@ -49,7 +49,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u *User) (_ *User, err erro
 		return nil, ErrNilUser
 	}
 
-	// if GroupMemberID is not 0, then it's not considered as new
+	// if ObjectID is not 0, then it's not considered as new
 	if u.ID != 0 {
 		return nil, ErrNonZeroID
 	}
@@ -69,7 +69,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u *User) (_ *User, err erro
 		return nil, err
 	}
 
-	// setting new GroupMemberID
+	// setting new ObjectID
 	u.ID = int(newID)
 
 	return u, nil
@@ -115,7 +115,7 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []*User) (_ []*User,
 		return nil, errors.Wrap(err, "bulk insert failed")
 	}
 
-	// returned GroupMemberID belongs to the first u created
+	// returned ObjectID belongs to the first u created
 	firstNewID, err := result.LastInsertId()
 	if err != nil {
 		return nil, err

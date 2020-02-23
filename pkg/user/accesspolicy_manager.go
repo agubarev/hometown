@@ -1,4 +1,4 @@
-package accesspolicy
+package user
 
 import (
 	"bytes"
@@ -6,20 +6,13 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/user"
 	"github.com/pkg/errors"
 )
 
 // errors
 var (
-	ErrInsufficientDataToHashKey    = errors.New("insufficient data to hash a key")
-	ErrNilDatabase                  = errors.New("database is nil")
-	ErrZeroID                       = errors.New("object has no id")
-	ErrNonZeroID                    = errors.New("object id is not zero")
-	ErrNothingChanged               = errors.New("nothing has changed")
-	ErrNilStore                     = errors.New("access policy store is nil")
-	ErrNilAccessPolicyContainer     = errors.New("access policy container is nil")
+	ErrNilAccessPolicyStore         = errors.New("access policy store is nil")
+	ErrNilAccessPolicyManager       = errors.New("access policy container is nil")
 	ErrAccessPolicyNotFound         = errors.New("access policy not found")
 	ErrAccessPolicyEmptyDesignators = errors.New("both key and kind with id are empty")
 	ErrAccessPolicyNameTaken        = errors.New("key is taken")
@@ -39,25 +32,23 @@ var (
 	ErrNilParent                    = errors.New("parent is nil")
 )
 
-// userManager is an access policy registry for convenience
-type Manager struct {
-	idMap    map[int]*AccessPolicy
-	namedMap map[TAPName]*AccessPolicy
-	keyMap   map[uint64]*AccessPolicy
-	store    Store
+// AccessPolicyManager is the access policy registry
+type AccessPolicyManager struct {
+	policies map[uint32]AccessPolicy
+	nameMap  map[TPolicyName]uint32
+	store    AccessPolicyStore
 	sync.RWMutex
 }
 
-// NewManager initializes a new access policy container
-func NewManager(store Store) (*Manager, error) {
+// NewAccessPolicyManager initializes a new access policy container
+func NewAccessPolicyManager(store AccessPolicyStore) (*AccessPolicyManager, error) {
 	if store == nil {
-		return nil, ErrNilStore
+		return nil, ErrNilAccessPolicyStore
 	}
 
-	c := &Manager{
-		idMap:    make(map[int]*AccessPolicy),
-		namedMap: make(map[TAPName]*AccessPolicy),
-		keyMap:   make(map[uint64]*AccessPolicy),
+	c := &AccessPolicyManager{
+		policies: make(map[uint32]AccessPolicy),
+		nameMap:  make(map[TPolicyName]uint32),
 		store:    store,
 	}
 
@@ -65,49 +56,41 @@ func NewManager(store Store) (*Manager, error) {
 }
 
 // Put adds policy to container registry
-func (c *Manager) Put(ap *AccessPolicy) error {
+func (m *AccessPolicyManager) Put(ctx context.Context, ap AccessPolicy) error {
 	err := ap.Validate()
 	if err != nil {
 		return err
 	}
 
-	// assigning container to this policy for backreference
-	ap.container = c
-
 	// caching inside container's registry
-	c.Lock()
-	c.idMap[ap.ID] = ap
-	c.namedMap[ap.Name] = ap
-	c.keyMap[ap.Key(true)] = ap
-	c.Unlock()
+	m.Lock()
+	m.policies[ap.ID] = ap
+	m.nameMap[ap.Name] = ap.ID
+	m.Unlock()
 
 	return nil
 }
 
-// Remove removes policy from container registry
-func (c *Manager) Remove(ap *AccessPolicy) error {
+// RemovePolicy removes policy from container registry
+func (m *AccessPolicyManager) RemovePolicy(ctx context.Context, ap AccessPolicy) error {
 	err := ap.Validate()
 	if err != nil {
 		return err
 	}
 
-	// clearing container reference
-	ap.container = nil
-
 	// clearing out maps
-	c.Lock()
-	delete(c.idMap, ap.ID)
-	delete(c.namedMap, ap.Name)
-	delete(c.keyMap, ap.Key(false))
-	c.Unlock()
+	m.Lock()
+	delete(m.policies, ap.ID)
+	delete(m.nameMap, ap.Name)
+	m.Unlock()
 
 	return nil
 }
 
 // Upsert creates a new access policy
-func (c *Manager) Create(ctx context.Context, owner *user.User, parent *AccessPolicy, objectType TAPObjectType, objectID int, isInherited, isExtended bool) (*AccessPolicy, error) {
+func (m *AccessPolicyManager) Create(ctx context.Context, ownerID uint32, parentID uint32, objectType TAPObjectType, objectID uint32, isInherited, isExtended bool) (AccessPolicy, error) {
 	// initializing and creating new policy
-	ap := NewAccessPolicy(owner, parent, isInherited, isExtended)
+	ap := NewAccessPolicy(ctx, ownerID, parentID, isInherited, isExtended)
 
 	// setting distinctive markers
 	copy(ap.ObjectType[:], bytes.ToLower(bytes.TrimSpace(objectType[:])))
@@ -118,71 +101,65 @@ func (c *Manager) Create(ctx context.Context, owner *user.User, parent *AccessPo
 
 	// validating before creation
 	if err := ap.Validate(); err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	// checking whether a key is available
 	if ap.Name[0] != 0 {
-		_, err := c.GetByName(ap.Name)
+		_, err := m.PolicyByName(ctx, ap.Name)
 		if err == nil {
-			return nil, ErrAccessPolicyNameTaken
+			return ap, ErrAccessPolicyNameTaken
 		}
 
 		if err != ErrAccessPolicyNotFound {
-			return nil, err
+			return ap, err
 		}
 	}
 
 	// checking by an object
 	if ap.ObjectType[0] != 0 && ap.ObjectID != 0 {
-		_, err := c.GetByObjectTypeAndID(objectType, objectID)
+		_, err := m.PolicyByObjectTypeAndID(ctx, objectType, objectID)
 		if err == nil {
-			return nil, ErrAccessPolicyKindAndIDTaken
+			return ap, ErrAccessPolicyKindAndIDTaken
 		}
 
 		if err != ErrAccessPolicyNotFound {
-			return nil, err
+			return ap, err
 		}
 	}
 
 	// creating in the store
-	ap, err := c.store.Create(ctx, ap)
+	ap, err := m.store.CreatePolicy(ctx, ap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new access policy: %s", err)
+		return ap, fmt.Errorf("failed to create new access policy: %s", err)
 	}
 
 	// adding new policy to the registry
-	err = c.Put(ap)
+	err = m.Put(ctx, ap)
 	if err != nil {
-		return nil, fmt.Errorf("failed to add access policy to container registry: %s", err)
+		return ap, fmt.Errorf("failed to add access policy to container registry: %s", err)
 	}
 
 	return ap, nil
 }
 
-// UpdateAccessPolicy updates existing access policy
-func (c *Manager) Save(ctx context.Context, ap *AccessPolicy) (err error) {
+// UpdatePolicy updates existing access policy
+func (m *AccessPolicyManager) Save(ctx context.Context, ap AccessPolicy) (err error) {
 	// deferring a function that will restore backup, in case
 	// of any error
 	defer func() {
 		if r := recover(); r != nil {
-			err = r.(error)
+			err = errors.Wrap(err, "recovering from panic")
 
 			// restoring policy backup
 			if backupErr := ap.RestoreBackup(); backupErr != nil {
-				err = fmt.Errorf(
-					"recovered from panic, failed to restore policy backup (id=%d): %s [policy backup restoration failed: %s]",
-					ap.ID,
-					r,
-					backupErr,
-				)
+				err = errors.Wrapf(err, "failed to restore policy backup (id=%d): %s", ap.ID, backupErr)
 			}
 		}
 	}()
 
 	// validating before creation
-	err = ap.Validate()
-	if err != nil {
+	if err = ap.Validate(); err != nil {
 		panic(err)
 	}
 
@@ -190,7 +167,7 @@ func (c *Manager) Save(ctx context.Context, ap *AccessPolicy) (err error) {
 	// exists and doesn't belong to this access policy, then
 	// returning an error
 	if ap.Name[0] != 0 {
-		existingPolicy, err := c.GetByName(ap.Name)
+		existingPolicy, err := m.PolicyByName(ctx, ap.Name)
 		if err != nil {
 			if err != ErrAccessPolicyNotFound {
 				panic(err)
@@ -206,7 +183,7 @@ func (c *Manager) Save(ctx context.Context, ap *AccessPolicy) (err error) {
 	// and new kind and object is already attached to a different
 	// access policy
 	if ap.ObjectType[0] != 0 && ap.ObjectID != 0 {
-		existingPolicy, err := c.GetByObjectTypeAndID(ap.ObjectType, ap.ObjectID)
+		existingPolicy, err := m.PolicyByObjectTypeAndID(ctx, ap.ObjectType, ap.ObjectID)
 		if err != nil {
 			if err != ErrAccessPolicyNotFound {
 				panic(err)
@@ -219,7 +196,7 @@ func (c *Manager) Save(ctx context.Context, ap *AccessPolicy) (err error) {
 	}
 
 	// creating in the store
-	err = c.store.UpdateAccessPolicy(ctx, ap)
+	err = m.store.UpdatePolicy(ctx, ap)
 	if err != nil {
 		panic(fmt.Errorf("failed to save access policy: %s", err))
 	}
@@ -232,12 +209,12 @@ func (c *Manager) Save(ctx context.Context, ap *AccessPolicy) (err error) {
 	return nil
 }
 
-// GroupByID returns an access policy by its GroupMemberID
-func (c *Manager) GetByID(id int) (*AccessPolicy, error) {
+// GroupByID returns an access policy by its ObjectID
+func (m *AccessPolicyManager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, err error) {
 	// checking cache first
-	c.RLock()
-	ap, ok := c.idMap[id]
-	c.RUnlock()
+	m.RLock()
+	ap, ok := m.policies[id]
+	m.RUnlock()
 
 	// return if found in cache
 	if ok {
@@ -245,25 +222,25 @@ func (c *Manager) GetByID(id int) (*AccessPolicy, error) {
 	}
 
 	// attempting to obtain policy from the store
-	ap, err := c.store.GetByID(id)
+	ap, err = m.store.FetchPolicyByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	// adding policy to registry
-	err = c.Put(ap)
+	err = m.Put(ctx, ap)
 	if err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	return ap, nil
 }
 
-// GetByName returns an access policy by its key
-func (c *Manager) GetByName(name TAPName) (*AccessPolicy, error) {
-	c.RLock()
-	ap, ok := c.namedMap[name]
-	c.RUnlock()
+// PolicyByName returns an access policy by its key
+func (m *AccessPolicyManager) PolicyByName(ctx context.Context, name TPolicyName) (ap AccessPolicy, err error) {
+	m.RLock()
+	ap, ok := m.policies[m.nameMap[name]]
+	m.RUnlock()
 
 	// return if found in cache
 	if ok {
@@ -271,58 +248,52 @@ func (c *Manager) GetByName(name TAPName) (*AccessPolicy, error) {
 	}
 
 	// attempting to obtain policy from the store
-	ap, err := c.store.GetByName(name)
+	ap, err = m.store.FetchPolicyByName(ctx, name)
 	if err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	// adding policy to registry
-	err = c.Put(ap)
+	err = m.Put(ctx, ap)
 	if err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	return ap, nil
 }
 
-// GetByObjectTypeAndID returns an access policy by its kind and id
+// PolicyByObjectTypeAndID returns an access policy by its kind and id
 // TODO: add cache
-func (c *Manager) GetByObjectTypeAndID(objectType TAPObjectType, id int) (*AccessPolicy, error) {
+func (m *AccessPolicyManager) PolicyByObjectTypeAndID(ctx context.Context, objectType TAPObjectType, objectID uint32) (ap AccessPolicy, err error) {
 	// attempting to obtain policy from the store
-	ap, err := c.store.GetByObjectAndID(objectType, id)
+	ap, err = m.store.FetchPolicyByObjectTypeAndID(ctx, objectType, objectID)
 	if err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	// adding policy to registry
-	err = c.Put(ap)
+	err = m.Put(ctx, ap)
 	if err != nil {
-		return nil, err
+		return ap, err
 	}
 
 	return ap, nil
 }
 
-// Delete returns an access policy by its GroupMemberID
-func (c *Manager) Delete(ap *AccessPolicy) error {
-	err := ap.Validate()
-	if err != nil {
-		return err
-	}
-
-	_, err = c.GetByID(ap.ID)
-	if err != nil {
+// DeletePolicy returns an access policy by its ObjectID
+func (m *AccessPolicyManager) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error) {
+	if err = ap.Validate(); err != nil {
 		return err
 	}
 
 	// deleting from the store
-	err = c.store.Delete(ap)
+	err = m.store.DeletePolicy(ctx, ap)
 	if err != nil {
 		return err
 	}
 
 	// adding policy to registry
-	err = c.Remove(ap)
+	err = m.RemovePolicy(ctx, ap)
 	if err != nil {
 		if err == ErrAccessPolicyNotFound {
 			return nil
@@ -335,17 +306,17 @@ func (c *Manager) Delete(ap *AccessPolicy) error {
 }
 
 // HasRights checks whether a given subject entity has the inquired rights
-func (c *Manager) HasRights(ap *AccessPolicy, subject interface{}, rights AccessRight) bool {
+func (m *AccessPolicyManager) HasRights(ctx context.Context, ap *AccessPolicy, subject interface{}, rights AccessRight) bool {
 	if subject == nil {
 		return false
 	}
 
 	switch subject.(type) {
 	case nil:
-	case *user.User:
-		return ap.HasRights(subject.(*user.User), rights)
-	case *group.Group:
-		return ap.HasGroupRights(subject.(*group.Group), rights)
+	case User:
+		return ap.HasRights(ctx, subject.(User).ID, rights)
+	case Group:
+		return ap.HasGroupRights(ctx, subject.(Group).ID, rights)
 	}
 
 	return false
@@ -356,8 +327,8 @@ func (c *Manager) HasRights(ap *AccessPolicy, subject interface{}, rights Access
 // NOTE: rights roster changes are not persisted unless explicitly saved
 // NOTE: changes made with this function will be cancelled and backup restored
 // if there will be any errors when saving this policy
-func (c *Manager) SetRights(ap *AccessPolicy, assignor *user.User, subject interface{}, rights AccessRight) error {
-	if err := ap.Validate(); err != nil {
+func (m *AccessPolicyManager) SetRights(ctx context.Context, ap *AccessPolicy, assignorID uint32, subject interface{}, rights AccessRight) (err error) {
+	if err = ap.Validate(); err != nil {
 		return err
 	}
 
@@ -372,24 +343,22 @@ func (c *Manager) SetRights(ap *AccessPolicy, assignor *user.User, subject inter
 		ap.backup = backup
 	}
 
-	var err error
-
 	// setting rights depending on the type of a subject
 	switch subject.(type) {
 	case nil:
-		err = ap.SetPublicRights(assignor, rights)
+		err = ap.SetPublicRights(ctx, assignorID, rights)
 		ap.RightsRoster.addChange(1, SKEveryone, 0, rights)
-	case *user.User:
-		u := subject.(*user.User)
-		err = ap.SetUserRights(assignor, u, rights)
+	case User:
+		u := subject.(User)
+		err = ap.SetUserRights(ctx, assignorID, u.ID, rights)
 		ap.RightsRoster.addChange(1, SKUser, u.ID, rights)
-	case *group.Group:
-		switch g := subject.(*group.Group); g.Kind {
-		case group.GKRole:
-			err = ap.SetRoleRights(assignor, g, rights)
+	case Group:
+		switch g := subject.(Group); g.Kind {
+		case GKRole:
+			err = ap.SetRoleRights(ctx, assignorID, g, rights)
 			ap.RightsRoster.addChange(1, SKRoleGroup, g.ID, rights)
-		case group.GKGroup:
-			err = ap.SetGroupRights(assignor, g, rights)
+		case GKGroup:
+			err = ap.SetGroupRights(ctx, assignorID, g, rights)
 			ap.RightsRoster.addChange(1, SKGroup, g.ID, rights)
 		}
 	}
@@ -403,7 +372,7 @@ func (c *Manager) SetRights(ap *AccessPolicy, assignor *user.User, subject inter
 }
 
 // UnsetRights removes rights of a given subject to this policy
-func (c *Manager) UnsetRights(ap *AccessPolicy, assignor *user.User, subject interface{}) error {
+func (m *AccessPolicyManager) UnsetRights(ctx context.Context, ap AccessPolicy, assignorID uint32, subject interface{}) error {
 	err := ap.Validate()
 	if err != nil {
 		return err
@@ -416,17 +385,17 @@ func (c *Manager) UnsetRights(ap *AccessPolicy, assignor *user.User, subject int
 
 	// setting rights depending on the type of a subject
 	switch subject.(type) {
-	case *user.User:
-		err = ap.UnsetRights(assignor, subject.(*user.User))
-		ap.RightsRoster.addChange(0, SKUser, subject.(*user.User).ID, 0)
-	case *group.Group:
-		switch g := subject.(*group.Group); g.Kind {
-		case group.GKRole:
-			err = ap.UnsetRights(assignor, g)
-			ap.RightsRoster.addChange(0, SKRoleGroup, subject.(*group.Group).ID, 0)
-		case group.GKGroup:
-			err = ap.UnsetRights(assignor, g)
-			ap.RightsRoster.addChange(0, SKGroup, subject.(*group.Group).ID, 0)
+	case User:
+		err = ap.UnsetRights(ctx, assignorID, subject.(User))
+		ap.RightsRoster.addChange(0, SKUser, subject.(User).ID, 0)
+	case Group:
+		switch g := subject.(Group); g.Kind {
+		case GKRole:
+			err = ap.UnsetRights(ctx, assignorID, g)
+			ap.RightsRoster.addChange(0, SKRoleGroup, subject.(Group).ID, 0)
+		case GKGroup:
+			err = ap.UnsetRights(ctx, assignorID, g)
+			ap.RightsRoster.addChange(0, SKGroup, subject.(Group).ID, 0)
 		}
 	}
 

@@ -18,10 +18,10 @@ type NewProfileObject struct {
 
 // ProfileEssential represents an essential part of the primary object
 type ProfileEssential struct {
-	Firstname  TName     `db:"firstname" json:"firstname"`
-	Lastname   TName     `db:"lastname" json:"lastname"`
-	Middlename TName     `db:"middlename" json:"middlename"`
-	Language   TLanguage `db:"language" json:"language"`
+	Firstname  TGroupName `db:"firstname" json:"firstname"`
+	Lastname   TGroupName `db:"lastname" json:"lastname"`
+	Middlename TGroupName `db:"middlename" json:"middlename"`
+	Language   TLanguage  `db:"language" json:"language"`
 }
 
 // ProfileMetadata contains generic metadata of the primary object
@@ -66,7 +66,7 @@ func (p *Profile) calculateChecksum() uint64 {
 }
 
 func (p *Profile) hashKey() {
-	// panic if GroupMemberID is zero or a name is empty
+	// panic if ObjectID is zero or a name is empty
 	if p.UserID == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -77,7 +77,7 @@ func (p *Profile) hashKey() {
 	// composing a key value
 	key.WriteString("profile")
 
-	// adding GroupMemberID to the key
+	// adding ObjectID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash profile key"))
 	}
@@ -113,11 +113,11 @@ func (p *Profile) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "Firstname":
-			p.Firstname = change.To.(TName)
+			p.Firstname = change.To.(TGroupName)
 		case "Middlename":
-			p.Middlename = change.To.(TName)
+			p.Middlename = change.To.(TGroupName)
 		case "Lastname":
-			p.Lastname = change.To.(TName)
+			p.Lastname = change.To.(TGroupName)
 		case "Language":
 			p.Language = change.To.(TLanguage)
 		case "Checksum":

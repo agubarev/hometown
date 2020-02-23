@@ -12,7 +12,6 @@ import (
 	"github.com/agubarev/hometown/pkg/auth"
 	"github.com/agubarev/hometown/pkg/auth/endpoints"
 	"github.com/agubarev/hometown/pkg/database"
-	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"
@@ -65,23 +64,23 @@ func TestSignin(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating groups and roles for testing
-	g1, err := gm.Create(group.GKGroup, "group_1", "Group 1", nil)
+	g1, err := gm.Create(user.GKGroup, "group_1", "Group 1", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(group.GKGroup, "group_2", "Group 2", nil)
+	g2, err := gm.Create(user.GKGroup, "group_2", "Group 2", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(group.GKGroup, "group_3", "Group 3 (sub-group of Group 2)", g2)
+	g3, err := gm.Create(user.GKGroup, "group_3", "Group 3 (sub-group of Group 2)", g2)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(group.GKRole, "role_1", "Role 1", nil)
+	r1, err := gm.Create(user.GKRole, "role_1", "Role 1", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(group.GKRole, "role_2", "Role 2", nil)
+	r2, err := gm.Create(user.GKRole, "role_2", "Role 2", nil)
 	a.NoError(err)
 	a.NotNil(g1)
 

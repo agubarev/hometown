@@ -228,8 +228,8 @@ func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []*User) (us []*U
 	return us, nil
 }
 
-// UserByID returns a user if found by GroupMemberID
-func (m *Manager) UserByID(ctx context.Context, id int) (u *User, err error) {
+// UserByID returns a user if found by ObjectID
+func (m *Manager) UserByID(ctx context.Context, id uint32) (u *User, err error) {
 	if id == 0 {
 		return nil, ErrUserNotFound
 	}
@@ -272,7 +272,7 @@ func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u *User
 
 // UpdateUser updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateUser(ctx context.Context, id int, fn func(ctx context.Context, r User) (u User, err error)) (u *User, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context.Context, r User) (u User, err error)) (u *User, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, essentialChangelog, err
@@ -325,7 +325,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id int, fn func(ctx context.Co
 
 // DeleteUserByID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteUserByID(ctx context.Context, id int, isHard bool) (u *User, err error) {
+func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u *User, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to obtain a store")

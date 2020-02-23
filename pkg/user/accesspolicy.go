@@ -1,4 +1,4 @@
-package accesspolicy
+package user
 
 import (
 	"bytes"
@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/user"
 	"github.com/cespare/xxhash"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
@@ -19,10 +17,10 @@ import (
 // Actor represents anything that can be an owner, assignor ar assignee
 // TODO: develop this idea
 type Actor interface {
-	ID() int
+	ID() uint32
 	UID() ulid.ULID
-	Roles() []*group.Group
-	Groups() []*group.Group
+	Roles() []*Group
+	Groups() []*Group
 }
 
 // everyone, user, group, role_group, etc...
@@ -37,8 +35,8 @@ const (
 )
 
 // access policy name
-type TAPName = [255]byte
-type TAPObjectType = [64]byte
+type TPolicyName = [255]byte
+type TAPObjectType = [32]byte
 
 // AccessRight is a single permission set
 type AccessRight uint64
@@ -47,7 +45,7 @@ type accessChange struct {
 	// denotes an action that occurred: -1 deleted, 0 updated, 1 created
 	action      uint8
 	subjectKind uint8
-	subjectID   int
+	subjectID   uint32
 	accessRight AccessRight
 }
 
@@ -124,10 +122,10 @@ func (r AccessRight) Explain() string {
 
 // RightsRoster denotes who has what rights
 type RightsRoster struct {
-	Everyone AccessRight         `json:"everyone"`
-	Role     map[int]AccessRight `json:"role"`
-	Group    map[int]AccessRight `json:"group"`
-	User     map[int]AccessRight `json:"user"`
+	Everyone AccessRight            `json:"everyone"`
+	Role     map[uint32]AccessRight `json:"role"`
+	Group    map[uint32]AccessRight `json:"group"`
+	User     map[uint32]AccessRight `json:"user"`
 
 	changes []accessChange
 	sync.RWMutex
@@ -137,14 +135,14 @@ type RightsRoster struct {
 func NewRightsRoster() *RightsRoster {
 	return &RightsRoster{
 		Everyone: APNoAccess,
-		Group:    make(map[int]AccessRight),
-		Role:     make(map[int]AccessRight),
-		User:     make(map[int]AccessRight),
+		Group:    make(map[uint32]AccessRight),
+		Role:     make(map[uint32]AccessRight),
+		User:     make(map[uint32]AccessRight),
 	}
 }
 
 // addChange adds a single change for further storing
-func (rr *RightsRoster) addChange(action uint8, subjectKind uint8, subjectID int, rights AccessRight) {
+func (rr *RightsRoster) addChange(action uint8, subjectKind uint8, subjectID uint32, rights AccessRight) {
 	change := accessChange{
 		action:      action,
 		subjectKind: subjectKind,
@@ -170,20 +168,25 @@ func (rr *RightsRoster) clearChanges() {
 }
 
 // Summarize summarizing the resulting access right flags
-func (rr *RightsRoster) Summarize(u *user.User) AccessRight {
+func (rr *RightsRoster) Summarize(ctx context.Context, userID uint32) AccessRight {
+	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	if gm == nil {
+		panic(ErrNilGroupManager)
+	}
+
 	r := rr.Everyone
 
 	// calculating standard and role group rights
 	// NOTE: if some group doesn't have explicitly set rights, then
 	// attempting to obtain the rights of a first ancestor group,
 	// that has specific rights set
-	for _, g := range u.Groups(group.GKRole | group.GKGroup) {
-		r |= rr.GroupRights(g)
+	for _, g := range gm.GroupsByUserID(ctx, userID, GKRole|GKGroup) {
+		r |= rr.GroupRights(ctx, g.ID)
 	}
 
 	// user-specific rights
-	if _, ok := rr.User[u.ID]; ok {
-		r |= rr.User[u.ID]
+	if _, ok := rr.User[userID]; ok {
+		r |= rr.User[userID]
 	}
 
 	return r
@@ -192,20 +195,32 @@ func (rr *RightsRoster) Summarize(u *user.User) AccessRight {
 // GroupRights returns the rights of a given group if set explicitly,
 // otherwise returns the rights of the first ancestor group that has
 // any rights record explicitly set
-func (rr *RightsRoster) GroupRights(g *group.Group) AccessRight {
-	if g == nil {
+func (rr *RightsRoster) GroupRights(ctx context.Context, groupID uint32) AccessRight {
+	if groupID == 0 {
 		return APNoAccess
 	}
 
 	var rights AccessRight
 	var ok bool
 
+	// obtaining group manager
+	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	if gm == nil {
+		panic(ErrNilGroupManager)
+	}
+
+	// obtaining target group
+	g, err := gm.GroupByID(ctx, groupID)
+	if err != nil {
+		return APNoAccess
+	}
+
 	rr.RLock()
 
 	switch g.Kind {
-	case group.GKGroup:
+	case GKGroup:
 		rights, ok = rr.Group[g.ID]
-	case group.GKRole:
+	case GKRole:
 		rights, ok = rr.Role[g.ID]
 	}
 
@@ -217,8 +232,8 @@ func (rr *RightsRoster) GroupRights(g *group.Group) AccessRight {
 
 	// now looking for the first set rights by tracing back
 	// through its parents
-	if g.Parent() != nil {
-		return rr.GroupRights(g.Parent())
+	if g.ParentID != 0 {
+		return rr.GroupRights(ctx, g.ParentID)
 	}
 
 	return APNoAccess
@@ -230,29 +245,26 @@ func (rr *RightsRoster) GroupRights(g *group.Group) AccessRight {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
-// NOTE: an access policy can have only one object identifier set, either GroupMemberID or a Key
-// TODO calculate extended rights instantly. rights must be recalculated through all the tree after each change
-// TODO add caching mechanism to skip rights summarization
-// TODO disable inheritance if anything is changed about the current policy and create its own rights roster and enable extension by default
-// TODO decide whether I want namespaces
+// NOTE: an access policy can have only one object identifier set, either ObjectID or a Key
+// TODO: store object rights roster, name and object type in separate maps
+// TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
+// TODO: add caching mechanism to skip rights summarization
+// TODO: disable inheritance if anything is changed about the current policy and create its own rights roster and enable extension by default
 type AccessPolicy struct {
-	ID          int           `db:"id" json:"id"`
-	ParentID    int           `db:"parent_id" json:"parent_id"`
-	OwnerID     int           `db:"owner_id" json:"owner_id"`
-	Name        TAPName       `db:"name" json:"name"`
+	ID          uint32        `db:"id" json:"id"`
+	ParentID    uint32        `db:"parent_id" json:"parent_id"`
+	OwnerID     uint32        `db:"owner_id" json:"owner_id"`
+	Name        TPolicyName   `db:"name" json:"name"`
 	ObjectType  TAPObjectType `db:"object_type" json:"object_type"`
-	ObjectID    int           `db:"object_id" json:"object_id"`
+	ObjectID    uint32        `db:"object_id" json:"object_id"`
 	IsExtended  bool          `db:"is_extended" json:"is_extended"`
 	IsInherited bool          `db:"is_inherited" json:"is_inherited"`
 	Checksum    uint64        `db:"checksum" json:"checksum"`
 
-	Parent       *AccessPolicy `json:"-"`
-	Owner        *user.User    `json:"-"`
 	RightsRoster *RightsRoster `json:"-"`
 
-	keyHash   uint64
-	container *Manager
-	backup    *AccessPolicy
+	keyHash uint64
+	backup  *AccessPolicy
 
 	sync.RWMutex
 }
@@ -261,25 +273,35 @@ type AccessPolicy struct {
 // NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 // because this allows to create independent policies in the middle of a chain and still
 // benefit from using parent's rights as default with it's own corrections/exclusions
-func NewAccessPolicy(owner *user.User, parent *AccessPolicy, isInherited bool, isExtended bool) *AccessPolicy {
-	ap := &AccessPolicy{
-		Owner:        owner,
-		Parent:       parent,
-		IsInherited:  isInherited,
-		IsExtended:   isExtended,
-		RightsRoster: NewRightsRoster(),
+func NewAccessPolicy(ctx context.Context, ownerID uint32, parentID uint32, isInherited bool, isExtended bool) (ap AccessPolicy) {
+	// initializing new policy
+	ap = AccessPolicy{
+		IsInherited: isInherited,
+		IsExtended:  isExtended,
 	}
 
-	if owner != nil {
-		ap.OwnerID = owner.ID
+	if ownerID != 0 {
+		ap.OwnerID = ownerID
 	}
 
-	if parent != nil {
-		ap.ParentID = parent.ID
+	if parentID != 0 {
+		ap.ParentID = parentID
 
 		if ap.IsInherited {
+			apm := ctx.Value(CKAccessPolicyManager).(*AccessPolicyManager)
+			if apm == nil {
+				panic(ErrNilAccessPolicyManager)
+			}
+
+			p, err := ap.Parent(ctx)
+			if err != nil {
+				panic(ErrNoParentPolicy)
+			}
+
 			// just using a pointer to parent rights
-			ap.RightsRoster = parent.RightsRoster
+			ap.RightsRoster = p.RightsRoster
+		} else {
+			ap.RightsRoster = NewRightsRoster()
 		}
 	}
 
@@ -313,7 +335,7 @@ func (ap *AccessPolicy) calculateChecksum() uint64 {
 
 // TODO: use cryptographic hash function to exclude the chance of collision
 func (ap *AccessPolicy) hashKey() {
-	// panic if GroupMemberID is zero or a name is empty
+	// panic if ObjectID is zero or a name is empty
 	if ap.ID == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -353,15 +375,15 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "ParentID":
-			ap.ParentID = change.To.(int)
+			ap.ParentID = change.To.(uint32)
 		case "OwnerID":
-			ap.OwnerID = change.To.(int)
+			ap.OwnerID = change.To.(uint32)
 		case "Name":
-			ap.Name = change.To.(TAPName)
+			ap.Name = change.To.(TPolicyName)
 		case "ObjectType":
 			ap.ObjectType = change.To.(TAPObjectType)
 		case "ObjectID":
-			ap.ObjectID = change.To.(int)
+			ap.ObjectID = change.To.(uint32)
 		case "IsExtended":
 			ap.IsExtended = change.To.(bool)
 		case "IsInherited":
@@ -384,21 +406,17 @@ func (ap *AccessPolicy) Validate() error {
 		return ErrNilRightsRoster
 	}
 
-	if (ap.Parent != nil) != (ap.ParentID != 0) {
-		return errors.New("parent is set but parent id is not, or vice versa")
-	}
-
-	// kind cannot be empty if either key or GroupMemberID is set
+	// kind cannot be empty if either key or ObjectID is set
 	if len(ap.ObjectType[:]) == 0 && ap.ObjectID != 0 {
 		return errors.New("empty kind with a non-zero id")
 	}
 
-	// if kind is set, then GroupMemberID must also be set
+	// if kind is set, then ObjectID must also be set
 	if len(ap.ObjectType[:]) != 0 && ap.ObjectID == 0 {
 		return errors.New("non-empty kind with a zero id")
 	}
 
-	// policy must have some designators, a key or an GroupMemberID of its kind
+	// policy must have some designators, a key or an ObjectID of its kind
 	if len(ap.Name[:]) == 0 && len(ap.ObjectType[:]) == 0 && ap.ObjectID == 0 {
 		return ErrAccessPolicyEmptyDesignators
 	}
@@ -410,13 +428,8 @@ func (ap *AccessPolicy) Validate() error {
 	}
 
 	// parent must be set if this policy inherits or extends
-	if ap.Parent == nil && (ap.IsInherited || ap.IsExtended) {
+	if ap.ParentID == 0 && (ap.IsInherited || ap.IsExtended) {
 		return errors.New("policy cannot inherit or extend without a parent")
-	}
-
-	// making sure that parent is properly set, if set at all
-	if ap.Parent != nil && ap.ParentID == 0 {
-		return errors.New("parent is set but parentID is 0")
 	}
 
 	return nil
@@ -443,19 +456,14 @@ func (ap *AccessPolicy) Clone() (*AccessPolicy, error) {
 	}
 
 	clone := &AccessPolicy{
-		ID:          ap.ID,
-		ParentID:    ap.ParentID,
-		OwnerID:     ap.OwnerID,
-		ObjectType:  ap.ObjectType,
-		ObjectID:    ap.ObjectID,
-		IsInherited: ap.IsInherited,
-		IsExtended:  ap.IsExtended,
-
-		Parent:       ap.Parent,
-		Owner:        ap.Owner,
+		ID:           ap.ID,
+		ParentID:     ap.ParentID,
+		OwnerID:      ap.OwnerID,
+		ObjectType:   ap.ObjectType,
+		ObjectID:     ap.ObjectID,
+		IsInherited:  ap.IsInherited,
+		IsExtended:   ap.IsExtended,
 		RightsRoster: rr,
-
-		container: ap.container,
 	}
 
 	return clone, nil
@@ -499,19 +507,32 @@ func (ap *AccessPolicy) CloneRightsRoster() (*RightsRoster, error) {
 	return rr, nil
 }
 
+// Parent returns a parent policy, if set
+func (ap *AccessPolicy) Parent(ctx context.Context) (p AccessPolicy, err error) {
+	if ap.ParentID == 0 {
+		return p, ErrNoParentPolicy
+	}
+
+	apm := ctx.Value(CKAccessPolicyManager).(*AccessPolicyManager)
+	if apm == nil {
+		return p, ErrNilAccessPolicyManager
+	}
+
+	return apm.PolicyByID(ctx, ap.ParentID)
+}
+
 // SetParent setting a new parent policy
 // NOTE: if the parent is set to nil, then forcing IsInherited flag to false
-func (ap *AccessPolicy) SetParent(parent *AccessPolicy) error {
+func (ap *AccessPolicy) SetParent(p AccessPolicy) error {
 	ap.Lock()
-	ap.Parent = parent
 
 	// disabling inheritance to avoid unexpected behaviour
 	// TODO: think it through, is it really obvious to disable inheritance if parent is nil'ed?
-	if parent == nil {
+	if p.ID == 0 {
 		ap.IsInherited = false
 		ap.ParentID = 0
 	} else {
-		ap.ParentID = parent.ID
+		ap.ParentID = p.ID
 	}
 
 	ap.Unlock()
@@ -519,45 +540,58 @@ func (ap *AccessPolicy) SetParent(parent *AccessPolicy) error {
 	return nil
 }
 
-// UserAccess returns the user access bitmask
-func (ap *AccessPolicy) UserAccess(u *user.User) AccessRight {
-	if u == nil {
+// UserAccess returns a summarized access bitmask for a given user
+func (ap *AccessPolicy) UserAccess(ctx context.Context, userID uint32) (rights AccessRight) {
+	if userID == 0 {
 		return APNoAccess
 	}
 
-	// if this u is the owner, then returning maximum possible value for AccessRight type
-	if ap.IsOwner(u) {
+	// if this user is the owner, then returning maximum possible value for AccessRight type
+	if ap.IsOwner(ctx, userID) {
 		return APFullAccess
 	}
 
-	var rights AccessRight
-	// if IsInherited is true, then calling UserAccess until we reach the actual policy
-	if ap.Parent != nil && ap.IsInherited {
-		rights = ap.Parent.UserAccess(u)
-	} else {
-		ap.RLock()
-		// if extend is true and parent exists, then using parent's rights as a base value
-		if ap.Parent != nil && ap.IsExtended {
-			// addressing the parent because it traces back until it finds
-			// the first uninherited, actual policy
-			rights = ap.Parent.RightsRoster.Summarize(u)
+	// calculating parents access if parent ID is set
+	if ap.ParentID != 0 {
+		apm := ctx.Value(CKAccessPolicyManager).(*AccessPolicyManager)
+		if apm == nil {
+			panic(ErrNilAccessPolicyManager)
 		}
 
-		rights |= ap.RightsRoster.Summarize(u)
-		ap.RUnlock()
+		// obtaining parent object
+		p, err := ap.Parent(ctx)
+		if err != nil {
+			panic(errors.Wrap(err, "access policy has parent id set, but failed to obtain parent policy object"))
+		}
+
+		// if IsInherited is true, then calling UserAccess until we reach the actual policy
+		if ap.IsInherited {
+			rights = p.UserAccess(ctx, userID)
+		} else {
+			ap.RLock()
+			// if extend is true and parent exists, then using parent's rights as a base value
+			if p.ID != 0 && ap.IsExtended {
+				// addressing the parent because it traces back until it finds
+				// the first uninherited, actual policy
+				rights = p.RightsRoster.Summarize(ctx, userID)
+			}
+			ap.RUnlock()
+		}
+
+		rights |= ap.RightsRoster.Summarize(ctx, userID)
 	}
 
 	return rights
 }
 
 // SetPublicRights setting rights for everyone
-func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight) error {
-	if assignor == nil {
-		return ErrNilAssignor
+func (ap *AccessPolicy) SetPublicRights(ctx context.Context, assignorID uint32, rights AccessRight) error {
+	if assignorID == 0 {
+		return ErrZeroUserID
 	}
 
-	// checking whether the assignor has at least the assigned rights
-	if !ap.HasRights(assignor, rights) {
+	// checking whether the assignorID has at least the assigned rights
+	if !ap.HasRights(ctx, assignorID, rights) {
 		return ErrExcessOfRights
 	}
 
@@ -569,22 +603,22 @@ func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight)
 }
 
 // SetRoleRights setting rights for the role
-func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *group.Group, rights AccessRight) error {
-	if assignor == nil {
-		return ErrNilAssignor
+func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID uint32, role Group, rights AccessRight) error {
+	if assignorID == 0 {
+		return ErrZeroUserID
 	}
 
-	if role == nil {
-		return group.ErrNilRole
+	if role.ID == 0 {
+		return ErrZeroRoleID
 	}
 
 	// making sure it's group kind is Role
-	if role.Kind != group.GKRole {
-		return group.ErrInvalidKind
+	if role.Kind != GKRole {
+		return ErrInvalidKind
 	}
 
-	// checking whether the assignor has at least the assigned rights
-	if !ap.HasRights(assignor, rights) {
+	// checking whether the assignorID has at least the assigned rights
+	if !ap.HasRights(ctx, assignorID, rights) {
 		return ErrExcessOfRights
 	}
 
@@ -596,22 +630,22 @@ func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *group.Group, ri
 }
 
 // SetGroupRights setting rights for specific user
-func (ap *AccessPolicy) SetGroupRights(assignor *user.User, g *group.Group, rights AccessRight) error {
-	if assignor == nil {
-		return ErrNilAssignor
+func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID uint32, g Group, rights AccessRight) error {
+	if assignorID == 0 {
+		return ErrZeroUserID
 	}
 
-	if g == nil {
-		return group.ErrNilGroup
+	if g.ID == 0 {
+		return ErrZeroGroupID
 	}
 
 	// making sure it's g kind is Group
-	if g.Kind != group.GKGroup {
-		return group.ErrInvalidKind
+	if g.Kind != GKGroup {
+		return ErrInvalidKind
 	}
 
-	// checking whether the assignor has at least the assigned rights
-	if !ap.HasRights(assignor, rights) {
+	// checking whether the assignorID has at least the assigned rights
+	if !ap.HasRights(ctx, assignorID, rights) {
 		return ErrExcessOfRights
 	}
 
@@ -624,32 +658,32 @@ func (ap *AccessPolicy) SetGroupRights(assignor *user.User, g *group.Group, righ
 
 // SetUserRights setting rights for specific user
 // TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each access policy instance
-func (ap *AccessPolicy) SetUserRights(assignor *user.User, assignee *user.User, rights AccessRight) error {
-	if assignor == nil {
-		return ErrNilAssignor
+func (ap *AccessPolicy) SetUserRights(ctx context.Context, assignorID uint32, assigneeID uint32, rights AccessRight) error {
+	if assignorID == 0 {
+		return errors.New("assignor id is zero")
 	}
 
-	if assignee == nil {
-		return ErrNilAssignee
+	if assigneeID == 0 {
+		return errors.New("assignee id is zero")
 	}
 
-	// the assignor must have a right to set rights (APManageRights) and have all the
+	// the assignorID must have a right to set rights (APManageRights) and have all the
 	// rights himself that he's attempting to assign to others
-	if !ap.HasRights(assignor, APManageRights|rights) {
+	if !ap.HasRights(ctx, assignorID, APManageRights|rights) {
 		return ErrExcessOfRights
 	}
 
 	ap.Lock()
-	ap.RightsRoster.User[assignee.ID] = rights
+	ap.RightsRoster.User[assigneeID] = rights
 	ap.Unlock()
 
 	return nil
 }
 
 // IsOwner checks whether a given user is the owner of this policy
-func (ap *AccessPolicy) IsOwner(u *user.User) bool {
+func (ap *AccessPolicy) IsOwner(ctx context.Context, userID uint32) bool {
 	// owner of the policy (meaning: the main entity) has full rights on it
-	if ap.Owner != nil && (ap.Owner.ID == u.ID) {
+	if ap.OwnerID != 0 && (ap.OwnerID == userID) {
 		return true
 	}
 
@@ -658,14 +692,14 @@ func (ap *AccessPolicy) IsOwner(u *user.User) bool {
 
 // HasRights checks whether the user has specific rights
 // NOTE: returns true only if the user has every of specified rights permitted
-// TODO: maybe add some sort of a calculated cache with a short livespan, like 100ms or something
-func (ap *AccessPolicy) HasRights(user *user.User, rights AccessRight) bool {
-	if user == nil {
+// TODO: maybe add some sort of a calculated cache with a short livespan, like 10ms or something
+func (ap *AccessPolicy) HasRights(ctx context.Context, userID uint32, rights AccessRight) bool {
+	if userID == 0 {
 		return false
 	}
 
 	// allow if this user is an owner
-	if ap.IsOwner(user) {
+	if ap.IsOwner(ctx, userID) {
 		return true
 	}
 
@@ -677,29 +711,31 @@ func (ap *AccessPolicy) HasRights(user *user.User, rights AccessRight) bool {
 	var cr AccessRight
 
 	// calculating parent-related rights if possible
-	if ap.Parent != nil {
-		if ap.IsInherited {
-			return ap.Parent.HasRights(user, rights)
-		}
+	if ap.ParentID != 0 {
+		if p, err := ap.Parent(ctx); err == nil {
+			if ap.IsInherited {
+				return p.HasRights(ctx, userID, rights)
+			}
 
-		if ap.IsExtended {
-			ap.RLock()
-			cr = ap.Parent.RightsRoster.Summarize(user)
-			ap.RUnlock()
+			if ap.IsExtended {
+				ap.RLock()
+				cr = p.RightsRoster.Summarize(ctx, userID)
+				ap.RUnlock()
+			}
 		}
 	}
 
 	// merging with the actual policy's rights roster rights
 	ap.RLock()
-	cr |= ap.RightsRoster.Summarize(user)
+	cr |= ap.RightsRoster.Summarize(ctx, userID)
 	ap.RUnlock()
 
 	return (cr & rights) == rights
 }
 
 // HasGroupRights checks whether a group has the rights
-func (ap *AccessPolicy) HasGroupRights(g *group.Group, rights AccessRight) bool {
-	if g == nil {
+func (ap *AccessPolicy) HasGroupRights(ctx context.Context, groupID uint32, rights AccessRight) bool {
+	if groupID == 0 {
 		return false
 	}
 
@@ -707,7 +743,7 @@ func (ap *AccessPolicy) HasGroupRights(g *group.Group, rights AccessRight) bool 
 		return false
 	}
 
-	return (ap.RightsRoster.GroupRights(g) & rights) == rights
+	return (ap.RightsRoster.GroupRights(ctx, groupID) & rights) == rights
 }
 
 // UnsetRights takes away current rights on this policy,
@@ -716,18 +752,18 @@ func (ap *AccessPolicy) HasGroupRights(g *group.Group, rights AccessRight) bool 
 // but the assignee still retains its public level rights to this policy
 // NOTE: if you wish to completely deny access to this policy, then
 // better set exclusive rights explicitly (i.e. APNoAccess, 0)
-func (ap *AccessPolicy) UnsetRights(assignor *user.User, assignee interface{}) error {
-	if assignor == nil {
-		return ErrNilAssignor
+func (ap *AccessPolicy) UnsetRights(ctx context.Context, assignorID uint32, assignee interface{}) error {
+	if assignorID == 0 {
+		return ErrZeroUserID
 	}
 
 	if assignee == nil {
 		return ErrNilAssignee
 	}
 
-	// the assignor must have a right to set rights (APManageRights) and have all the
+	// the assignorID must have a right to set rights (APManageRights) and have all the
 	// rights himself that he's attempting to assign to others
-	if !ap.HasRights(assignor, APManageRights) {
+	if !ap.HasRights(ctx, assignorID, APManageRights) {
 		return ErrAccessDenied
 	}
 
@@ -735,14 +771,14 @@ func (ap *AccessPolicy) UnsetRights(assignor *user.User, assignee interface{}) e
 
 	// deleting assignee from the roster (depending on its type)
 	switch assignee.(type) {
-	case *user.User:
-		delete(ap.RightsRoster.User, assignee.(*user.User).ID)
-	case *group.Group:
-		switch g := assignee.(*group.Group); g.Kind {
-		case group.GKRole:
-			delete(ap.RightsRoster.Role, assignee.(*group.Group).ID)
-		case group.GKGroup:
-			delete(ap.RightsRoster.Group, assignee.(*group.Group).ID)
+	case User:
+		delete(ap.RightsRoster.User, assignee.(User).ID)
+	case Group:
+		switch g := assignee.(Group); g.Kind {
+		case GKRole:
+			delete(ap.RightsRoster.Role, assignee.(Group).ID)
+		case GKGroup:
+			delete(ap.RightsRoster.Group, assignee.(Group).ID)
 		}
 	}
 
@@ -771,23 +807,21 @@ func (ap *AccessPolicy) CreateBackup() error {
 }
 
 // RestoreBackup restores policy backup and clears changelist
-func (ap *AccessPolicy) RestoreBackup() error {
+func (ap *AccessPolicy) RestoreBackup() (err error) {
 	if ap.backup == nil {
 		return ErrAccessPolicyBackupNotFound
 	}
 
-	if err := ap.backup.Validate(); err != nil {
-		return fmt.Errorf("policy backup validation failed: %s", err)
+	if err = ap.backup.Validate(); err != nil {
+		return errors.Wrap(err, "policy backup validation failed")
 	}
 
 	if ap.ID != ap.backup.ID {
-		return fmt.Errorf("policy GroupMemberID and backup GroupMemberID mismatch")
+		return errors.New("actual policy and back ids do not match")
 	}
 
 	// restoring backup (restoring manually, field by field)
-	ap.Owner = ap.backup.Owner
 	ap.OwnerID = ap.backup.OwnerID
-	ap.Parent = ap.backup.Parent
 	ap.ParentID = ap.backup.ParentID
 	ap.keyHash = ap.backup.keyHash
 	ap.ObjectType = ap.backup.ObjectType
@@ -795,7 +829,6 @@ func (ap *AccessPolicy) RestoreBackup() error {
 	ap.RightsRoster = ap.backup.RightsRoster
 	ap.IsInherited = ap.backup.IsInherited
 	ap.IsExtended = ap.backup.IsExtended
-	ap.container = ap.backup.container
 
 	// clearing backup
 	ap.backup = nil
@@ -807,15 +840,6 @@ func (ap *AccessPolicy) RestoreBackup() error {
 }
 
 // Backup returns backup policy if exists or nil
-func (ap *AccessPolicy) Backup() *AccessPolicy {
-	return ap.backup
-}
-
-// UpdateAccessPolicy saves itself via container (if it belongs to any container)
-func (ap *AccessPolicy) Save(ctx context.Context) error {
-	if ap.container == nil {
-		return ErrNilAccessPolicyContainer
-	}
-
-	return ap.container.Save(ctx, ap)
+func (ap *AccessPolicy) Backup() AccessPolicy {
+	return *ap.backup
 }

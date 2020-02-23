@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/agubarev/hometown/internal/core"
-	"github.com/agubarev/hometown/pkg/accesspolicy"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/davecgh/go-spew/spew"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -19,7 +19,7 @@ const (
 )
 
 type Endpoint struct {
-	ap      *accesspolicy.AccessPolicy
+	ap      *user.AccessPolicy
 	core    *core.Manager
 	handler http.HandlerFunc
 }

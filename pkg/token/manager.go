@@ -37,7 +37,7 @@ const Length = 30
 // DefaultTTL defines the default token longevity duration from the moment of its creation
 const DefaultTTL = 1 * time.Hour
 
-// GroupMemberKind represents the type of a token, used by a token container
+// ObjectKind represents the type of a token, used by a token container
 type Kind uint16
 
 func (k Kind) String() string {
@@ -337,7 +337,7 @@ func (m *Manager) Get(ctx context.Context, token string) (*Token, error) {
 	return t, nil
 }
 
-// Delete deletes a token from the container
+// DeletePolicy deletes a token from the container
 func (m *Manager) Delete(ctx context.Context, t *Token) error {
 	// clearing token from the map
 	m.Lock()
@@ -416,13 +416,13 @@ func (m *Manager) Cleanup(ctx context.Context) (err error) {
 // AddCallback adds callback function to container's callstack to be called upon token checkins
 func (m *Manager) AddCallback(k Kind, id string, fn func(ctx context.Context, t *Token) error) error {
 	// this is straightforward, adding function to a callback stack
-	// NOTE: GroupMemberID is a basic mechanism to prevent multiple callback additions
+	// NOTE: ObjectID is a basic mechanism to prevent multiple callback additions
 	id = strings.ToLower(id)
 
 	m.Lock()
 	defer m.Unlock()
 
-	// making sure there isn't any callback registered with this GroupMemberID
+	// making sure there isn't any callback registered with this ObjectID
 	for _, cb := range m.callbacks {
 		if cb.ID == id {
 			return ErrTokenDuplicateCallbackID
@@ -463,7 +463,7 @@ func (m *Manager) GetCallbacks(k Kind) []Callback {
 	return cbstack
 }
 
-// RemoveCallback removes token callback by GroupMemberID, returns ErrTokenCallbackNotfound
+// RemoveCallback removes token callback by ObjectID, returns ErrTokenCallbackNotfound
 func (m *Manager) RemoveCallback(id string) error {
 	id = strings.ToLower(id)
 

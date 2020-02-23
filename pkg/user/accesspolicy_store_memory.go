@@ -1,4 +1,4 @@
-package accesspolicy
+package user
 
 import (
 	context2 "context"
@@ -12,8 +12,8 @@ import (
 // memoryStore is a default access policy store implementation
 type memoryStore struct {
 	idCounter   int64
-	idMap       map[int]*AccessPolicy
-	nameMap     map[TAPName]*AccessPolicy
+	idMap       map[uint32]*AccessPolicy
+	nameMap     map[TPolicyName]*AccessPolicy
 	objectIDMap map[string]*AccessPolicy
 
 	sync.RWMutex
@@ -21,19 +21,19 @@ type memoryStore struct {
 
 // NewMemoryStore returns an initialized access policy store
 // that stores everything in memory
-func NewMemoryStore() (Store, error) {
+func NewMemoryStore() (AccessPolicyStore, error) {
 	s := &memoryStore{
 		idCounter:   0,
-		idMap:       make(map[int]*AccessPolicy),
-		nameMap:     make(map[TAPName]*AccessPolicy),
+		idMap:       make(map[uint32]*AccessPolicy),
+		nameMap:     make(map[TPolicyName]*AccessPolicy),
 		objectIDMap: make(map[string]*AccessPolicy),
 	}
 
 	return s, nil
 }
 
-func (s *memoryStore) newID() int {
-	return int(atomic.AddInt64(&s.idCounter, 1))
+func (s *memoryStore) newID() uint32 {
+	return uint32(atomic.AddInt64(&s.idCounter, 1))
 }
 
 // Upsert creating access policy
@@ -62,7 +62,7 @@ func (s *memoryStore) Create(ctx context2.Context, ap *AccessPolicy) (retap *Acc
 	return ap, nil
 }
 
-// UpdateAccessPolicy updates an existing access policy along with its rights roster
+// UpdatePolicy updates an existing access policy along with its rights roster
 // NOTE: rights roster keeps track of its changes, thus, update will
 // only affect changes mentioned by the respective RightsRoster object
 func (s *memoryStore) Update(ctx context.Context, ap *AccessPolicy) (err error) {
@@ -88,8 +88,8 @@ func (s *memoryStore) Update(ctx context.Context, ap *AccessPolicy) (err error) 
 	return nil
 }
 
-// GroupByID retrieving a access policy by GroupMemberID
-func (s *memoryStore) GetByID(id int) (*AccessPolicy, error) {
+// GroupByID retrieving a access policy by ObjectID
+func (s *memoryStore) GetByID(id uint32) (*AccessPolicy, error) {
 	s.RLock()
 	ap, ok := s.idMap[id]
 	s.RUnlock()
@@ -101,8 +101,8 @@ func (s *memoryStore) GetByID(id int) (*AccessPolicy, error) {
 	return ap, nil
 }
 
-// GetByName retrieving a access policy by key
-func (s *memoryStore) GetByKey(name TAPName) (*AccessPolicy, error) {
+// PolicyByName retrieving a access policy by key
+func (s *memoryStore) GetByKey(name TPolicyName) (*AccessPolicy, error) {
 	s.RLock()
 	ap, ok := s.nameMap[name]
 	s.RUnlock()
@@ -114,8 +114,8 @@ func (s *memoryStore) GetByKey(name TAPName) (*AccessPolicy, error) {
 	return ap, nil
 }
 
-// GetByObjectTypeAndID retrieving a access policy by a kind and id
-func (s *memoryStore) GetByKindAndID(kind string, id int) (*AccessPolicy, error) {
+// PolicyByObjectTypeAndID retrieving a access policy by a kind and id
+func (s *memoryStore) GetByKindAndID(kind string, id uint32) (*AccessPolicy, error) {
 	s.RLock()
 	ap, ok := s.objectIDMap[fmt.Sprintf("%s_%d", kind, id)]
 	s.RUnlock()
@@ -127,7 +127,7 @@ func (s *memoryStore) GetByKindAndID(kind string, id int) (*AccessPolicy, error)
 	return ap, nil
 }
 
-// Delete access policy
+// DeletePolicy access policy
 func (s *memoryStore) Delete(ap *AccessPolicy) (err error) {
 	// basic validations
 	if ap == nil {
