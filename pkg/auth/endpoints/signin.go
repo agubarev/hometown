@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/pkg/auth"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	jsoniter "github.com/json-iterator/go"
 )
@@ -47,10 +47,10 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authenticating
-	user, err := a.Authenticate(creds.Username, creds.Password, ri)
+	u, err := a.Authenticate(r.Context(), creds.Username, creds.Password, ri)
 	if err != nil {
 		switch err {
-		case core.ErrUserNotFound:
+		case user.ErrUserNotFound:
 			util.WriteResponseErrorTo(w, "auth_failed", auth.ErrAuthenticationFailed, http.StatusUnauthorized)
 		case auth.ErrAuthenticationFailed:
 			util.WriteResponseErrorTo(w, "auth_failed", err, http.StatusUnauthorized)
@@ -62,26 +62,28 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// generating a token trinity
-	tokenTrinity, err := a.GenerateTokenTrinity(user, ri)
+	tokenTrinity, err := a.GenerateTokenTrinity(u, ri)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "internal", err, http.StatusInternalServerError)
 		return
 	}
 
 	// logging time
-	if err := user.LastLoginAt.Scan(time.Now()); err != nil {
+	if err := u.LastLoginAt.Scan(time.Now()); err != nil {
 		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to scan time"), http.StatusInternalServerError)
 		return
 	}
 
-	// updating IP from where the user has just authenticated from
-	user.LastLoginIP = ri.IP.String()
+	// updating IP from where the u has just authenticated from
+	//u.LastLoginIP = []byte(ri.IP.String())
 
-	// logging user
-	if err := user.Save(ctx); err != nil {
-		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to save user"), http.StatusInternalServerError)
-		return
-	}
+	/*
+		// logging user
+		if err := u.Save(r.Context()); err != nil {
+			util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to save u"), http.StatusInternalServerError)
+			return
+		}
+	*/
 
 	response, err := json.Marshal(tokenTrinity)
 	if err != nil {
@@ -97,5 +99,5 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/text")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(response))
+	w.Write(response)
 }

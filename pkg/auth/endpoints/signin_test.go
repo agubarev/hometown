@@ -9,9 +9,11 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/pkg/auth"
+	"github.com/agubarev/hometown/pkg/auth/endpoints"
+	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
@@ -25,13 +27,12 @@ func TestSignin(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-	a.NoError(core.TruncateDatabaseForTesting(db))
 
 	// initializing test user manager
-	um, err := core.NewUserManagerForTesting(db)
+	um, err := user.NewUserManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 

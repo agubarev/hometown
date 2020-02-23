@@ -4,9 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
 
-	"github.com/agubarev/hometown/pkg/group"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
@@ -19,7 +17,9 @@ import (
 type NewUserObject struct {
 	Essential
 	ProfileEssential
-	Password []byte `json:"password"`
+	EmailAddr   TEmailAddr   `json:"email"`
+	PhoneNumber TPhoneNumber `json:"phone"`
+	Password    []byte       `json:"password"`
 }
 
 // Essential represents an essential part of the primary object
@@ -91,7 +91,7 @@ func (u *User) calculateChecksum() uint64 {
 }
 
 func (u *User) hashKey() {
-	// panic if ID is zero or a name is empty
+	// panic if GroupMemberID is zero or a name is empty
 	if u.ID == 0 || u.Username[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -103,7 +103,7 @@ func (u *User) hashKey() {
 	key.WriteString("user")
 	key.Write(u.Username[:])
 
-	// adding ID to the key
+	// adding GroupMemberID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(u.ID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash user key"))
 	}
@@ -152,17 +152,7 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 
 // StringID returns short info about the user
 func (u *User) StringID() string {
-	return fmt.Sprintf("u(%d:%s)", u.ID, u.Username)
-}
-
-// Container returns the corresponding user container to
-// which this user belongs
-func (u *User) Container() (*UserContainer, error) {
-	if u.container == nil {
-		return nil, ErrNilUserContainer
-	}
-
-	return u.container, nil
+	return fmt.Sprintf("user(%d:%s)", u.ID, u.Username)
 }
 
 // Validate user object
@@ -172,143 +162,8 @@ func (u *User) Validate() error {
 	}
 
 	if ok, err := govalidator.ValidateStruct(u); !ok {
-		return errors.Wrapf(err, "u validation failed")
+		return errors.Wrapf(err, "user validation failed")
 	}
 
 	return nil
-}
-
-// HasPassword tests whether this user has password
-func (u *User) HasPassword() bool {
-	userContainer, err := u.Container()
-	if err != nil {
-		return false
-	}
-
-	userManager, err := userContainer.Manager()
-	if err != nil {
-		return false
-	}
-
-	passwordManager, err := userManager.PasswordManager()
-	if err != nil {
-		return false
-	}
-
-	if _, err = passwordManager.Get(u); err != nil {
-		return false
-	}
-
-	return true
-}
-
-// UpdateAccessPolicy saves current user to the container's store
-func (u *User) Save(ctx context.Context) error {
-	if u == nil {
-		return ErrNilUser
-	}
-
-	// first, obtaining the container in which this u resides
-	c, err := u.Container()
-	if err != nil {
-		return err
-	}
-
-	// second, obtaining the u manager to which this container belongs
-	m, err := c.Manager()
-	if err != nil {
-		return err
-	}
-
-	// saving through the u manager
-	_, _, err = m.Update(ctx, 0, nil)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// LinkGroup tracking which groups this user is a member of
-func (u *User) LinkGroup(g *group.Group) error {
-	if g == nil {
-		return ErrNilGroup
-	}
-
-	// safeguard in case this slice is not initialized
-	if u.groups == nil {
-		u.groups = make([]*group.Group, 0)
-	}
-
-	// appending group to slice for easier runtime access
-	u.groups = append(u.groups, g)
-
-	return nil
-}
-
-// UnlinkGroup removing group from the tracklist
-func (u *User) UnlinkGroup(g *group.Group) error {
-	if u.groups == nil {
-		// initializing just in case
-		u.groups = make([]*group.Group, 0)
-
-		return nil
-	}
-
-	// removing group from the tracklist
-	for i, ug := range u.groups {
-		if ug.ID == g.ID {
-			u.groups = append(u.groups[0:i], u.groups[i+1:]...)
-			break
-		}
-	}
-
-	return ErrGroupNotFound
-}
-
-// Groups to which the user belongs
-func (u *User) Groups(mask group.Kind) []*group.Group {
-	if u.groups == nil {
-		u.groups = make([]*group.Group, 0)
-	}
-
-	groups := make([]*group.Group, 0)
-	for _, g := range u.groups {
-		if (g.Kind | mask) == mask {
-			groups = append(groups, g)
-		}
-	}
-
-	return groups
-}
-
-// LinkContainer links user to container for easier backtracking
-func (u *User) LinkContainer(c *UserContainer) error {
-	u.container = c
-
-	return nil
-}
-
-// IsRegisteredAndStored returns true if the user is both:
-// 1. registered within a user container
-// 2. persisted to the store
-func (u *User) IsRegisteredAndStored() (bool, error) {
-	c, err := u.Container()
-	if err != nil {
-		// for convenience, the u is allowed to not be inside a container
-		if err == ErrNilUserContainer {
-			log.Printf("IsRegisteredAndStored(%d:%s): %s", u.ID, u.Username, err)
-			return false, nil
-		}
-
-		return false, fmt.Errorf("IsRegisteredAndStored(): failed to obtain u container: %s", err)
-	}
-
-	// obtaining the u manager
-	m, err := c.Manager()
-	if err != nil {
-		return false, err
-	}
-
-	return m.IsRegisteredAndStored(u)
 }

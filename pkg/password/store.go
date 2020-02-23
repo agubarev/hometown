@@ -9,9 +9,9 @@ import (
 )
 
 // Store interface
-// NOTE: ownerID represents the ID of whoever owns a given password
+// NOTE: ownerID represents the GroupMemberID of whoever owns a given password
 type Store interface {
-	Create(ctx context.Context, p *Password) error
+	Upsert(ctx context.Context, p *Password) error
 	Update(ctx context.Context, k Kind, ownerID int, newpass []byte) error
 	Get(ctx context.Context, k Kind, ownerID int) (*Password, error)
 	Delete(ctx context.Context, k Kind, ownerID int) error
@@ -27,9 +27,9 @@ func NewPasswordStore(db *dbr.Connection) (Store, error) {
 	return &passwordStore{db}, nil
 }
 
-// Create stores password
-// ID must be equal to the user's ID
-func (s *passwordStore) Create(ctx context.Context, p *Password) (err error) {
+// Upsert stores password
+// GroupMemberID must be equal to the user's GroupMemberID
+func (s *passwordStore) Upsert(ctx context.Context, p *Password) (err error) {
 	if p == nil {
 		return ErrNilPassword
 	}
@@ -39,9 +39,11 @@ func (s *passwordStore) Create(ctx context.Context, p *Password) (err error) {
 	}
 
 	_, err = s.db.NewSession(nil).
-		InsertInto("password").
-		Record(p).
-		ExecContext(ctx)
+		ExecContext(
+			ctx,
+			"INSERT INTO `password`(`kind`, `owner_id`, `hash`, `is_change_required`, `created_at`, `expire_at`) VALUES(?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE `hash`=?, `updated_at`=?, `expire_at`=?",
+			p.Kind, p.OwnerID, p.Hash, p.IsChangeRequired, p.CreatedAt, p.ExpireAt, p.Hash, p.UpdatedAt, p.ExpireAt,
+		)
 
 	return nil
 }

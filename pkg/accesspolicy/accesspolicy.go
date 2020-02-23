@@ -8,8 +8,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/cespare/xxhash"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
@@ -230,7 +230,7 @@ func (rr *RightsRoster) GroupRights(g *group.Group) AccessRight {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
-// NOTE: an access policy can have only one object identifier set, either ID or a Key
+// NOTE: an access policy can have only one object identifier set, either GroupMemberID or a Key
 // TODO calculate extended rights instantly. rights must be recalculated through all the tree after each change
 // TODO add caching mechanism to skip rights summarization
 // TODO disable inheritance if anything is changed about the current policy and create its own rights roster and enable extension by default
@@ -292,9 +292,9 @@ func (ap *AccessPolicy) calculateChecksum() uint64 {
 	fields := []interface{}{
 		int64(ap.ParentID),
 		int64(ap.OwnerID),
-		ap.Name[:],
-		ap.ObjectType[:],
-		ap.ObjectID,
+		ap.Name,
+		ap.ObjectType,
+		int64(ap.ObjectID),
 		ap.IsExtended,
 		ap.IsInherited,
 	}
@@ -313,9 +313,9 @@ func (ap *AccessPolicy) calculateChecksum() uint64 {
 
 // TODO: use cryptographic hash function to exclude the chance of collision
 func (ap *AccessPolicy) hashKey() {
-	// panic if ID is zero or a name is empty
+	// panic if GroupMemberID is zero or a name is empty
 	if ap.ID == 0 {
-		panic(core.ErrInsufficientDataToHashKey)
+		panic(ErrInsufficientDataToHashKey)
 	}
 
 	// initializing a key buffer with and assuming the minimum key length
@@ -377,30 +377,30 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 // Validate validates access policy by performing basic self-check
 func (ap *AccessPolicy) Validate() error {
 	if ap == nil {
-		return core.ErrNilAccessPolicy
+		return ErrNilAccessPolicy
 	}
 
 	if ap.RightsRoster == nil {
-		return core.ErrNilRightsRoster
+		return ErrNilRightsRoster
 	}
 
 	if (ap.Parent != nil) != (ap.ParentID != 0) {
 		return errors.New("parent is set but parent id is not, or vice versa")
 	}
 
-	// kind cannot be empty if either key or ID is set
+	// kind cannot be empty if either key or GroupMemberID is set
 	if len(ap.ObjectType[:]) == 0 && ap.ObjectID != 0 {
 		return errors.New("empty kind with a non-zero id")
 	}
 
-	// if kind is set, then ID must also be set
+	// if kind is set, then GroupMemberID must also be set
 	if len(ap.ObjectType[:]) != 0 && ap.ObjectID == 0 {
 		return errors.New("non-empty kind with a zero id")
 	}
 
-	// policy must have some designators, a key or an ID of its kind
+	// policy must have some designators, a key or an GroupMemberID of its kind
 	if len(ap.Name[:]) == 0 && len(ap.ObjectType[:]) == 0 && ap.ObjectID == 0 {
-		return core.ErrAccessPolicyEmptyDesignators
+		return ErrAccessPolicyEmptyDesignators
 	}
 
 	// inherited means that this is not a standalone policy but simply points
@@ -464,12 +464,12 @@ func (ap *AccessPolicy) Clone() (*AccessPolicy, error) {
 // CloneRightsRoster returns a snapshot copy of the access rights roster for this policy
 func (ap *AccessPolicy) CloneRightsRoster() (*RightsRoster, error) {
 	if ap == nil {
-		return nil, core.ErrNilAccessPolicy
+		return nil, ErrNilAccessPolicy
 	}
 
 	// must be unforgiving and explicit, returning an error
 	if ap.RightsRoster == nil {
-		return nil, core.ErrNilRightsRoster
+		return nil, ErrNilRightsRoster
 	}
 
 	// initializing new roster
@@ -553,12 +553,12 @@ func (ap *AccessPolicy) UserAccess(u *user.User) AccessRight {
 // SetPublicRights setting rights for everyone
 func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight) error {
 	if assignor == nil {
-		return core.ErrNilAssignor
+		return ErrNilAssignor
 	}
 
 	// checking whether the assignor has at least the assigned rights
 	if !ap.HasRights(assignor, rights) {
-		return core.ErrExcessOfRights
+		return ErrExcessOfRights
 	}
 
 	ap.Lock()
@@ -571,21 +571,21 @@ func (ap *AccessPolicy) SetPublicRights(assignor *user.User, rights AccessRight)
 // SetRoleRights setting rights for the role
 func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *group.Group, rights AccessRight) error {
 	if assignor == nil {
-		return core.ErrNilAssignor
+		return ErrNilAssignor
 	}
 
 	if role == nil {
-		return core.ErrNilRole
+		return group.ErrNilRole
 	}
 
 	// making sure it's group kind is Role
 	if role.Kind != group.GKRole {
-		return core.ErrInvalidGroupKind
+		return group.ErrInvalidKind
 	}
 
 	// checking whether the assignor has at least the assigned rights
 	if !ap.HasRights(assignor, rights) {
-		return core.ErrExcessOfRights
+		return ErrExcessOfRights
 	}
 
 	ap.Lock()
@@ -596,27 +596,27 @@ func (ap *AccessPolicy) SetRoleRights(assignor *user.User, role *group.Group, ri
 }
 
 // SetGroupRights setting rights for specific user
-func (ap *AccessPolicy) SetGroupRights(assignor *user.User, group *group.Group, rights AccessRight) error {
+func (ap *AccessPolicy) SetGroupRights(assignor *user.User, g *group.Group, rights AccessRight) error {
 	if assignor == nil {
-		return core.ErrNilAssignor
+		return ErrNilAssignor
 	}
 
-	if group == nil {
-		return core.ErrNilGroup
+	if g == nil {
+		return group.ErrNilGroup
 	}
 
-	// making sure it's group kind is Group
-	if group.Kind != group.GKGroup {
-		return core.ErrInvalidGroupKind
+	// making sure it's g kind is Group
+	if g.Kind != group.GKGroup {
+		return group.ErrInvalidKind
 	}
 
 	// checking whether the assignor has at least the assigned rights
 	if !ap.HasRights(assignor, rights) {
-		return core.ErrExcessOfRights
+		return ErrExcessOfRights
 	}
 
 	ap.Lock()
-	ap.RightsRoster.Group[group.ID] = rights
+	ap.RightsRoster.Group[g.ID] = rights
 	ap.Unlock()
 
 	return nil
@@ -626,17 +626,17 @@ func (ap *AccessPolicy) SetGroupRights(assignor *user.User, group *group.Group, 
 // TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each access policy instance
 func (ap *AccessPolicy) SetUserRights(assignor *user.User, assignee *user.User, rights AccessRight) error {
 	if assignor == nil {
-		return core.ErrNilAssignor
+		return ErrNilAssignor
 	}
 
 	if assignee == nil {
-		return core.ErrNilAssignee
+		return ErrNilAssignee
 	}
 
 	// the assignor must have a right to set rights (APManageRights) and have all the
 	// rights himself that he's attempting to assign to others
 	if !ap.HasRights(assignor, APManageRights|rights) {
-		return core.ErrExcessOfRights
+		return ErrExcessOfRights
 	}
 
 	ap.Lock()
@@ -718,17 +718,17 @@ func (ap *AccessPolicy) HasGroupRights(g *group.Group, rights AccessRight) bool 
 // better set exclusive rights explicitly (i.e. APNoAccess, 0)
 func (ap *AccessPolicy) UnsetRights(assignor *user.User, assignee interface{}) error {
 	if assignor == nil {
-		return core.ErrNilAssignor
+		return ErrNilAssignor
 	}
 
 	if assignee == nil {
-		return core.ErrNilAssignee
+		return ErrNilAssignee
 	}
 
 	// the assignor must have a right to set rights (APManageRights) and have all the
 	// rights himself that he's attempting to assign to others
 	if !ap.HasRights(assignor, APManageRights) {
-		return core.ErrAccessDenied
+		return ErrAccessDenied
 	}
 
 	ap.Lock()
@@ -738,7 +738,7 @@ func (ap *AccessPolicy) UnsetRights(assignor *user.User, assignee interface{}) e
 	case *user.User:
 		delete(ap.RightsRoster.User, assignee.(*user.User).ID)
 	case *group.Group:
-		switch group := assignee.(*group.Group); group.Kind {
+		switch g := assignee.(*group.Group); g.Kind {
 		case group.GKRole:
 			delete(ap.RightsRoster.Role, assignee.(*group.Group).ID)
 		case group.GKGroup:
@@ -756,7 +756,7 @@ func (ap *AccessPolicy) UnsetRights(assignor *user.User, assignee interface{}) e
 func (ap *AccessPolicy) CreateBackup() error {
 	// checking whether there already is a copy backed up
 	if ap.backup != nil {
-		return core.ErrAccessPolicyBackupExists
+		return ErrAccessPolicyBackupExists
 	}
 
 	// preserving a copy of this access policy by storing a backup inside itself
@@ -773,7 +773,7 @@ func (ap *AccessPolicy) CreateBackup() error {
 // RestoreBackup restores policy backup and clears changelist
 func (ap *AccessPolicy) RestoreBackup() error {
 	if ap.backup == nil {
-		return core.ErrAccessPolicyBackupNotFound
+		return ErrAccessPolicyBackupNotFound
 	}
 
 	if err := ap.backup.Validate(); err != nil {
@@ -781,7 +781,7 @@ func (ap *AccessPolicy) RestoreBackup() error {
 	}
 
 	if ap.ID != ap.backup.ID {
-		return fmt.Errorf("policy ID and backup ID mismatch")
+		return fmt.Errorf("policy GroupMemberID and backup GroupMemberID mismatch")
 	}
 
 	// restoring backup (restoring manually, field by field)
@@ -814,7 +814,7 @@ func (ap *AccessPolicy) Backup() *AccessPolicy {
 // UpdateAccessPolicy saves itself via container (if it belongs to any container)
 func (ap *AccessPolicy) Save(ctx context.Context) error {
 	if ap.container == nil {
-		return core.ErrNilAccessPolicyContainer
+		return ErrNilAccessPolicyContainer
 	}
 
 	return ap.container.Save(ctx, ap)

@@ -7,86 +7,55 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
 
-// errors
-var (
-	ErrNilPhone       = errors.New("phone is nil")
-	ErrDuplicatePhone = errors.New("duplicate phone")
-	ErrPhoneNotFound  = errors.New("phone not found")
-)
-
-// PhoneNewObject contains fields sufficient to create a new object
+// NewPhoneObject contains fields sufficient to create a new object
 type NewPhoneObject struct {
 	PhoneEssential
+	IsConfirmed bool
 }
 
 // PhoneEssential represents an essential part of the primary object
 type PhoneEssential struct {
-	ExternalID  int    `db:"external_id" json:"external_id"`
-	Name        string `db:"name" json:"name"`
-	Description string `db:"description" json:"description"`
+	Number    TPhoneNumber `db:"number" json:"number"`
+	IsPrimary bool         `db:"is_primary" json:"is_primary"`
 }
 
 // PhoneMetadata contains generic metadata of the primary object
 type PhoneMetadata struct {
-	Checksum  uint64       `db:"checksum" json:"checksum"`
-	CreatedAt dbr.NullTime `db:"created_at" json:"created_at"`
-	UpdatedAt dbr.NullTime `db:"updated_at" json:"updated_at"`
-	DeletedAt dbr.NullTime `db:"deleted_at" json:"deleted_at"`
+	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
+	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
 
-// Phone represents certain phones which are custom
+// Phone represents certain emails which are custom
 // and are handled by the customer
 type Phone struct {
-	ID   int       `db:"id" json:"id"`
-	ULID ulid.ULID `db:"ulid" json:"ulid"`
+	UserID int `db:"user_id" json:"user_id"`
 
 	PhoneEssential
 	PhoneMetadata
 }
 
-func (p *Phone) calculateChecksum() uint64 {
-	buf := new(bytes.Buffer)
-
-	fields := []interface{}{
-		int64(p.ID),
-		int64(p.ExternalID),
-		[]byte(p.Name),
-	}
-
-	for _, field := range fields {
-		if err := binary.Write(buf, binary.LittleEndian, field); err != nil {
-			panic(errors.Wrapf(err, "failed to write binary data [%v] to calculate checksum", field))
-		}
-	}
-
-	// assigning a checksum calculated from a definite list of struct values
-	p.Checksum = xxhash.Sum64(buf.Bytes())
-
-	return p.Checksum
-}
-
 func (p *Phone) hashKey() {
-	// panic if ID is zero or a name is empty
-	if p.ID == 0 || len(p.Name) == 0 {
+	// panic if GroupMemberID is zero or a name is empty
+	if p.UserID == 0 || p.Number[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
 
 	// initializing a key buffer with and assuming the minimum key length
-	key := bytes.NewBuffer(make([]byte, 0, len("phone")+len(p.Name)+8))
+	key := bytes.NewBuffer(make([]byte, 0, len(p.Number[:])+13))
 
 	// composing a key value
 	key.WriteString("phone")
-	key.WriteString(p.Name)
+	key.Write(p.Number[:])
 
-	// adding ID to the key
-	if err := binary.Write(key, binary.LittleEndian, int64(p.ID)); err != nil {
+	// adding user GroupMemberID to the key
+	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash phone key"))
 	}
 
@@ -121,17 +90,15 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			p.ExternalID = change.To.(int)
-		case "Name":
-			p.Name = change.To.(string)
-		case "Checksum":
-			p.Checksum = change.To.(uint64)
+			p.UserID = change.To.(int)
+		case "Number":
+			p.Number = change.To.(TPhoneNumber)
 		case "CreatedAt":
 			p.CreatedAt = change.To.(dbr.NullTime)
+		case "Confirmed_at":
+			p.ConfirmedAt = change.To.(dbr.NullTime)
 		case "UpdatedAt":
 			p.UpdatedAt = change.To.(dbr.NullTime)
-		case "DeletedAt":
-			p.DeletedAt = change.To.(dbr.NullTime)
 		}
 	}
 

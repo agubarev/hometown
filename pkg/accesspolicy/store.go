@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr/v2"
 	"github.com/pkg/errors"
@@ -40,7 +39,7 @@ type DefaultAccessPolicyStore struct {
 // NewDefaultAccessPolicyStore returns an initialized default domain store
 func NewDefaultAccessPolicyStore(db *dbr.Connection) (Store, error) {
 	if db == nil {
-		return nil, core.ErrNilDB
+		return nil, ErrNilDatabase
 	}
 
 	s := &DefaultAccessPolicyStore{db}
@@ -59,7 +58,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 	// fetching policy itself
 	if err := sess.SelectBySql(q, args).LoadOneContext(ctx, &ap); err != nil {
 		if err == dbr.ErrNotFound {
-			return nil, core.ErrAccessPolicyNotFound
+			return nil, ErrAccessPolicyNotFound
 		}
 
 		return nil, err
@@ -76,7 +75,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 	case err != nil:
 		return nil, err
 	case count == 0:
-		return nil, core.ErrEmptyRightsRoster
+		return nil, ErrEmptyRightsRoster
 	}
 
 	// initializing rights roster
@@ -121,7 +120,7 @@ func (s *DefaultAccessPolicyStore) getMany(ctx context.Context, q string, args .
 	case err != nil:
 		return nil, err
 	case count == 0:
-		return nil, core.ErrAccessPolicyNotFound
+		return nil, ErrAccessPolicyNotFound
 	}
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -137,19 +136,19 @@ func (s *DefaultAccessPolicyStore) getMany(ctx context.Context, q string, args .
 //? unexported utility functions
 //? END ---<<<----------------------------------------------------------------
 
-// Create creating access policy
+// Upsert creating access policy
 func (s *DefaultAccessPolicyStore) Create(ctx context.Context, ap *AccessPolicy) (retap *AccessPolicy, err error) {
 	// basic validations
 	if ap == nil {
-		return nil, core.ErrNilAccessPolicy
+		return nil, ErrNilAccessPolicy
 	}
 
 	if ap.RightsRoster == nil {
-		return nil, core.ErrNilRightsRoster
+		return nil, ErrNilRightsRoster
 	}
 
 	if ap.ID != 0 {
-		return nil, core.ErrObjectIsNotNew
+		return nil, ErrNonZeroID
 	}
 
 	sess := s.db.NewSession(nil)
@@ -189,7 +188,7 @@ func (s *DefaultAccessPolicyStore) Create(ctx context.Context, ap *AccessPolicy)
 		panic(err)
 	}
 
-	// obtaining new ID
+	// obtaining new GroupMemberID
 	newID, err := result.LastInsertId()
 	if err != nil {
 		panic(err)
@@ -259,7 +258,7 @@ func (s *DefaultAccessPolicyStore) Create(ctx context.Context, ap *AccessPolicy)
 		panic(err)
 	}
 
-	// setting its new ID
+	// setting its new GroupMemberID
 	ap.ID = int(newID)
 
 	return ap, nil
@@ -271,15 +270,15 @@ func (s *DefaultAccessPolicyStore) Create(ctx context.Context, ap *AccessPolicy)
 func (s *DefaultAccessPolicyStore) Update(ctx context.Context, ap *AccessPolicy) (err error) {
 	// basic validations
 	if ap == nil {
-		return core.ErrNilAccessPolicy
+		return ErrNilAccessPolicy
 	}
 
 	if ap.RightsRoster == nil {
-		return core.ErrNilRightsRoster
+		return ErrNilRightsRoster
 	}
 
 	if ap.ID == 0 {
-		return core.ErrObjectIsNew
+		return ErrZeroID
 	}
 
 	sess := s.db.NewSession(nil)
@@ -370,7 +369,7 @@ func (s *DefaultAccessPolicyStore) Update(ctx context.Context, ap *AccessPolicy)
 	return nil
 }
 
-// GetByID retrieving a access policy by ID
+// GroupByID retrieving a access policy by GroupMemberID
 func (s *DefaultAccessPolicyStore) GetByID(id int) (*AccessPolicy, error) {
 	return s.get(context.TODO(), "SELECT * FROM access_policy WHERE id = ? LIMIT 1", id)
 }
@@ -389,15 +388,15 @@ func (s *DefaultAccessPolicyStore) GetByKindAndID(kind string, id int) (*AccessP
 func (s *DefaultAccessPolicyStore) Delete(ap *AccessPolicy) (err error) {
 	// basic validations
 	if ap == nil {
-		return core.ErrNilAccessPolicy
+		return ErrNilAccessPolicy
 	}
 
 	if ap.RightsRoster == nil {
-		return core.ErrNilRightsRoster
+		return ErrNilRightsRoster
 	}
 
 	if ap.ID == 0 {
-		return core.ErrObjectIsNew
+		return ErrZeroID
 	}
 
 	sess := s.db.NewSession(nil)

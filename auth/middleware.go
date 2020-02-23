@@ -6,7 +6,8 @@ import (
 	"io"
 	"net/http"
 
-	"github.com/agubarev/hometown/internal/core"
+	"github.com/agubarev/hometown/pkg/user"
+	"github.com/agubarev/hometown/pkg/util"
 )
 
 type contextKey string
@@ -41,14 +42,22 @@ func MiddlewareAuth(next http.Handler) http.Handler {
 		}
 
 		// passing just the test user for now
-		user, err := user.UserNew("testauthuser", "testme@example.com")
+		u := user.User{
+			ID:   1,
+			ULID: util.NewULID(),
+			Essential: user.Essential{
+				Username:    user.TUsername{},
+				DisplayName: user.TDisplayName{},
+			},
+			Metadata: user.Metadata{},
+		}
 		if err != nil {
 			http.Error(w, "failed to initialize test user", http.StatusInternalServerError)
 			return
 		}
 
 		// extending request context
-		ctx := context.WithValue(r.Context(), contextKeyUser, user)
+		ctx := context.WithValue(r.Context(), contextKeyUser, u)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

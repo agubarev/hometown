@@ -6,17 +6,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestTokenContainerNewContainer(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -45,7 +45,7 @@ func TestTokenContainerNewToken(t *testing.T) {
 func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -77,7 +77,7 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 
 	// trying to get nonexistent token
 	nonexistentToken, err := c.Get("nonexistent token")
-	a.EqualError(core.ErrTokenNotFound, err.Error())
+	a.EqualError(token.ErrTokenNotFound, err.Error())
 	a.Nil(nonexistentToken)
 
 	// deleting token
@@ -85,14 +85,14 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 
 	// attempting to get it back from the container
 	tok3, err := c.Get(tok.Token)
-	a.EqualError(core.ErrTokenNotFound, err.Error())
+	a.EqualError(token.ErrTokenNotFound, err.Error())
 	a.Nil(tok3)
 }
 
 func TestTokenContainerCheckin(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -111,7 +111,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	// this call must fail now, because there's no callback registered
 	//---------------------------------------------------------------------------
 	// creating new token; 10 sec expiration and one-time use
-	tok, err := c.Create(token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -130,13 +130,13 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// must pass
-	err = c.Checkin(tok.Token)
+	err = c.Checkin(context.Background(), tok.Token)
 	a.NoError(err)
 	a.True(flagSwitch)
 
 	// token must be void and missing now
-	tok, err = c.Get(tok.Token)
-	a.EqualError(core.ErrTokenNotFound, err.Error())
+	tok, err = c.Get(context.Background(), tok.Token)
+	a.EqualError(token.ErrTokenNotFound, err.Error())
 	a.Nil(tok)
 
 	//---------------------------------------------------------------------------
@@ -148,7 +148,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// creating new token; 10 sec expiration and two-time use
-	tok, err = c.Create(token.TkUserEmailConfirmation, payload, 10*time.Second, 2)
+	tok, err = c.Create(context.Background(), token.TkUserEmailConfirmation, payload, 10*time.Second, 2)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -165,12 +165,12 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// must pass
-	err = c.Checkin(tok.Token)
+	err = c.Checkin(context.Background(), tok.Token)
 	a.NoError(err)
 	a.True(flagSwitch)
 
 	// token must exist but have just 1 checkin remaining
-	tok, err = c.Get(tok.Token)
+	tok, err = c.Get(context.Background(), tok.Token)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -186,7 +186,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// creating new token
-	tok, err = c.Create(token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
+	tok, err = c.Create(context.Background(), token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -195,11 +195,11 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.Equal(1, tok.CheckinRemainder)
 
 	// checkin must fail due to not having a preregistered callback for this token's kind
-	err = c.Checkin(tok.Token)
-	a.EqualError(core.ErrTokenCallbackNotFound, err.Error())
+	err = c.Checkin(context.Background(), tok.Token)
+	a.EqualError(token.ErrTokenCallbackNotFound, err.Error())
 
 	// token must be still present
-	tok, err = c.Get(tok.Token)
+	tok, err = c.Get(context.Background(), tok.Token)
 	a.NoError(err)
 	a.NotNil(tok)
 
@@ -213,12 +213,12 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// this checkin must fail due to callback returning an err
-	err = c.Checkin(tok.Token)
+	err = c.Checkin(context.Background(), tok.Token)
 	a.Error(err)
 	a.True(flagSwitch)
 
 	// token must still exist
-	tok, err = c.Get(tok.Token)
+	tok, err = c.Get(context.Background(), tok.Token)
 	a.NoError(err)
 	a.NotNil(tok)
 }
@@ -226,7 +226,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 func TestTokenContainerAddCallback(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -240,7 +240,7 @@ func TestTokenContainerAddCallback(t *testing.T) {
 
 	payload := util.NewULID()
 
-	tok, err := c.Create(token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -260,7 +260,7 @@ func TestTokenContainerAddCallback(t *testing.T) {
 	err = c.AddCallback(tok.Kind, validID, func(ctx context.Context, t *token.Token) error {
 		return nil
 	})
-	a.EqualError(core.ErrTokenDuplicateCallbackID, err.Error())
+	a.EqualError(token.ErrTokenDuplicateCallbackID, err.Error())
 
 	cb, err := c.GetCallback(validID)
 	a.NoError(err)
@@ -273,14 +273,14 @@ func TestTokenContainerAddCallback(t *testing.T) {
 	a.Len(c.GetCallbacks(tok.Kind), 1)
 
 	cb, err = c.GetCallback(wrongID)
-	a.Error(core.ErrTokenCallbackNotFound, err.Error())
+	a.Error(token.ErrTokenCallbackNotFound, err.Error())
 	a.Nil(cb)
 }
 
 func TestTokenContainerRemoveCallback(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -294,7 +294,7 @@ func TestTokenContainerRemoveCallback(t *testing.T) {
 
 	payload := util.NewULID()
 
-	tok, err := c.Create(token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TkUserEmailConfirmation, payload, 10*time.Second, 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TkUserEmailConfirmation, tok.Kind)
@@ -325,14 +325,14 @@ func TestTokenContainerRemoveCallback(t *testing.T) {
 
 	// callback must not exist now
 	cb, err = c.GetCallback(callbackID)
-	a.Error(core.ErrTokenCallbackNotFound, err.Error())
+	a.Error(token.ErrTokenCallbackNotFound, err.Error())
 	a.Nil(cb)
 }
 
 func TestTokenContainerCleanup(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -344,13 +344,13 @@ func TestTokenContainerCleanup(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(c)
 
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 4*time.Second, 1)
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 4*time.Second, 1)
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 4*time.Second, 1)
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 6*time.Second, 1)
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 7*time.Second, 1)
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 8*time.Second, 1)
-	c.Create(token.TkUserEmailConfirmation, util.NewULID(), 16*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 4*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 4*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 4*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 6*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 7*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 8*time.Second, 1)
+	c.Create(context.Background(), token.TkUserEmailConfirmation, util.NewULID(), 16*time.Second, 1)
 
 	a.Len(c.List(token.TkAllTokens), 7)
 

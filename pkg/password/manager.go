@@ -26,9 +26,9 @@ const (
 	KUser Kind = iota
 )
 
-// Manager describes the behaviour of a user password manager
+// userManager describes the behaviour of a user password manager
 type Manager interface {
-	Create(ctx context.Context, kind Kind, ownerID int, p *Password) error
+	Upsert(ctx context.Context, p *Password) error
 	Get(ctx context.Context, kind Kind, ownerID int) (*Password, error)
 	Delete(ctx context.Context, kind Kind, ownerID int) error
 }
@@ -37,8 +37,8 @@ type defaultManager struct {
 	store Store
 }
 
-// NewDefaultManager initializes the default user password manager
-func NewDefaultManager(store Store) (Manager, error) {
+// NewManager initializes the default user password manager
+func NewManager(store Store) (Manager, error) {
 	if store == nil {
 		return nil, ErrNilPasswordStore
 	}
@@ -50,7 +50,7 @@ func NewDefaultManager(store Store) (Manager, error) {
 	return pm, nil
 }
 
-func (m *defaultManager) Create(ctx context.Context, k Kind, ownerID int, p *Password) (err error) {
+func (m *defaultManager) Upsert(ctx context.Context, p *Password) (err error) {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}
@@ -59,7 +59,7 @@ func (m *defaultManager) Create(ctx context.Context, k Kind, ownerID int, p *Pas
 		return errors.Wrap(err, "password validation failed")
 	}
 
-	return m.store.Create(ctx, p)
+	return m.store.Upsert(ctx, p)
 }
 
 func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID int) (*Password, error) {

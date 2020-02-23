@@ -2,8 +2,6 @@ package user
 
 import (
 	"context"
-	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/agubarev/hometown/pkg/password"
@@ -23,28 +21,15 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 		return nil, err
 	}
 
+	//---------------------------------------------------------------------------
 	// basic validation
+	//---------------------------------------------------------------------------
+	if newUser.EmailAddr[0] == 0 {
+		return nil, ErrEmptyEmailAddr
+	}
+
 	if len(newUser.Password) == 0 {
 		return nil, password.ErrEmptyPassword
-	}
-
-	//---------------------------------------------------------------------------
-	// attempting to initialize new password first,
-	// before new user is created
-	// NOTE: initializing user input slice to check password safety
-	//---------------------------------------------------------------------------
-	userdata := []string{
-		string(newUser.Username[:]),
-		string(newUser.DisplayName[:]),
-		string(newUser.Firstname[:]),
-		string(newUser.Middlename[:]),
-		string(newUser.Lastname[:]),
-	}
-
-	// initializing new password
-	p, err := password.New(newUser.Password, userdata)
-	if err != nil {
-		panic(err)
 	}
 
 	//---------------------------------------------------------------------------
@@ -86,14 +71,115 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 			// at this point it doesn't matter what caused this panic, it only matters
 			// to delete the created user and clean up what's unfinished
 			// TODO: devise a contingency plan for OSHI- if the recovery fails
-			if _, err := m.DeleteUserByID(ctx, u.ID, true); err != nil {
-				err = errors.Wrap(r.(error), "[panic:critical] failed to delete user during recovery from panic")
+			if _, xerr := m.DeleteUserByID(ctx, u.ID, true); xerr != nil {
+				err = errors.Wrapf(err, "[panic:critical] failed to delete user during recovery from panic: %s", xerr)
 				l.Error("failed to delete new user during recovery from panic", zap.Error(err))
+			}
+
+			//---------------------------------------------------------------------------
+			// deleting things that might have been created before panic
+			//---------------------------------------------------------------------------
+			// deleting email
+			if _, xerr := m.DeleteEmailByAddr(ctx, u.ID, newUser.EmailAddr); xerr != nil {
+				err = errors.Wrapf(err, "failed to delete emails during recovery from panic: %s", xerr)
+				l.Error("failed to delete emails during recovery from panic", zap.Error(err))
+			}
+
+			// deleting phones
+			if _, xerr := m.DeletePhoneByNumber(ctx, u.ID, newUser.PhoneNumber); xerr != nil {
+				err = errors.Wrapf(err, "failed to delete phones during recovery from panic: %s", xerr)
+				l.Error("failed to delete phones during recovery from panic", zap.Error(err))
+			}
+
+			// deleting password
+			if xerr := m.passwords.Delete(ctx, password.KUser, u.ID); xerr != nil {
+				err = errors.Wrapf(err, "failed to delete password during recovery from panic: %s", xerr)
+				l.Error("failed to delete password during recovery from panic", zap.Error(err))
 			}
 		}
 	}()
 
-	if err = m.SetPassword(u, p); err != nil {
+	//---------------------------------------------------------------------------
+	// creating new email record
+	//---------------------------------------------------------------------------
+	_, err = m.CreateEmail(ctx, func(ctx context.Context) (object NewEmailObject, err error) {
+		object = NewEmailObject{
+			EmailEssential: EmailEssential{
+				// passing in email address from the new user object
+				Addr: newUser.EmailAddr,
+
+				// since this email is for the new user,
+				// then this is a primary email
+				IsPrimary: true,
+			},
+
+			// this email hasn't been confirmed yet
+			IsConfirmed: false,
+		}
+
+		return object, nil
+	})
+
+	if err != nil {
+		panic(errors.Wrapf(err, "failed to create email: %s", newUser.EmailAddr))
+	}
+
+	//---------------------------------------------------------------------------
+	// creating new phone record (if number is given)
+	//---------------------------------------------------------------------------
+	if newUser.PhoneNumber[0] != 0 {
+		_, err = m.CreatePhone(ctx, func(ctx context.Context) (object NewPhoneObject, err error) {
+			object = NewPhoneObject{
+				PhoneEssential: PhoneEssential{
+					// passing in email address from the new user object
+					Number: newUser.PhoneNumber,
+
+					// first record for the new user means it's primary
+					IsPrimary: true,
+				},
+
+				// this phone hasn't been confirmed yet
+				IsConfirmed: false,
+			}
+
+			return object, nil
+		})
+
+		if err != nil {
+			panic(errors.Wrapf(err, "failed to create email: %s", newUser.EmailAddr))
+		}
+	}
+
+	//---------------------------------------------------------------------------
+	// creating profile
+	//---------------------------------------------------------------------------
+	_, err = m.CreateProfile(ctx, func(ctx context.Context) (object NewProfileObject, err error) {
+		object = NewProfileObject{
+			ProfileEssential: newUser.ProfileEssential,
+		}
+
+		return object, nil
+	})
+
+	//---------------------------------------------------------------------------
+	// creating password
+	//---------------------------------------------------------------------------
+	// initializing user input slice to check password safety
+	userdata := []string{
+		string(newUser.Username[:]),
+		string(newUser.DisplayName[:]),
+		string(newUser.Firstname[:]),
+		string(newUser.Middlename[:]),
+		string(newUser.Lastname[:]),
+	}
+
+	// initializing new password
+	p, err := password.New(password.KUser, u.ID, newUser.Password, userdata)
+	if err != nil {
+		panic(errors.Wrap(err, "failed to initialize new password"))
+	}
+
+	if err = m.SetPassword(ctx, u, p); err != nil {
 		// TODO possibly delete the unfinished user or figure out a better way to handle
 		// NOTE: at this point this account cannot be allowed to stay without a password
 		// because there's an explicit attempt to create a new user account WITH PASSWORD,
@@ -106,26 +192,11 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	m.Logger().Debug(
 		"created new user",
 		zap.Int("id", u.ID),
+		zap.ByteString("username", u.Username[:]),
+		zap.ByteString("email", newUser.EmailAddr[:]),
 	)
 
 	return u, nil
-}
-
-// CreateWithPassword creates a new user with a password
-func (m *Manager) CreateWithPassword(ctx context.Context, fn func(ctx context.Context) (NewUserObject, error)) (u *User, err error) {
-	if m.passwords == nil {
-		return nil, ErrNilPasswordManager
-	}
-
-	l := m.Logger()
-
-	// attempting to create the user first
-	u, err = m.CreateUser(ctx, fn)
-	if err != nil {
-		return nil, err
-	}
-
-	return
 }
 
 // BulkCreateUser creates multiple new user
@@ -157,15 +228,43 @@ func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []*User) (us []*U
 	return us, nil
 }
 
-// GetUserByID returns a user if found by ID
-func (m *Manager) GetUserByID(ctx context.Context, id int) (u *User, err error) {
+// UserByID returns a user if found by GroupMemberID
+func (m *Manager) UserByID(ctx context.Context, id int) (u *User, err error) {
 	if id == 0 {
 		return nil, ErrUserNotFound
 	}
 
 	u, err = m.store.FetchUserByID(ctx, id)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain u")
+		return nil, errors.Wrapf(err, "failed to obtain user by id: %d", id)
+	}
+
+	return u, nil
+}
+
+// UserByUsername returns a user if found by username
+func (m *Manager) UserByUsername(ctx context.Context, username TUsername) (u *User, err error) {
+	if username[0] == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	u, err = m.store.FetchUserByUsername(ctx, username)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to obtain user by username: %s", username)
+	}
+
+	return u, nil
+}
+
+// UserByEmailAddr returns a user if found by username
+func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u *User, err error) {
+	if addr[0] == 0 {
+		return nil, ErrUserNotFound
+	}
+
+	u, err = m.store.FetchUserByEmailAddr(ctx, addr)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to obtain user by email: %s", addr)
 	}
 
 	return u, nil
@@ -238,11 +337,20 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id int, isHard bool) (u *U
 			return nil, errors.Wrap(err, "failed to delete u")
 		}
 
+		// and finally deleting user's password if the password manager is present
+		// NOTE: it should be possible that the user could not have a password
+		if m.passwords != nil {
+			err = m.passwords.Delete(ctx, password.KUser, id)
+			if err != nil {
+				return nil, errors.Wrap(err, "failed to delete user password")
+			}
+		}
+
 		return nil, nil
 	}
 
 	// obtaining deleted object
-	u, err = m.GetUserByID(ctx, id)
+	u, err = m.UserByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -264,27 +372,10 @@ func (m *Manager) CheckAvailability(ctx context.Context, username TUsername, ema
 		return err
 	}
 
-	// runtime checks first
-	_, err = store.FetchByUsername(username)
-	if err == nil {
-		return ErrUsernameTaken
-	}
-
-	if err != ErrUserNotFound {
-		return err
-	}
-
-	_, err = store.FetchByEmail(email)
-	if err == nil {
-		return ErrEmailTaken
-	}
-
-	if err != ErrUserNotFound {
-		return err
-	}
+	// TODO: check runtime cache first
 
 	// checking storage for just in case
-	_, err = store.FetchUserByKey(ctx, "username", username)
+	_, err = store.FetchUserByUsername(ctx, username)
 	if err == nil {
 		return ErrUsernameTaken
 	}
@@ -293,266 +384,35 @@ func (m *Manager) CheckAvailability(ctx context.Context, username TUsername, ema
 		return err
 	}
 
-	_, err = store.FetchUserByKey(ctx, "email", email)
+	_, err = store.FetchUserByEmailAddr(ctx, email)
 	if err == nil {
 		return ErrEmailTaken
 	}
 
 	if err != ErrUserNotFound {
 		return err
-	}
-
-	return nil
-}
-
-// UpdateAccessPolicy saves user to the store, will return an error if store is not set
-func (m *Manager) Update(ctx context.Context, id int, fn func(ctx context.Context, user *User) (*User, error)) (user *User, changelog diff.Changelog, err error) {
-	store, err := m.Store()
-	if err != nil {
-		return user, changelog, err
-	}
-
-	// obtaining existing user
-	user, err = store.FetchUserByID(ctx, id)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to update user")
-	}
-
-	// initializing an updated user
-	updated, err := fn(ctx, user)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialize updated user")
-	}
-
-	// pre-save modifications
-	user.UpdatedAt = dbr.NewNullTime(time.Now())
-
-	// refreshing index
-	if m.index != nil {
-		sid := strconv.Itoa(user.ID)
-
-		// deleting previous index
-		// TODO: workaround error cases, add logging
-		err = m.index.Delete(sid)
-		if err != nil {
-			return user, changelog, fmt.Errorf("failed to delete previous bleve index: %s", err)
-		}
-
-		// indexing current user object version
-		err = m.index.Index(sid, user)
-		if err != nil {
-			return user, changelog, fmt.Errorf("failed to index user object: %s", err)
-		}
-	}
-
-	// acquiring changelog
-	changelog, err = diff.Diff(user, updated)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff changes")
-	}
-
-	// persisting to the store as a final step
-	user, err = store.Update(ctx, user)
-	if err != nil {
-		return user, changelog, err
-	}
-
-	m.Logger().Info(
-		"updated",
-		zap.Int("id", user.ID),
-		zap.String("username", user.Username),
-	)
-
-	return user, changelog, nil
-}
-
-// Delete deletes user from the store and container
-func (m *Manager) Delete(u *User) error {
-	store, err := m.Store()
-	if err != nil {
-		return fmt.Errorf("Delete(): %s", err)
-	}
-
-	// NOTE: if the user doesn't exist then returning an error for
-	// consistent explicitness
-	_, err = m.users.GetByID(u.ID)
-	if err != nil {
-		return fmt.Errorf("Delete(): failed to get user %d: %s", u.ID, err)
-	}
-
-	// now deleting user from the store
-	err = store.DeleteByID(ctx, u.ID)
-	if err != nil {
-		return fmt.Errorf("Delete() failed to delete user from the store: %s", err)
-	}
-
-	// removing runtime object
-	err = m.users.Remove(u.ID)
-	if err != nil {
-		return fmt.Errorf("Delete(): failed to delete user %d: %s", u.ID, err)
-	}
-
-	// and finally deleting user's password if the password manager is present
-	// NOTE: it should be possible that the user could not have a password
-	if m.passwords != nil {
-		err = m.passwords.Delete(u)
-		if err != nil {
-			return fmt.Errorf("Delete(): failed to delete user password: %s", err)
-		}
 	}
 
 	return nil
 }
 
 // SetPassword sets a new password for the user
-func (m *Manager) SetPassword(u *User, p *password.Password) error {
+func (m *Manager) SetPassword(ctx context.Context, u *User, p *password.Password) (err error) {
 	if u == nil {
-		return fmt.Errorf("SetPassword(): %s", ErrNilUser)
+		return errors.Wrap(ErrNilUser, "failed to set user password")
 	}
 
 	// paranoid check of whether the user is eligible to have
 	// a password created and stored
-	ok, err := u.IsRegisteredAndStored()
-	if err != nil {
-		return fmt.Errorf("SetPassword(): %s", err)
-	}
-
-	if !ok {
-		return fmt.Errorf("SetPassword(): %s", ErrUserPasswordNotEligible)
+	if u.ID == 0 {
+		return ErrZeroUserID
 	}
 
 	// storing password
-	// NOTE: Manager is responsible for hashing and encryption
-	if err = m.passwords.Create(u, p); err != nil {
-		return fmt.Errorf("SetPassword(): failed to set password: %s", err)
+	// NOTE: userManager is responsible for hashing and encryption
+	if err = m.passwords.Upsert(ctx, p); err != nil {
+		return errors.Wrap(err, "failed to set user password")
 	}
 
 	return nil
-}
-
-// GetByName returns a user by specific key
-func (m *Manager) GetByKey(keyName string, keyValue interface{}) (user *User, err error) {
-	c, err := m.Container()
-	if err != nil {
-		return nil, err
-	}
-
-	// first, checking inside the user container
-	switch keyName {
-	case "id":
-		user, err = c.GetByID(keyValue.(int))
-	case "username":
-		user, err = c.GetByUsername(keyValue.(string))
-	case "email":
-		user, err = c.GetByEmail(keyValue.(string))
-	}
-
-	// now, decision depending on an error value
-	switch err {
-	case nil:
-		return user, nil
-	case ErrUserNotFound:
-		// obtaining user store
-		s, err := m.Store()
-		if err != nil {
-			return nil, err
-		}
-
-		// now checking the store
-		user, err = s.GetUserByKey(ctx, keyName, keyValue)
-		if err != nil {
-			return nil, err
-		}
-
-		// caching user by adding to the user container
-		err = c.Add(user)
-		if err != nil {
-			return nil, err
-		}
-
-		return user, nil
-	default:
-		return nil, err
-	}
-}
-
-// List serves as a proxy to user container's List function
-func (m *Manager) List(fn func(u *User) bool) List {
-	c, err := m.Container()
-	if err != nil {
-		// returning an empty user list (a named slice of users)
-		return make(List, 0)
-	}
-
-	return c.List(fn)
-}
-
-// SetPasswordManager assigns a password manager for this container
-func (m *Manager) SetPasswordManager(pm password.Manager) error {
-	if pm == nil {
-		return ErrNilPasswordManager
-	}
-
-	m.passwords = pm
-
-	return nil
-}
-
-// ConfirmEmail this function is used only when user's email is confirmed
-// TODO: make it one function to confirm by type (i.e. email, phone, etc.)
-func (m *Manager) ConfirmEmail(u *User) error {
-	if u == nil {
-		return ErrNilUser
-	}
-
-	if u.EmailConfirmedAt.Valid && !u.EmailConfirmedAt.Time.IsZero() {
-		return ErrUserAlreadyConfirmed
-	}
-
-	u.EmailConfirmedAt = dbr.NewNullTime(time.Now())
-
-	if _, _, err := m.Update(ctx, 0, nil); err != nil {
-		return fmt.Errorf("failed to confirm user email(%d:%s): %s", u.ID, u.Email, err)
-	}
-
-	m.Logger().Info("user email confirmed",
-		zap.Int("id", u.ID),
-		zap.String("email", u.Email),
-	)
-
-	return nil
-}
-
-// IsRegisteredAndStored returns true if the user is both:
-// 1. registered within a user container
-// 2. persisted to the store
-func (m *Manager) IsRegisteredAndStored(u *User) (bool, error) {
-	// checking whether the user is registered during runtime
-	_, err := m.users.GetByID(u.ID)
-	if err != nil {
-		if err == ErrUserNotFound {
-			// user isn't registered, normal return
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	// checking container's store
-	s, err := m.Store()
-	if err != nil {
-		return false, err
-	}
-
-	_, err = s.GetUserByID(ctx, u.ID)
-	if err != nil {
-		if err == ErrUserNotFound {
-			// user isn't in the store yet, normal return
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	return true, nil
 }

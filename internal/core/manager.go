@@ -18,7 +18,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// Manager represents an aggregate of Hometown's core functionality
+// userManager represents an aggregate of Hometown's core functionality
 type Manager struct {
 	users     *user.Manager
 	groups    *group.Manager
@@ -119,7 +119,7 @@ func (m *Manager) UserManager() *user.Manager {
 	return m.users
 }
 
-// Manager returns a password manager object
+// userManager returns a password manager object
 func (m *Manager) PasswordManager() (password.Manager, error) {
 	if m.passwords == nil {
 		return nil, ErrNilPasswordManager
@@ -128,7 +128,7 @@ func (m *Manager) PasswordManager() (password.Manager, error) {
 	return m.passwords, nil
 }
 
-// Manager returns a group manager object
+// userManager returns a group manager object
 func (m *Manager) GroupManager() (*group.Manager, error) {
 	if m.groups == nil {
 		return nil, ErrNilGroupManager
@@ -137,7 +137,7 @@ func (m *Manager) GroupManager() (*group.Manager, error) {
 	return m.groups, nil
 }
 
-// Manager returns a token manager object
+// userManager returns a token manager object
 func (m *Manager) TokenManager() (*token.Manager, error) {
 	if m.groups == nil {
 		return nil, ErrNilGroupManager
@@ -222,7 +222,7 @@ func (m *Manager) setupDefaultGroups() error {
 	}
 
 	// manager
-	managerRole, err := group.NewGroup(group.GKRole, "manager", "Manager", userRole)
+	managerRole, err := group.NewGroup(group.GKRole, "manager", "userManager", userRole)
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}

@@ -8,10 +8,25 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/pkg/util"
 	jsoniter "github.com/json-iterator/go"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
+)
+
+// errors
+var (
+	ErrNilDatabase              = errors.New("database is nil")
+	ErrNilTokenStore            = errors.New("token store is nil")
+	ErrNilTokenOwner            = errors.New("token owner is nil")
+	ErrNilToken                 = errors.New("token is nil")
+	ErrTokenNotFound            = errors.New("token not found")
+	ErrTokenExpired             = errors.New("token is expired")
+	ErrTokenUsedUp              = errors.New("token is all used up")
+	ErrTokenDuplicateCallbackID = errors.New("token callback id is already registered")
+	ErrTokenCallbackNotFound    = errors.New("token callback not found")
+	ErrNilTokenManager          = errors.New("token manager is nil")
+	ErrNothingChanged           = errors.New("nothing changed")
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
@@ -22,7 +37,7 @@ const Length = 30
 // DefaultTTL defines the default token longevity duration from the moment of its creation
 const DefaultTTL = 1 * time.Hour
 
-// Kind represents the type of a token, used by a token container
+// GroupMemberKind represents the type of a token, used by a token container
 type Kind uint16
 
 func (k Kind) String() string {
@@ -80,7 +95,7 @@ type Token struct {
 func (t *Token) Validate() error {
 	// checking whether token's expiration time is behind current moment
 	if t.ExpireAt.Before(time.Now()) {
-		return core.ErrTokenExpired
+		return ErrTokenExpired
 	}
 
 	// NOTE: now this is important because every token must have an expiration time
@@ -96,7 +111,7 @@ func (t *Token) Validate() error {
 	case t.CheckinRemainder > 0: // still has checkins left
 		return nil
 	case t.CheckinRemainder == 0: // no checkins remaining
-		return core.ErrTokenUsedUp
+		return ErrTokenUsedUp
 	}
 
 	return nil
@@ -143,13 +158,13 @@ func NewToken(k Kind, payload interface{}, ttl time.Duration, checkins int) (*To
 	return t, nil
 }
 
-// Manager is a general-purpose token container
+// userManager is a general-purpose token container
 type Manager struct {
 	// base context for the token callback call chain
 	BaseContext context.Context
 
 	tokens    map[string]*Token
-	store     TokenStore
+	store     Store
 	callbacks []Callback
 	errorChan chan CallbackError
 	logger    *zap.Logger
@@ -171,9 +186,9 @@ type CallbackError struct {
 }
 
 // NewTokenManager returns an initialized token container
-func NewTokenManager(s TokenStore) (*Manager, error) {
+func NewTokenManager(s Store) (*Manager, error) {
 	if s == nil {
-		return nil, core.ErrNilTokenStore
+		return nil, ErrNilTokenStore
 	}
 
 	c := &Manager{
@@ -224,9 +239,9 @@ func (m *Manager) Init() error {
 }
 
 // Store returns store if set
-func (m *Manager) Store() (TokenStore, error) {
+func (m *Manager) Store() (Store, error) {
 	if m.store == nil {
-		return nil, core.ErrNilTokenStore
+		return nil, ErrNilTokenStore
 	}
 
 	return m.store, nil
@@ -235,7 +250,7 @@ func (m *Manager) Store() (TokenStore, error) {
 // Validate validates token container
 func (m *Manager) Validate() error {
 	if m == nil {
-		return core.ErrNilTokenManager
+		return ErrNilTokenManager
 	}
 
 	if m.tokens == nil {
@@ -243,7 +258,7 @@ func (m *Manager) Validate() error {
 	}
 
 	if m.store == nil {
-		return core.ErrNilTokenStore
+		return ErrNilTokenStore
 	}
 
 	if m.callbacks == nil {
@@ -270,20 +285,20 @@ func (m *Manager) List(k Kind) []*Token {
 	return ts
 }
 
-// Create initializes, registers and returns a new token
-func (m *Manager) Create(k Kind, payload interface{}, ttl time.Duration, checkins int) (*Token, error) {
+// Upsert initializes, registers and returns a new token
+func (m *Manager) Create(ctx context.Context, k Kind, payload interface{}, ttl time.Duration, checkins int) (*Token, error) {
 	t, err := NewToken(k, payload, ttl, checkins)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create new token(%s): %s", k, err)
 	}
 
 	// paranoid check; making sure there is no existing token object with such token key string
-	if _, err := m.Get(t.Token); err == nil {
+	if _, err := m.Get(ctx, t.Token); err == nil {
 		return nil, fmt.Errorf("failed to create new token(%s): found duplicate token %s", k, t.Token)
 	}
 
 	// storing new token
-	err = m.store.Put(context.TODO(), t)
+	err = m.store.Put(ctx, t)
 	if err != nil {
 		return nil, fmt.Errorf("failed to store new token: %s", err)
 	}
@@ -297,7 +312,7 @@ func (m *Manager) Create(k Kind, payload interface{}, ttl time.Duration, checkin
 }
 
 // Get obtains a token from the container or returns ErrTokenNotFound
-func (m *Manager) Get(token string) (*Token, error) {
+func (m *Manager) Get(ctx context.Context, token string) (*Token, error) {
 	// checking map cache first
 	m.RLock()
 	t, ok := m.tokens[token]
@@ -309,7 +324,7 @@ func (m *Manager) Get(token string) (*Token, error) {
 	}
 
 	// checking the store
-	t, err := m.store.Get(context.TODO(), token)
+	t, err := m.store.Get(ctx, token)
 	if err != nil {
 		return nil, err
 	}
@@ -323,14 +338,14 @@ func (m *Manager) Get(token string) (*Token, error) {
 }
 
 // Delete deletes a token from the container
-func (m *Manager) Delete(t *Token) error {
+func (m *Manager) Delete(ctx context.Context, t *Token) error {
 	// clearing token from the map
 	m.Lock()
 	delete(m.tokens, t.Token)
 	m.Unlock()
 
 	// removing from the store
-	if err := m.store.DeleteByToken(context.TODO(), t.Token); err != nil {
+	if err := m.store.DeleteByToken(ctx, t.Token); err != nil {
 		return err
 	}
 
@@ -338,8 +353,8 @@ func (m *Manager) Delete(t *Token) error {
 }
 
 // Checkin check in token for processing
-func (m *Manager) Checkin(token string) error {
-	t, err := m.Get(token)
+func (m *Manager) Checkin(ctx context.Context, token string) error {
+	t, err := m.Get(context.Background(), token)
 	if err != nil {
 		return err
 	}
@@ -348,14 +363,11 @@ func (m *Manager) Checkin(token string) error {
 		return err
 	}
 
-	// base context for this call chain
-	ctx := context.Background()
-
 	// obtaining callbacks for this kind
 	callbacks := m.GetCallbacks(t.Kind)
 	if len(callbacks) == 0 {
 		// there's no point proceeding without callbacks
-		return core.ErrTokenCallbackNotFound
+		return ErrTokenCallbackNotFound
 	}
 
 	// obtaining a list of callbacks attached to this token kind
@@ -375,7 +387,7 @@ func (m *Manager) Checkin(token string) error {
 	// now if validate returns an error, this means that this token is void,
 	// and can be safely removed, because all related callbacks ran successfully at this point
 	if err = t.Validate(); err != nil {
-		if err := m.Delete(t); err != nil {
+		if err := m.Delete(context.Background(), t); err != nil {
 			return fmt.Errorf("failed to delete token(%s) after use: %s", t.Token, err)
 		}
 	}
@@ -385,13 +397,13 @@ func (m *Manager) Checkin(token string) error {
 
 // Cleanup performs a full cleanup of the container by removing tokens
 // which failed to pass validation
-func (m *Manager) Cleanup() (err error) {
+func (m *Manager) Cleanup(ctx context.Context) (err error) {
 	m.Lock()
 	for _, t := range m.tokens {
 		if err := t.Validate(); err != nil {
 			// ignoring errors from delete, because some tokens could possibly be
 			// already deleted other way i.e. records expired by the store
-			if err = m.Delete(t); err != nil {
+			if err = m.Delete(ctx, t); err != nil {
 				m.Logger().Warn("failed to delete token", zap.String("token", t.Token), zap.Error(err))
 			}
 		}
@@ -404,16 +416,16 @@ func (m *Manager) Cleanup() (err error) {
 // AddCallback adds callback function to container's callstack to be called upon token checkins
 func (m *Manager) AddCallback(k Kind, id string, fn func(ctx context.Context, t *Token) error) error {
 	// this is straightforward, adding function to a callback stack
-	// NOTE: ID is a basic mechanism to prevent multiple callback additions
+	// NOTE: GroupMemberID is a basic mechanism to prevent multiple callback additions
 	id = strings.ToLower(id)
 
 	m.Lock()
 	defer m.Unlock()
 
-	// making sure there isn't any callback registered with this ID
+	// making sure there isn't any callback registered with this GroupMemberID
 	for _, cb := range m.callbacks {
 		if cb.ID == id {
-			return core.ErrTokenDuplicateCallbackID
+			return ErrTokenDuplicateCallbackID
 		}
 	}
 
@@ -436,7 +448,7 @@ func (m *Manager) GetCallback(id string) (*Callback, error) {
 		}
 	}
 
-	return nil, core.ErrTokenCallbackNotFound
+	return nil, ErrTokenCallbackNotFound
 }
 
 // GetCallbacks returns callback stack by a given token kind
@@ -451,7 +463,7 @@ func (m *Manager) GetCallbacks(k Kind) []Callback {
 	return cbstack
 }
 
-// RemoveCallback removes token callback by ID, returns ErrTokenCallbackNotfound
+// RemoveCallback removes token callback by GroupMemberID, returns ErrTokenCallbackNotfound
 func (m *Manager) RemoveCallback(id string) error {
 	id = strings.ToLower(id)
 
@@ -466,5 +478,5 @@ func (m *Manager) RemoveCallback(id string) error {
 		}
 	}
 
-	return core.ErrTokenCallbackNotFound
+	return ErrTokenCallbackNotFound
 }

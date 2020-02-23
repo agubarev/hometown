@@ -10,8 +10,9 @@ import (
 
 // constant rules
 const (
-	MinLength = 8
-	MaxLength = 64
+	MinLength  = 8
+	MaxLength  = 64
+	defaultTTL = 24 * 182 * time.Hour
 )
 
 // Password object
@@ -20,6 +21,7 @@ type Password struct {
 	OwnerID          int          `db:"owner_id" json:"-"`
 	Hash             [60]byte     `db:"hash" json:"-"`
 	CreatedAt        dbr.NullTime `db:"created_at" json:"-"`
+	UpdatedAt        dbr.NullTime `db:"updated_at" json:"-"`
 	ExpireAt         dbr.NullTime `db:"expire_at" json:"-"`
 	IsChangeRequired bool         `db:"is_change_required" json:"-"`
 }
@@ -64,7 +66,7 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 }
 
 // New creates a hash from a given raw password byte slice
-func New(rawpass []byte, data []string) (*Password, error) {
+func New(k Kind, ownerID int, rawpass []byte, data []string) (*Password, error) {
 	err := EvaluatePasswordStrength(rawpass, data)
 	if err != nil {
 		return nil, err
@@ -76,7 +78,10 @@ func New(rawpass []byte, data []string) (*Password, error) {
 	}
 
 	p := &Password{
+		Kind:      k,
+		OwnerID:   ownerID,
 		CreatedAt: dbr.NewNullTime(time.Now()),
+		ExpireAt:  dbr.NewNullTime(time.Now().Add(defaultTTL)),
 	}
 
 	copy(p.Hash[:], h)
@@ -85,8 +90,8 @@ func New(rawpass []byte, data []string) (*Password, error) {
 }
 
 // Compare tests whether a given plaintext password is valid
-func (p *Password) Compare(rawpass string) bool {
-	if err := bcrypt.CompareHashAndPassword(p.Hash[:], []byte(rawpass)); err == nil {
+func (p *Password) Compare(rawpass []byte) bool {
+	if err := bcrypt.CompareHashAndPassword(p.Hash[:], rawpass); err == nil {
 		return true
 	}
 

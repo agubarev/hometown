@@ -49,7 +49,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u *User) (_ *User, err erro
 		return nil, ErrNilUser
 	}
 
-	// if ID is not 0, then it's not considered as new
+	// if GroupMemberID is not 0, then it's not considered as new
 	if u.ID != 0 {
 		return nil, ErrNonZeroID
 	}
@@ -69,7 +69,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u *User) (_ *User, err erro
 		return nil, err
 	}
 
-	// setting new ID
+	// setting new GroupMemberID
 	u.ID = int(newID)
 
 	return u, nil
@@ -115,7 +115,7 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []*User) (_ []*User,
 		return nil, errors.Wrap(err, "bulk insert failed")
 	}
 
-	// returned ID belongs to the first u created
+	// returned GroupMemberID belongs to the first u created
 	firstNewID, err := result.LastInsertId()
 	if err != nil {
 		return nil, err
@@ -138,8 +138,12 @@ func (s *MySQLStore) FetchUserByID(ctx context.Context, id int) (u *User, err er
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE id = ? LIMIT 1", id)
 }
 
+func (s *MySQLStore) FetchUserByUsername(ctx context.Context, username TUsername) (u *User, err error) {
+	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE username = ? LIMIT 1", username)
+}
+
 func (s *MySQLStore) FetchUserByEmailAddr(ctx context.Context, addr TEmailAddr) (u *User, err error) {
-	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` u LEFT JOIN `user_email` e ON u.id=e.user_id WHERE e.email = ? LIMIT 1", addr)
+	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` u LEFT JOIN `user_email` e ON u.id=e.user_id WHERE e.addr = ? LIMIT 1", addr)
 }
 
 func (s *MySQLStore) FetchUserByPhoneNumber(ctx context.Context, number TPhoneNumber) (u *User, err error) {

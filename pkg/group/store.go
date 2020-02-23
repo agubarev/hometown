@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr/v2"
 	"github.com/pkg/errors"
@@ -15,40 +14,40 @@ import (
 // Store describes a storage contract for groups specifically
 type Store interface {
 	Put(g *Group) (*Group, error)
-	FetchByID(ctx context.Context, groupID int) (*Group, error)
+	PutRelation(groupID uint32, userID uint32) error
+	FetchByID(ctx context.Context, groupID uint32) (*Group, error)
 	FetchAllGroups(ctx context.Context) ([]*Group, error)
-	DeleteByID(ctx context.Context, groupID int) error
-	FetchAllRelations(ctx context.Context) (map[int][]int, error)
-	HasRelation(ctx context.Context, groupID int, userID int) (bool, error)
-	PutRelation(groupID int, userID int) error
-	DeleteRelation(groupID int, userID int) error
+	FetchAllRelations(ctx context.Context) (map[uint32][]uint32, error)
+	HasRelation(ctx context.Context, groupID uint32, userID uint32) (bool, error)
+	DeleteByID(ctx context.Context, groupID uint32) error
+	DeleteRelation(groupID uint32, userID uint32) error
 }
 
-// GroupStoreMySQL is the default group store implementation
-type GroupStoreMySQL struct {
+// MySQLStore is the default group store implementation
+type MySQLStore struct {
 	db *dbr.Connection
 }
 
 // NewGroupStore returns a group store with mysql used as a backend
 func NewGroupStore(db *dbr.Connection) (Store, error) {
 	if db == nil {
-		return nil, core.ErrNilDB
+		return nil, ErrNilDatabase
 	}
 
-	return &GroupStoreMySQL{db}, nil
+	return &MySQLStore{db}, nil
 }
 
 //? BEGIN ->>>----------------------------------------------------------------
 //? unexported utility functions
 
-func (s *GroupStoreMySQL) get(ctx context.Context, q string, args ...interface{}) (*Group, error) {
+func (s *MySQLStore) get(ctx context.Context, q string, args ...interface{}) (*Group, error) {
 	g := new(Group)
 
 	err := s.db.NewSession(nil).SelectBySql(q, args).LoadOneContext(ctx, g)
 
 	if err != nil {
 		if err == dbr.ErrNotFound {
-			return nil, core.ErrGroupNotFound
+			return nil, ErrGroupNotFound
 		}
 
 		return nil, err
@@ -57,7 +56,7 @@ func (s *GroupStoreMySQL) get(ctx context.Context, q string, args ...interface{}
 	return g, nil
 }
 
-func (s *GroupStoreMySQL) getMany(ctx context.Context, q string, args ...interface{}) ([]*Group, error) {
+func (s *MySQLStore) getMany(ctx context.Context, q string, args ...interface{}) ([]*Group, error) {
 	gs := make([]*Group, 0)
 
 	if _, err := s.db.NewSession(nil).SelectBySql(q, args).LoadContext(ctx, gs); err != nil {
@@ -71,12 +70,12 @@ func (s *GroupStoreMySQL) getMany(ctx context.Context, q string, args ...interfa
 //? END ---<<<----------------------------------------------------------------
 
 // UpdateAccessPolicy storing group
-func (s *GroupStoreMySQL) Put(g *Group) (*Group, error) {
+func (s *MySQLStore) Put(g *Group) (*Group, error) {
 	if g == nil {
-		return nil, core.ErrNilGroup
+		return nil, ErrNilGroup
 	}
 
-	// if an object has ID other than 0, then it's considered
+	// if an object has GroupMemberID other than 0, then it's considered
 	// as being already created, thus requiring an update
 	if g.ID != 0 {
 		return s.Update(context.TODO(), g)
@@ -85,11 +84,11 @@ func (s *GroupStoreMySQL) Put(g *Group) (*Group, error) {
 	return s.Create(context.TODO(), g)
 }
 
-// Create creates a new database record
-func (s *GroupStoreMySQL) Create(ctx context.Context, g *Group) (*Group, error) {
-	// if ID is not 0, then it's not considered as new
+// Upsert creates a new database record
+func (s *MySQLStore) Create(ctx context.Context, g *Group) (*Group, error) {
+	// if GroupMemberID is not 0, then it's not considered as new
 	if g.ID != 0 {
-		return nil, core.ErrObjectIsNotNew
+		return nil, ErrNonZeroID
 	}
 
 	sess := s.db.NewSession(nil)
@@ -100,7 +99,7 @@ func (s *GroupStoreMySQL) Create(ctx context.Context, g *Group) (*Group, error) 
 	if err != nil {
 		switch err := err.(*mysql.MySQLError); err.Number {
 		case 1062:
-			return nil, core.ErrDuplicateEntry
+			return nil, ErrDuplicateGroup
 		}
 	}
 
@@ -112,9 +111,9 @@ func (s *GroupStoreMySQL) Create(ctx context.Context, g *Group) (*Group, error) 
 }
 
 // UpdateAccessPolicy updates an existing group
-func (s *GroupStoreMySQL) Update(ctx context.Context, g *Group) (*Group, error) {
+func (s *MySQLStore) Update(ctx context.Context, g *Group) (*Group, error) {
 	if g.ID == 0 {
-		return nil, core.ErrObjectIsNew
+		return nil, ErrZeroID
 	}
 
 	sess := s.db.NewSession(nil)
@@ -139,24 +138,24 @@ func (s *GroupStoreMySQL) Update(ctx context.Context, g *Group) (*Group, error) 
 
 	// if no rows were affected then returning this as a non-critical error
 	if ra == 0 {
-		return nil, core.ErrNothingChanged
+		return nil, ErrNothingChanged
 	}
 
 	return g, nil
 }
 
-// GetUserByID retrieving a group by ID
-func (s *GroupStoreMySQL) FetchByID(ctx context.Context, id int) (*Group, error) {
-	return s.get(ctx, "SELECT * FROM `groups` WHERE id = ? LIMIT 1", id)
+// UserByID retrieving a group by GroupMemberID
+func (s *MySQLStore) FetchByID(ctx context.Context, id uint32) (*Group, error) {
+	return s.get(ctx, "SELECT * FROM `group` WHERE id = ? LIMIT 1", id)
 }
 
 // FetchAllGroups retrieving all groups
-func (s *GroupStoreMySQL) FetchAllGroups(ctx context.Context) ([]*Group, error) {
+func (s *MySQLStore) FetchAllGroups(ctx context.Context) ([]*Group, error) {
 	return s.getMany(ctx, "SELECT * FROM `group`")
 }
 
-// Delete from the store by group ID
-func (s *GroupStoreMySQL) DeleteByID(ctx context.Context, id int) (err error) {
+// Delete from the store by group GroupMemberID
+func (s *MySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
 	g, err := s.FetchByID(ctx, id)
 	if err != nil {
 		return err
@@ -195,7 +194,7 @@ func (s *GroupStoreMySQL) DeleteByID(ctx context.Context, id int) (err error) {
 }
 
 // PutRelation store a relation flagging that user belongs to a group
-func (s *GroupStoreMySQL) PutRelation(groupID int, userID int) error {
+func (s *MySQLStore) PutRelation(groupID uint32, userID uint32) error {
 	_, err := s.db.Exec(
 		"INSERT IGNORE INTO `group_users`(group_id, user_id) VALUES(?, ?)",
 		groupID,
@@ -206,7 +205,7 @@ func (s *GroupStoreMySQL) PutRelation(groupID int, userID int) error {
 	if err != nil {
 		switch err := err.(*mysql.MySQLError); err.Number {
 		case 1062:
-			return core.ErrDuplicateEntry
+			return ErrDuplicateRelation
 		default:
 			return err
 		}
@@ -217,8 +216,8 @@ func (s *GroupStoreMySQL) PutRelation(groupID int, userID int) error {
 
 // FetchAllRelations retrieving all relations
 // NOTE: a map of users IDs -> a slice of group IDs
-func (s *GroupStoreMySQL) FetchAllRelations(ctx context.Context) (_ map[int][]int, err error) {
-	relations := make(map[int][]int)
+func (s *MySQLStore) FetchAllRelations(ctx context.Context) (_ map[uint32][]uint32, err error) {
+	relations := make(map[uint32][]uint32)
 
 	sess := s.db.NewSession(nil)
 
@@ -226,7 +225,7 @@ func (s *GroupStoreMySQL) FetchAllRelations(ctx context.Context) (_ map[int][]in
 	rows, err := sess.QueryContext(ctx, "SELECT group_id, user_id FROM `group_users`")
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, core.ErrRelationNotFound
+			return nil, ErrRelationNotFound
 		}
 
 		return nil, err
@@ -240,17 +239,17 @@ func (s *GroupStoreMySQL) FetchAllRelations(ctx context.Context) (_ map[int][]in
 
 	// iterating over and scanning found relations
 	for rows.Next() {
-		var gid, uid int
+		var gid, uid uint32
 		if err := rows.Scan(&gid, &uid); err != nil {
 			return nil, err
 		}
 
 		// initializing a nested slice if it's nil
 		if relations[uid] == nil {
-			relations[uid] = make([]int, 0)
+			relations[uid] = make([]uint32, 0)
 		}
 
-		// adding user ID to the resulting slice
+		// adding user GroupMemberID to the resulting slice
 		relations[uid] = append(relations[uid], gid)
 	}
 
@@ -258,8 +257,8 @@ func (s *GroupStoreMySQL) FetchAllRelations(ctx context.Context) (_ map[int][]in
 }
 
 // GetGroupRelations retrieving all group-user relations
-func (s *GroupStoreMySQL) GetGroupRelations(ctx context.Context, id int) ([]int, error) {
-	relations := make([]int, 0)
+func (s *MySQLStore) GetGroupRelations(ctx context.Context, id uint32) ([]uint32, error) {
+	relations := make([]uint32, 0)
 
 	sess := s.db.NewSession(nil)
 
@@ -281,13 +280,13 @@ func (s *GroupStoreMySQL) GetGroupRelations(ctx context.Context, id int) ([]int,
 
 	// iterating over and scanning found relations
 	for rows.Next() {
-		var userID int
+		var userID uint32
 
 		if err := rows.Scan(&userID); err != nil {
 			return nil, err
 		}
 
-		// adding user ID to the resulting slice
+		// adding user GroupMemberID to the resulting slice
 		relations = append(relations, userID)
 	}
 
@@ -295,7 +294,7 @@ func (s *GroupStoreMySQL) GetGroupRelations(ctx context.Context, id int) ([]int,
 }
 
 // HasRelation checks whether group-user relation exists
-func (s *GroupStoreMySQL) HasRelation(ctx context.Context, groupID int, userID int) (bool, error) {
+func (s *MySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uint32) (bool, error) {
 	sess := s.db.NewSession(nil)
 
 	// querying for just one column (user_id)
@@ -327,7 +326,7 @@ func (s *GroupStoreMySQL) HasRelation(ctx context.Context, groupID int, userID i
 
 	// iterating over and scanning found relations
 	for rows.Next() {
-		var foundGroupID, foundUserID int
+		var foundGroupID, foundUserID uint32
 		if err := rows.Scan(&foundGroupID, &foundUserID); err != nil {
 			return false, err
 		}
@@ -342,7 +341,7 @@ func (s *GroupStoreMySQL) HasRelation(ctx context.Context, groupID int, userID i
 }
 
 // DeleteRelation deletes a group-user relation
-func (s *GroupStoreMySQL) DeleteRelation(groupID int, userID int) error {
+func (s *MySQLStore) DeleteRelation(groupID uint32, userID uint32) error {
 	res, err := s.db.Exec(
 		"DELETE FROM `group_users` WHERE group_id = ? AND user_id = ? LIMIT 1",
 		groupID,
@@ -369,7 +368,7 @@ func (s *GroupStoreMySQL) DeleteRelation(groupID int, userID int) error {
 
 	// if no rows were affected then returning this as a non-critical error
 	if ra == 0 {
-		return core.ErrNothingChanged
+		return ErrNothingChanged
 	}
 
 	return nil

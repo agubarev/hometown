@@ -7,7 +7,6 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -15,21 +14,20 @@ import (
 // EmailNewObject contains fields sufficient to create a new object
 type NewEmailObject struct {
 	EmailEssential
+	IsConfirmed bool
 }
 
 // EmailEssential represents an essential part of the primary object
 type EmailEssential struct {
-	ExternalID  int    `db:"external_id" json:"external_id"`
-	Name        string `db:"name" json:"name"`
-	Description string `db:"description" json:"description"`
+	Addr      TEmailAddr `db:"addr" json:"addr"`
+	IsPrimary bool       `db:"is_primary" json:"is_primary"`
 }
 
 // EmailMetadata contains generic metadata of the primary object
 type EmailMetadata struct {
-	Checksum  uint64       `db:"checksum" json:"checksum"`
-	CreatedAt dbr.NullTime `db:"created_at" json:"created_at"`
-	UpdatedAt dbr.NullTime `db:"updated_at" json:"updated_at"`
-	DeletedAt dbr.NullTime `db:"deleted_at" json:"deleted_at"`
+	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
+	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -37,49 +35,27 @@ type EmailMetadata struct {
 // Email represents certain emails which are custom
 // and are handled by the customer
 type Email struct {
-	ID   int       `db:"id" json:"id"`
-	ULID ulid.ULID `db:"ulid" json:"ulid"`
+	UserID int `db:"user_id" json:"user_id"`
 
 	EmailEssential
 	EmailMetadata
 }
 
-func (email *Email) calculateChecksum() uint64 {
-	buf := new(bytes.Buffer)
-
-	fields := []interface{}{
-		int64(email.ID),
-		int64(email.ExternalID),
-		[]byte(email.Name),
-	}
-
-	for _, field := range fields {
-		if err := binary.Write(buf, binary.LittleEndian, field); err != nil {
-			panic(errors.Wrapf(err, "failed to write binary data [%v] to calculate checksum", field))
-		}
-	}
-
-	// assigning a checksum calculated from a definite list of struct values
-	email.Checksum = xxhash.Sum64(buf.Bytes())
-
-	return email.Checksum
-}
-
 func (email *Email) hashKey() {
-	// panic if ID is zero or a name is empty
-	if email.ID == 0 || len(email.Name) == 0 {
+	// panic if GroupMemberID is zero or a name is empty
+	if email.UserID == 0 || email.Addr[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
 
 	// initializing a key buffer with and assuming the minimum key length
-	key := bytes.NewBuffer(make([]byte, 0, len("email")+len(email.Name)+8))
+	key := bytes.NewBuffer(make([]byte, 0, len("email")+len(email.Addr[:])+8))
 
 	// composing a key value
 	key.WriteString("email")
-	key.WriteString(email.Name)
+	key.Write(email.Addr[:])
 
-	// adding ID to the key
-	if err := binary.Write(key, binary.LittleEndian, int64(email.ID)); err != nil {
+	// adding user GroupMemberID to the key
+	if err := binary.Write(key, binary.LittleEndian, int64(email.UserID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash email key"))
 	}
 
@@ -114,17 +90,15 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			email.ExternalID = change.To.(int)
-		case "Name":
-			email.Name = change.To.(string)
-		case "Checksum":
-			email.Checksum = change.To.(uint64)
+			email.UserID = change.To.(int)
+		case "Addr":
+			email.Addr = change.To.(TEmailAddr)
 		case "CreatedAt":
 			email.CreatedAt = change.To.(dbr.NullTime)
+		case "Confirmed_at":
+			email.ConfirmedAt = change.To.(dbr.NullTime)
 		case "UpdatedAt":
 			email.UpdatedAt = change.To.(dbr.NullTime)
-		case "DeletedAt":
-			email.DeletedAt = change.To.(dbr.NullTime)
 		}
 	}
 

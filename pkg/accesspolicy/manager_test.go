@@ -13,7 +13,7 @@ import (
 func TestNewAccessPolicyContainer(t *testing.T) {
 	a := assert.New(t)
 
-	s, err := accesspolicy.NewAccessPolicyStoreInMem()
+	s, err := accesspolicy.NewMemoryStore()
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -65,7 +65,7 @@ func TestAccessPolicyContainerCreate(t *testing.T) {
 	a.False(ap.IsInherited)
 	a.False(ap.IsExtended)
 
-	// creating a policy with only its kind set, without an ID
+	// creating a policy with only its kind set, without an GroupMemberID
 	ap, err = accessPolicyContainer.Create(context.Background(), nil, nil, "", "test_kind", 0, false)
 	a.Error(err)
 

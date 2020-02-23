@@ -4,12 +4,11 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/agubarev/hometown/internal/core"
 	"github.com/gocraft/dbr/v2"
 )
 
-// TokenStore describes the token store contract interface
-type TokenStore interface {
+// Store describes the token store contract interface
+type Store interface {
 	Put(ctx context.Context, t *Token) error
 	Get(ctx context.Context, token string) (*Token, error)
 	DeleteByToken(ctx context.Context, token string) error
@@ -20,9 +19,9 @@ type tokenStore struct {
 }
 
 // NewTokenStore initializes and returns a new default token store
-func NewTokenStore(db *dbr.Connection) (TokenStore, error) {
+func NewTokenStore(db *dbr.Connection) (Store, error) {
 	if db == nil {
-		return nil, core.ErrNilDB
+		return nil, ErrNilDatabase
 	}
 
 	return &tokenStore{db}, nil
@@ -31,7 +30,7 @@ func NewTokenStore(db *dbr.Connection) (TokenStore, error) {
 // UpdateAccessPolicy puts token into a store
 func (s *tokenStore) Put(ctx context.Context, t *Token) error {
 	if t == nil {
-		return core.ErrNilToken
+		return ErrNilToken
 	}
 
 	_, err := s.db.NewSession(nil).
@@ -56,7 +55,7 @@ func (s *tokenStore) Get(ctx context.Context, token string) (*Token, error) {
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, core.ErrTokenNotFound
+			return nil, ErrTokenNotFound
 		}
 
 		return nil, err
@@ -84,7 +83,7 @@ func (s *tokenStore) DeleteByToken(ctx context.Context, token string) error {
 
 	// if no rows were affected then returning this as a non-critical error
 	if ra == 0 {
-		return core.ErrNothingChanged
+		return ErrNothingChanged
 	}
 
 	return nil

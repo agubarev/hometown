@@ -28,7 +28,7 @@ type DefaultBackend struct {
 	// session token map, token to session
 	stokenMap map[string]*Session
 
-	// access token map, token ID (jti) to session
+	// access token map, token GroupMemberID (jti) to session
 	jtiMap map[string]*Session
 
 	// refresh token map, token to session
@@ -124,7 +124,7 @@ func (b *DefaultBackend) PutRevokedAccessToken(item RevokedAccessToken) error {
 	return nil
 }
 
-// IsRevoked returns true if an item with such ID is found
+// IsRevoked returns true if an item with such GroupMemberID is found
 // NOTE: function doesn't care whether this item has expired or not
 func (b *DefaultBackend) IsRevoked(tokenID string) bool {
 	b.RLock()
@@ -196,7 +196,7 @@ func (b *DefaultBackend) DeleteSession(s *Session) error {
 	return nil
 }
 
-// GetSessionByAccessToken retrieves session by an access token ID (JTI: JWT Token ID)
+// GetSessionByAccessToken retrieves session by an access token GroupMemberID (JTI: JWT Token GroupMemberID)
 func (b *DefaultBackend) GetSessionByAccessToken(jti string) (*Session, error) {
 	b.RLock()
 	s, ok := b.jtiMap[jti]

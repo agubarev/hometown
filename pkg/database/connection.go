@@ -2,18 +2,20 @@ package database
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"os"
 	"strings"
 
 	"github.com/gocraft/dbr/v2"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
+	"github.com/pkg/errors"
 )
 
 var connection *dbr.Connection
 
-// Instance returns database singleton instance
-func Instance() *dbr.Connection {
+// Connection returns database singleton instance
+func Connection() *dbr.Connection {
 	// using a package global variable
 	if connection == nil {
 		// checking whether it's called during `go test`
@@ -35,7 +37,8 @@ func Instance() *dbr.Connection {
 	return connection
 }
 
-func TruncateAllDatabaseData(conn *dbr.Connection) {
+// ForTesting simply returns a database connection
+func ForTesting() (*dbr.Connection, error) {
 	/*
 		if flag.Lookup("test.v") == nil {
 			log.Fatal("TruncateTestDatabase() can only be called during testing")
@@ -43,13 +46,55 @@ func TruncateAllDatabaseData(conn *dbr.Connection) {
 		}
 	*/
 
-	sess := conn.NewSession(nil)
+	conn, err := dbr.Open("mysql", os.Getenv("HOMETOWN_TEST_DATABASE"), nil)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to connect to test database")
+	}
+
+	tx, err := conn.NewSession(nil).Begin()
+	if err != nil {
+		return nil, err
+	}
 
 	// temporarily disabling foreign key checks to enable truncate
-	sess.Exec("SET foreign_key_checks = 0")
+	if _, err = tx.Exec("SET foreign_key_checks = 0"); err != nil {
+		panic(err)
+	}
+
 	defer func() {
-		sess.Exec("SET foreign_key_checks = 1")
+		if _, err = tx.Exec("SET foreign_key_checks = 1"); err != nil {
+			panic(err)
+		}
 	}()
 
-	//sess.Exec("truncate table ...")
+	defer func() {
+		if p := recover(); p != nil {
+			err = errors.Wrap(err, "recovering from panic after TruncateDatabaseForTesting")
+		}
+	}()
+
+	tables := []string{
+		"user",
+		"user_email",
+		"user_phone",
+		"user_profile",
+		"password",
+		"token",
+		"group",
+		"group_users",
+		"accesspolicy",
+		"accesspolicy_rights_roster",
+	}
+
+	// =========================================================================
+	// truncating tables
+	// =========================================================================
+	for _, tableName := range tables {
+		_, err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE `hometown_test`.%s", tableName))
+		if err != nil {
+			return nil, errors.Wrap(err, tx.Rollback().Error())
+		}
+	}
+
+	return conn, tx.Commit()
 }

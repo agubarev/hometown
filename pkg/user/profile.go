@@ -11,14 +11,7 @@ import (
 	"github.com/r3labs/diff"
 )
 
-// errors
-var (
-	ErrNilProfile       = errors.New("profile is nil")
-	ErrDuplicateProfile = errors.New("duplicate profile")
-	ErrProfileNotFound  = errors.New("profile not found")
-)
-
-// ProfileNewObject contains fields sufficient to create a new object
+// NewProfileObject contains fields sufficient to create a new object
 type NewProfileObject struct {
 	ProfileEssential
 }
@@ -73,7 +66,7 @@ func (p *Profile) calculateChecksum() uint64 {
 }
 
 func (p *Profile) hashKey() {
-	// panic if ID is zero or a name is empty
+	// panic if GroupMemberID is zero or a name is empty
 	if p.UserID == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
@@ -84,7 +77,7 @@ func (p *Profile) hashKey() {
 	// composing a key value
 	key.WriteString("profile")
 
-	// adding ID to the key
+	// adding GroupMemberID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
 		panic(errors.Wrap(err, "failed to hash profile key"))
 	}
@@ -125,6 +118,8 @@ func (p *Profile) ApplyChangelog(changelog diff.Changelog) (err error) {
 			p.Middlename = change.To.(TName)
 		case "Lastname":
 			p.Lastname = change.To.(TName)
+		case "Language":
+			p.Language = change.To.(TLanguage)
 		case "Checksum":
 			p.Checksum = change.To.(uint64)
 		}

@@ -25,7 +25,7 @@ func TestPasswordStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(p)
 
-	a.NoError(s.Create(context.TODO(), p))
+	a.NoError(s.Upsert(context.TODO(), p))
 	a.NoError(s.Delete(context.TODO(), p.OwnerID))
 }
 
@@ -49,7 +49,7 @@ func TestPasswordStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(p)
 
-	err = s.Create(context.TODO(), p)
+	err = s.Upsert(context.TODO(), p)
 	a.NoError(err)
 
 	p2, err := s.Get(context.TODO(), ownerID)
@@ -78,7 +78,7 @@ func TestPasswordStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(original)
 
-	err = s.Create(context.TODO(), original)
+	err = s.Upsert(context.TODO(), original)
 	a.NoError(err)
 
 	p, err := s.Get(context.TODO(), ownerID)

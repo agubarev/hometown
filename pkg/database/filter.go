@@ -9,7 +9,7 @@ var filter *Filter
 
 type FilterObject struct {
 	name   string
-	typ    reflect.Kind
+	typ    reflect.GroupMemberKind
 	object interface{}
 	fields map[string]reflect.StructField
 }
@@ -70,7 +70,7 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 	objInfo := reflect.ValueOf(obj).Elem()
 
 	fl.RLock()
-	cached, ok := fl.objectMap[objInfo.Kind().Name()]
+	cached, ok := fl.objectMap[objInfo.GroupMemberKind().Name()]
 	fl.RUnlock()
 
 	// if found, returning cached object
@@ -80,15 +80,15 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 
 	// initializing filter object for caching
 	fo := &FilterObject{
-		name:   objInfo.Kind().Name(),
+		name:   objInfo.GroupMemberKind().Name(),
 		object: obj,
-		typ:    objInfo.Kind(),
+		typ:    objInfo.GroupMemberKind(),
 		fields: make(map[string]reflect.StructField),
 	}
 
 	// collecting filterable fields
 	for i := 0; i < objInfo.NumField(); i++ {
-		f := objInfo.Kind().Field(i)
+		f := objInfo.GroupMemberKind().Field(i)
 
 		if tag, ok := f.Tag.Lookup("filter"); ok {
 			fo.fields[tag] = f
@@ -97,7 +97,7 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 
 	// caching metadata object
 	fl.Lock()
-	fl.objectMap[objInfo.Kind().Name()] = fo
+	fl.objectMap[objInfo.GroupMemberKind().Name()] = fo
 	fl.Unlock()
 
 	return fo, nil
@@ -263,7 +263,7 @@ func (fl *Filter) FilterQueryFromRequest(obj interface{}, r *http.Request) (*Fil
 			vals[k] = strings.TrimSpace(v)
 		}
 
-		switch kind := f.Kind.Kind(); kind {
+		switch kind := f.GroupMemberKind.GroupMemberKind(); kind {
 		case reflect.String:
 			where[alias] = vals
 		case reflect.Int:
@@ -307,7 +307,7 @@ func (fl *Filter) FilterQueryFromRequest(obj interface{}, r *http.Request) (*Fil
 			}
 		case reflect.Struct:
 			// this is where anything other than basic types are handled
-			switch f.Kind.Name() {
+			switch f.GroupMemberKind.Name() {
 			case "Time":
 				timeVals := make([]string, len(vals))
 
@@ -420,7 +420,7 @@ func (fl *Filter) FilterInto(connection *gorm.DB, obj interface{}, fq *FilterQue
 
 	// if no custom database instance given, then using default
 	if connection == nil {
-		connection = Instance()
+		connection = Connection()
 	}
 
 	for column, val := range fq.RealWhere {

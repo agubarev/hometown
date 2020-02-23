@@ -4,6 +4,10 @@ import "errors"
 
 // errors
 var (
+	ErrNilUserManager             = errors.New("user manager is nil")
+	ErrNilPasswordManager         = errors.New("password manager is nil")
+	ErrNilTokenManager            = errors.New("token manager is nil")
+	ErrNilGroupManager            = errors.New("group manager is nil")
 	ErrNilPrivateKey              = errors.New("private key is nil")
 	ErrAuthenticationFailed       = errors.New("authentication failed")
 	ErrNilAuthenticator           = errors.New("authenticator is nil")

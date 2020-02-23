@@ -11,8 +11,10 @@ import (
 	"go.uber.org/zap"
 )
 
+// aliases
 type (
 	TEmailAddr   = [256]byte
+	TPhoneNumber = [15]byte
 	TUsername    = [32]byte
 	TDisplayName = [200]byte
 	TIPAddr      = [15]byte
@@ -20,7 +22,7 @@ type (
 	TLanguage    = [2]byte
 )
 
-// Manager handles business logic of its underlying objects
+// userManager handles business logic of its underlying objects
 // TODO: consider naming first release `Lidia`
 type Manager struct {
 	passwords password.Manager
@@ -43,21 +45,6 @@ func NewManager(s Store, idx bleve.Index) (*Manager, error) {
 		index: idx,
 	}
 
-	//---------------------------------------------------------------------------
-	// setting default dependencies
-	// NOTE: these dependencies can be overriden later, just using these as a default
-	//---------------------------------------------------------------------------
-	// initializing and setting a new container
-	userContainer, err := NewContainer()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize new container: %s", err)
-	}
-
-	err = m.SetUserContainer(userContainer)
-	if err != nil {
-		return nil, fmt.Errorf("failed to set a default user container: %s", err)
-	}
-
 	// using default logger
 	logger, err := util.DefaultLogger(true, "")
 	if err != nil {
@@ -70,6 +57,18 @@ func NewManager(s Store, idx bleve.Index) (*Manager, error) {
 	}
 
 	return m, nil
+}
+
+func (m *Manager) Validate() error {
+	if m.passwords == nil {
+		return ErrNilPasswordManager
+	}
+
+	if m.store == nil {
+		return ErrNilStore
+	}
+
+	return nil
 }
 
 // Store returns store if set
@@ -109,4 +108,15 @@ func (m *Manager) Logger() *zap.Logger {
 	}
 
 	return m.logger
+}
+
+// SetPasswordManager assigns a password manager for this container
+func (m *Manager) SetPasswordManager(pm password.Manager) error {
+	if pm == nil {
+		return ErrNilPasswordManager
+	}
+
+	m.passwords = pm
+
+	return nil
 }
