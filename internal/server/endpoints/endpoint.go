@@ -20,7 +20,7 @@ const (
 
 type Endpoint struct {
 	ap      *user.AccessPolicy
-	core    *core.Manager
+	core    *core.Core
 	handler http.HandlerFunc
 }
 

@@ -11,15 +11,15 @@ import (
 )
 
 // CreateProfile creates a new profile
-func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context) (NewProfileObject, error)) (profile *Profile, err error) {
+func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context) (NewProfileObject, error)) (profile Profile, err error) {
 	// initializing new object
 	newProfile, err := fn(ctx)
 	if err != nil {
-		return nil, err
+		return profile, err
 	}
 
 	// initializing new profile
-	profile = &Profile{
+	profile = Profile{
 		ProfileEssential: newProfile.ProfileEssential,
 		ProfileMetadata: ProfileMetadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -28,13 +28,13 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 
 	// validating profile before storing
 	if err := profile.Validate(); err != nil {
-		return nil, err
+		return profile, err
 	}
 
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
-		return nil, err
+		return profile, err
 	}
 
 	// creating checksum
@@ -43,7 +43,7 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 	// saving to the store
 	profile, err = store.CreateProfile(ctx, profile)
 	if err != nil {
-		return nil, err
+		return profile, err
 	}
 
 	m.Logger().Debug(
@@ -55,7 +55,7 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 }
 
 // BulkCreateProfile creates multiple new profile
-func (m *Manager) BulkCreateProfile(ctx context.Context, newProfiles []*Profile) (profiles []*Profile, err error) {
+func (m *Manager) BulkCreateProfile(ctx context.Context, newProfiles []Profile) (profiles []Profile, err error) {
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
@@ -84,14 +84,14 @@ func (m *Manager) BulkCreateProfile(ctx context.Context, newProfiles []*Profile)
 }
 
 // GetProfileByID returns a profile if found by ObjectID
-func (m *Manager) GetProfileByID(ctx context.Context, id int) (profile *Profile, err error) {
+func (m *Manager) GetProfileByID(ctx context.Context, id uint32) (profile Profile, err error) {
 	if id == 0 {
-		return nil, ErrProfileNotFound
+		return profile, ErrProfileNotFound
 	}
 
 	profile, err = m.store.FetchProfileByUserID(ctx, id)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain profile")
+		return profile, errors.Wrap(err, "failed to obtain profile")
 	}
 
 	return profile, nil
@@ -99,7 +99,7 @@ func (m *Manager) GetProfileByID(ctx context.Context, id int) (profile *Profile,
 
 // UpdateProfile updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateProfile(ctx context.Context, id int, fn func(ctx context.Context, r Profile) (profile Profile, err error)) (profile *Profile, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateProfile(ctx context.Context, id uint32, fn func(ctx context.Context, r Profile) (profile Profile, err error)) (profile Profile, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return profile, essentialChangelog, err
@@ -108,16 +108,16 @@ func (m *Manager) UpdateProfile(ctx context.Context, id int, fn func(ctx context
 	// obtaining existing profile
 	profile, err = store.FetchProfileByUserID(ctx, id)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to obtain existing profile from the store")
+		return profile, nil, errors.Wrap(err, "failed to obtain existing profile from the store")
 	}
 
 	// saving backup for further diff comparison
-	backup := *profile
+	backup := profile
 
 	// initializing an updated profile
 	updated, err := fn(ctx, backup)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialize updated profile")
+		return profile, nil, errors.Wrap(err, "failed to initialize updated profile")
 	}
 
 	// pre-save modifications
@@ -126,13 +126,13 @@ func (m *Manager) UpdateProfile(ctx context.Context, id int, fn func(ctx context
 	// acquiring changelog of essential changes
 	essentialChangelog, err = diff.Diff(profile.ProfileEssential, updated.ProfileEssential)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff essential changes")
+		return profile, nil, errors.Wrap(err, "failed to diff essential changes")
 	}
 
 	// acquiring total changelog
 	changelog, err := diff.Diff(profile, updated)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff total changes")
+		return profile, nil, errors.Wrap(err, "failed to diff total changes")
 	}
 
 	// persisting to the store as a final step
@@ -151,7 +151,7 @@ func (m *Manager) UpdateProfile(ctx context.Context, id int, fn func(ctx context
 
 // DeleteProfileByID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteProfileByID(ctx context.Context, userID int) (err error) {
+func (m *Manager) DeleteProfileByID(ctx context.Context, userID uint32) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")

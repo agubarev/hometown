@@ -11,15 +11,15 @@ import (
 )
 
 // CreateEmail creates a new email
-func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) (NewEmailObject, error)) (email *Email, err error) {
+func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) (NewEmailObject, error)) (email Email, err error) {
 	// initializing new object
 	newEmail, err := fn(ctx)
 	if err != nil {
-		return nil, err
+		return email, err
 	}
 
 	// initializing new email
-	email = &Email{
+	email = Email{
 		EmailEssential: newEmail.EmailEssential,
 		EmailMetadata: EmailMetadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -33,19 +33,19 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 
 	// validating email before storing
 	if err := email.Validate(); err != nil {
-		return nil, err
+		return email, err
 	}
 
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
-		return nil, err
+		return email, err
 	}
 
 	// saving to the store
 	email, err = store.CreateEmail(ctx, email)
 	if err != nil {
-		return nil, err
+		return email, err
 	}
 
 	m.Logger().Debug(
@@ -58,7 +58,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 }
 
 // BulkCreateEmail creates multiple new email
-func (m *Manager) BulkCreateEmail(ctx context.Context, newEmails []*Email) (emails []*Email, err error) {
+func (m *Manager) BulkCreateEmail(ctx context.Context, newEmails []Email) (emails []Email, err error) {
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
@@ -87,28 +87,28 @@ func (m *Manager) BulkCreateEmail(ctx context.Context, newEmails []*Email) (emai
 }
 
 // EmailByAddr obtains an email by a given address
-func (m *Manager) EmailByAddr(ctx context.Context, addr TEmailAddr) (email *Email, err error) {
+func (m *Manager) EmailByAddr(ctx context.Context, addr TEmailAddr) (email Email, err error) {
 	if addr[0] == 0 {
-		return nil, ErrEmptyEmailAddr
+		return email, ErrEmptyEmailAddr
 	}
 
 	email, err = m.store.FetchEmailByAddr(ctx, addr)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain email: %s", addr)
+		return email, errors.Wrapf(err, "failed to obtain email: %s", addr)
 	}
 
 	return email, nil
 }
 
 // PrimaryEmailByUserID obtains the primary email by user id
-func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID int) (email *Email, err error) {
+func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uint32) (email Email, err error) {
 	if userID == 0 {
-		return nil, ErrEmailNotFound
+		return email, ErrEmailNotFound
 	}
 
 	email, err = m.store.FetchPrimaryEmailByUserID(ctx, userID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain email")
+		return email, errors.Wrap(err, "failed to obtain email")
 	}
 
 	return email, nil
@@ -116,7 +116,7 @@ func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID int) (email *
 
 // UpdateEmail updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx context.Context, e Email) (email Email, err error)) (email *Email, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx context.Context, email Email) (_ Email, err error)) (email Email, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return email, essentialChangelog, err
@@ -125,16 +125,16 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx 
 	// obtaining existing email
 	email, err = store.FetchEmailByAddr(ctx, addr)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to obtain existing email from the store")
+		return email, nil, errors.Wrap(err, "failed to obtain existing email from the store")
 	}
 
 	// saving backup for further diff comparison
-	backup := *email
+	backup := email
 
 	// initializing an updated email
 	updated, err := fn(ctx, backup)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialize updated email")
+		return email, nil, errors.Wrap(err, "failed to initialize updated email")
 	}
 
 	// pre-save modifications
@@ -143,13 +143,13 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx 
 	// acquiring changelog of essential changes
 	essentialChangelog, err = diff.Diff(email.EmailEssential, updated.EmailEssential)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff essential changes")
+		return email, nil, errors.Wrap(err, "failed to diff essential changes")
 	}
 
 	// acquiring total changelog
 	changelog, err := diff.Diff(email, updated)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff total changes")
+		return email, nil, errors.Wrap(err, "failed to diff total changes")
 	}
 
 	// persisting to the store as a final step
@@ -169,18 +169,18 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx 
 
 // DeleteEmailByAddr deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID int, addr TEmailAddr) (email *Email, err error) {
+func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uint32, addr TEmailAddr) (err error) {
 	store, err := m.Store()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain a store")
+		return errors.Wrap(err, "failed to obtain a store")
 	}
 
 	// hard-deleting this object
 	if err = store.DeleteEmailByAddr(ctx, userID, addr); err != nil {
-		return nil, errors.Wrapf(err, "failed to delete email: %s", addr)
+		return errors.Wrapf(err, "failed to delete email: %s", addr)
 	}
 
-	return email, nil
+	return nil
 }
 
 // ConfirmEmail this function is used only when user's email is confirmed

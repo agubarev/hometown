@@ -38,7 +38,6 @@ var (
 	ErrNilProfile                = errors.New("profile is nil")
 	ErrDuplicateProfile          = errors.New("duplicate profile")
 	ErrProfileNotFound           = errors.New("profile not found")
-	ErrNilUserContainer          = errors.New("user container is nil")
 	ErrNoParentPolicy            = errors.New("no parent access policy")
 	ErrZeroGroupID               = errors.New("role group id is zero")
 	ErrZeroRoleID                = errors.New("role id is zero")

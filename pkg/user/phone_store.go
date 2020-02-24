@@ -9,24 +9,24 @@ import (
 	"github.com/r3labs/diff"
 )
 
-func (s *MySQLStore) fetchPhoneByQuery(ctx context.Context, q string, args ...interface{}) (p *Phone, err error) {
+func (s *MySQLStore) fetchPhoneByQuery(ctx context.Context, q string, args ...interface{}) (p Phone, err error) {
 	err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
 		LoadOneContext(ctx, &p)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrPhoneNotFound
+			return p, ErrPhoneNotFound
 		}
 
-		return nil, err
+		return p, err
 	}
 
 	return p, nil
 }
 
-func (s *MySQLStore) fetchPhonesByQuery(ctx context.Context, q string, args ...interface{}) (ps []*Phone, err error) {
-	ps = make([]*Phone, 0)
+func (s *MySQLStore) fetchPhonesByQuery(ctx context.Context, q string, args ...interface{}) (ps []Phone, err error) {
+	ps = make([]Phone, 0)
 
 	_, err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
@@ -44,14 +44,10 @@ func (s *MySQLStore) fetchPhonesByQuery(ctx context.Context, q string, args ...i
 }
 
 // CreatePhone creates a new entry in the storage backend
-func (s *MySQLStore) CreatePhone(ctx context.Context, p *Phone) (_ *Phone, err error) {
-	if p == nil {
-		return nil, ErrNilPhone
-	}
-
+func (s *MySQLStore) CreatePhone(ctx context.Context, p Phone) (_ Phone, err error) {
 	// if ObjectID is not 0, then it's not considered as new
 	if p.UserID != 0 {
-		return nil, ErrZeroUserID
+		return p, ErrZeroUserID
 	}
 
 	_, err = s.connection.NewSession(nil).
@@ -61,14 +57,14 @@ func (s *MySQLStore) CreatePhone(ctx context.Context, p *Phone) (_ *Phone, err e
 		ExecContext(ctx)
 
 	if err != nil {
-		return nil, err
+		return p, err
 	}
 
 	return p, nil
 }
 
 // CreatePhone creates a new entry in the storage backend
-func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []*Phone) (_ []*Phone, err error) {
+func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []Phone) (_ []Phone, err error) {
 	// there must be something first
 	if len(ps) == 0 {
 		return nil, ErrNoInputData
@@ -112,19 +108,19 @@ func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []*Phone) (_ []*Pho
 	return ps, nil
 }
 
-func (s *MySQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID int) (p *Phone, err error) {
+func (s *MySQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID uint32) (p Phone, err error) {
 	return s.fetchPhoneByQuery(ctx, "SELECT * FROM `user_phone` WHERE user_id = ? AND is_primary = 1 LIMIT 1", userID)
 }
 
-func (s *MySQLStore) FetchPhonesByUserID(ctx context.Context, userID int) ([]*Phone, error) {
+func (s *MySQLStore) FetchPhonesByUserID(ctx context.Context, userID uint32) ([]Phone, error) {
 	return s.fetchPhonesByQuery(ctx, "SELECT * FROM `user_phone` WHERE user_id = ?", userID)
 }
 
-func (s *MySQLStore) FetchPhoneByNumber(ctx context.Context, number TPhoneNumber) (p *Phone, err error) {
+func (s *MySQLStore) FetchPhoneByNumber(ctx context.Context, number TPhoneNumber) (p Phone, err error) {
 	return s.fetchPhoneByQuery(ctx, "SELECT * FROM `user_phone` WHERE  number = ? LIMIT 1", number)
 }
 
-func (s *MySQLStore) FetchPhonesByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (ps []*Phone, err error) {
+func (s *MySQLStore) FetchPhonesByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (ps []Phone, err error) {
 	_, err = s.connection.NewSession(nil).
 		Select("*").
 		Where(where, args...).
@@ -144,14 +140,14 @@ func (s *MySQLStore) FetchPhonesByWhere(ctx context.Context, order string, limit
 	return ps, nil
 }
 
-func (s *MySQLStore) UpdatePhone(ctx context.Context, p *Phone, changelog diff.Changelog) (_ *Phone, err error) {
+func (s *MySQLStore) UpdatePhone(ctx context.Context, p Phone, changelog diff.Changelog) (_ Phone, err error) {
 	if len(changelog) == 0 {
 		return p, ErrNothingChanged
 	}
 
 	changes, err := guard.ProcureDBChangesFromChangelog(p, changelog)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to procure changes from a changelog")
+		return p, errors.Wrap(err, "failed to procure changes from a changelog")
 	}
 
 	result, err := s.connection.NewSession(nil).
@@ -161,20 +157,20 @@ func (s *MySQLStore) UpdatePhone(ctx context.Context, p *Phone, changelog diff.C
 		ExecContext(ctx)
 
 	if err != nil {
-		return nil, err
+		return p, err
 	}
 
 	// checking whether anything was updated at all
 	// if no rows were affected then returning this as a non-critical error
 	ra, err := result.RowsAffected()
 	if ra == 0 {
-		return nil, ErrNothingChanged
+		return p, ErrNothingChanged
 	}
 
 	return p, nil
 }
 
-func (s *MySQLStore) DeletePhoneByNumber(ctx context.Context, userID int, number TPhoneNumber) (err error) {
+func (s *MySQLStore) DeletePhoneByNumber(ctx context.Context, userID uint32, number TPhoneNumber) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

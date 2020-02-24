@@ -9,24 +9,24 @@ import (
 	"github.com/r3labs/diff"
 )
 
-func (s *MySQLStore) fetchEmailByQuery(ctx context.Context, q string, args ...interface{}) (e *Email, err error) {
+func (s *MySQLStore) fetchEmailByQuery(ctx context.Context, q string, args ...interface{}) (e Email, err error) {
 	err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
 		LoadOneContext(ctx, &e)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrEmailNotFound
+			return e, ErrEmailNotFound
 		}
 
-		return nil, err
+		return e, err
 	}
 
 	return e, nil
 }
 
-func (s *MySQLStore) fetchEmailsByQuery(ctx context.Context, q string, args ...interface{}) (es []*Email, err error) {
-	es = make([]*Email, 0)
+func (s *MySQLStore) fetchEmailsByQuery(ctx context.Context, q string, args ...interface{}) (es []Email, err error) {
+	es = make([]Email, 0)
 
 	_, err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
@@ -44,14 +44,10 @@ func (s *MySQLStore) fetchEmailsByQuery(ctx context.Context, q string, args ...i
 }
 
 // CreateEmail creates a new entry in the storage backend
-func (s *MySQLStore) CreateEmail(ctx context.Context, e *Email) (_ *Email, err error) {
-	if e == nil {
-		return nil, ErrNilEmail
-	}
-
+func (s *MySQLStore) CreateEmail(ctx context.Context, e Email) (_ Email, err error) {
 	// if ObjectID is not 0, then it's not considered as new
 	if e.UserID != 0 {
-		return nil, ErrZeroUserID
+		return e, ErrZeroUserID
 	}
 
 	_, err = s.connection.NewSession(nil).
@@ -61,14 +57,14 @@ func (s *MySQLStore) CreateEmail(ctx context.Context, e *Email) (_ *Email, err e
 		ExecContext(ctx)
 
 	if err != nil {
-		return nil, err
+		return e, err
 	}
 
 	return e, nil
 }
 
 // CreateEmail creates a new entry in the storage backend
-func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []*Email) (_ []*Email, err error) {
+func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email, err error) {
 	// there must be something first
 	if len(es) == 0 {
 		return nil, ErrNoInputData
@@ -112,19 +108,19 @@ func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []*Email) (_ []*Ema
 	return es, nil
 }
 
-func (s *MySQLStore) FetchPrimaryEmailByUserID(ctx context.Context, userID int) (e *Email, err error) {
+func (s *MySQLStore) FetchPrimaryEmailByUserID(ctx context.Context, userID uint32) (e Email, err error) {
 	return s.fetchEmailByQuery(ctx, "SELECT * FROM `user_email` WHERE user_id = ? AND is_primary = 1 LIMIT 1", userID)
 }
 
-func (s *MySQLStore) FetchEmailsByUserID(ctx context.Context, userID int) ([]*Email, error) {
+func (s *MySQLStore) FetchEmailsByUserID(ctx context.Context, userID uint32) ([]Email, error) {
 	return s.fetchEmailsByQuery(ctx, "SELECT * FROM `user_email` WHERE user_id = ?", userID)
 }
 
-func (s *MySQLStore) FetchEmailByAddr(ctx context.Context, addr TEmailAddr) (e *Email, err error) {
+func (s *MySQLStore) FetchEmailByAddr(ctx context.Context, addr TEmailAddr) (e Email, err error) {
 	return s.fetchEmailByQuery(ctx, "SELECT * FROM `user_email` WHERE addr = ? LIMIT 1", addr)
 }
 
-func (s *MySQLStore) FetchEmailsByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (es []*Email, err error) {
+func (s *MySQLStore) FetchEmailsByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (es []Email, err error) {
 	_, err = s.connection.NewSession(nil).
 		Select("*").
 		Where(where, args...).
@@ -144,14 +140,14 @@ func (s *MySQLStore) FetchEmailsByWhere(ctx context.Context, order string, limit
 	return es, nil
 }
 
-func (s *MySQLStore) UpdateEmail(ctx context.Context, e *Email, changelog diff.Changelog) (_ *Email, err error) {
+func (s *MySQLStore) UpdateEmail(ctx context.Context, e Email, changelog diff.Changelog) (_ Email, err error) {
 	if len(changelog) == 0 {
 		return e, ErrNothingChanged
 	}
 
 	changes, err := guard.ProcureDBChangesFromChangelog(e, changelog)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to procure changes from a changelog")
+		return e, errors.Wrap(err, "failed to procure changes from a changelog")
 	}
 
 	result, err := s.connection.NewSession(nil).
@@ -161,20 +157,20 @@ func (s *MySQLStore) UpdateEmail(ctx context.Context, e *Email, changelog diff.C
 		ExecContext(ctx)
 
 	if err != nil {
-		return nil, err
+		return e, err
 	}
 
 	// checking whether anything was updated at all
 	// if no rows were affected then returning this as a non-critical error
 	ra, err := result.RowsAffected()
 	if ra == 0 {
-		return nil, ErrNothingChanged
+		return e, ErrNothingChanged
 	}
 
 	return e, nil
 }
 
-func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID int, addr TEmailAddr) (err error) {
+func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID uint32, addr TEmailAddr) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

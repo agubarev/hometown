@@ -11,15 +11,15 @@ import (
 )
 
 // CreatePhone creates a new phone
-func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) (NewPhoneObject, error)) (phone *Phone, err error) {
+func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) (NewPhoneObject, error)) (phone Phone, err error) {
 	// initializing new object
 	newPhone, err := fn(ctx)
 	if err != nil {
-		return nil, err
+		return phone, err
 	}
 
 	// initializing newphone
-	phone = &Phone{
+	phone = Phone{
 		PhoneEssential: newPhone.PhoneEssential,
 		PhoneMetadata: PhoneMetadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -33,19 +33,19 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 
 	// validating phone before storing
 	if err := phone.Validate(); err != nil {
-		return nil, err
+		return phone, err
 	}
 
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
-		return nil, err
+		return phone, err
 	}
 
 	// saving to the store
 	phone, err = store.CreatePhone(ctx, phone)
 	if err != nil {
-		return nil, err
+		return phone, err
 	}
 
 	m.Logger().Debug(
@@ -58,7 +58,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 }
 
 // BulkCreatePhone creates multiple newphone
-func (m *Manager) BulkCreatePhone(ctx context.Context, newPhones []*Phone) (phones []*Phone, err error) {
+func (m *Manager) BulkCreatePhone(ctx context.Context, newPhones []Phone) (phones []Phone, err error) {
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
@@ -87,14 +87,14 @@ func (m *Manager) BulkCreatePhone(ctx context.Context, newPhones []*Phone) (phon
 }
 
 // PrimaryPhoneByUserID obtains the primary phone by user id
-func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID int) (phone *Phone, err error) {
+func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uint32) (phone Phone, err error) {
 	if userID == 0 {
-		return nil, ErrPhoneNotFound
+		return phone, ErrPhoneNotFound
 	}
 
 	phone, err = m.store.FetchPrimaryPhoneByUserID(ctx, userID)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain phone")
+		return phone, errors.Wrap(err, "failed to obtain phone")
 	}
 
 	return phone, nil
@@ -102,7 +102,7 @@ func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID int) (phone *
 
 // UpdatePhone updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdatePhone(ctx context.Context, userID int, number TPhoneNumber, fn func(ctx context.Context, e Phone) (phone Phone, err error)) (phone *Phone, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdatePhone(ctx context.Context, number TPhoneNumber, fn func(ctx context.Context, phone Phone) (_ Phone, err error)) (phone Phone, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, essentialChangelog, err
@@ -111,16 +111,16 @@ func (m *Manager) UpdatePhone(ctx context.Context, userID int, number TPhoneNumb
 	// obtaining existingphone
 	phone, err = store.FetchPhoneByNumber(ctx, number)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to obtain existing phone from the store")
+		return phone, nil, errors.Wrap(err, "failed to obtain existing phone from the store")
 	}
 
 	// saving backup for further diff comparison
-	backup := *phone
+	backup := phone
 
 	// initializing an updated phone
 	updated, err := fn(ctx, backup)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialize updated phone")
+		return phone, nil, errors.Wrap(err, "failed to initialize updated phone")
 	}
 
 	// pre-save modifications
@@ -129,13 +129,13 @@ func (m *Manager) UpdatePhone(ctx context.Context, userID int, number TPhoneNumb
 	// acquiring changelog of essential changes
 	essentialChangelog, err = diff.Diff(phone.PhoneEssential, updated.PhoneEssential)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff essential changes")
+		return phone, nil, errors.Wrap(err, "failed to diff essential changes")
 	}
 
 	// acquiring total changelog
 	changelog, err := diff.Diff(phone, updated)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff total changes")
+		return phone, nil, errors.Wrap(err, "failed to diff total changes")
 	}
 
 	// persisting to the store as a final step
@@ -155,15 +155,15 @@ func (m *Manager) UpdatePhone(ctx context.Context, userID int, number TPhoneNumb
 
 // DeletePhoneByNumber deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID int, number TPhoneNumber) (phone *Phone, err error) {
+func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uint32, number TPhoneNumber) (phone Phone, err error) {
 	store, err := m.Store()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain a store")
+		return phone, errors.Wrap(err, "failed to obtain a store")
 	}
 
 	// hard-deleting this object
 	if err = store.DeletePhoneByNumber(ctx, userID, number); err != nil {
-		return nil, errors.Wrapf(err, "failed to delete phone by number: %s", number)
+		return phone, errors.Wrapf(err, "failed to delete phone by number: %s", number)
 	}
 
 	return phone, nil

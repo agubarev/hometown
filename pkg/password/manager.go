@@ -11,7 +11,6 @@ var (
 	ErrZeroOwnerID      = errors.New("owner id is zero")
 	ErrZeroKind         = errors.New("password kind is zero")
 	ErrNilPasswordStore = errors.New("password store is nil")
-	ErrNilPassword      = errors.New("password is nil")
 	ErrEmptyPassword    = errors.New("empty password is forbidden")
 	ErrPasswordNotFound = errors.New("password not found")
 	ErrShortPassword    = errors.New("password is too short")
@@ -28,9 +27,9 @@ const (
 
 // userManager describes the behaviour of a user password manager
 type Manager interface {
-	Upsert(ctx context.Context, p *Password) error
-	Get(ctx context.Context, kind Kind, ownerID int) (*Password, error)
-	Delete(ctx context.Context, kind Kind, ownerID int) error
+	Upsert(ctx context.Context, p Password) error
+	Get(ctx context.Context, kind Kind, ownerID uint32) (Password, error)
+	Delete(ctx context.Context, kind Kind, ownerID uint32) error
 }
 
 type defaultManager struct {
@@ -50,7 +49,7 @@ func NewManager(store Store) (Manager, error) {
 	return pm, nil
 }
 
-func (m *defaultManager) Upsert(ctx context.Context, p *Password) (err error) {
+func (m *defaultManager) Upsert(ctx context.Context, p Password) (err error) {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}
@@ -62,23 +61,23 @@ func (m *defaultManager) Upsert(ctx context.Context, p *Password) (err error) {
 	return m.store.Upsert(ctx, p)
 }
 
-func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID int) (*Password, error) {
+func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID uint32) (p Password, err error) {
 	if m.store == nil {
-		return nil, ErrNilPasswordStore
+		return p, ErrNilPasswordStore
 	}
 
 	if k == 0 {
-		return nil, ErrZeroKind
+		return p, ErrZeroKind
 	}
 
 	if ownerID == 0 {
-		return nil, ErrZeroOwnerID
+		return p, ErrZeroOwnerID
 	}
 
 	return m.store.Get(ctx, k, ownerID)
 }
 
-func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID int) error {
+func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID uint32) error {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}

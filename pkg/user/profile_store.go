@@ -9,24 +9,24 @@ import (
 	"github.com/r3labs/diff"
 )
 
-func (s *MySQLStore) fetchProfileByQuery(ctx context.Context, q string, args ...interface{}) (profile *Profile, err error) {
+func (s *MySQLStore) fetchProfileByQuery(ctx context.Context, q string, args ...interface{}) (profile Profile, err error) {
 	err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
 		LoadOneContext(ctx, &profile)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrProfileNotFound
+			return profile, ErrProfileNotFound
 		}
 
-		return nil, err
+		return profile, err
 	}
 
 	return profile, nil
 }
 
-func (s *MySQLStore) fetchProfilesByQuery(ctx context.Context, q string, args ...interface{}) (profiles []*Profile, err error) {
-	profiles = make([]*Profile, 0)
+func (s *MySQLStore) fetchProfilesByQuery(ctx context.Context, q string, args ...interface{}) (profiles []Profile, err error) {
+	profiles = make([]Profile, 0)
 
 	_, err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
@@ -44,14 +44,10 @@ func (s *MySQLStore) fetchProfilesByQuery(ctx context.Context, q string, args ..
 }
 
 // CreateProfile creates a new entry in the storage backend
-func (s *MySQLStore) CreateProfile(ctx context.Context, profile *Profile) (_ *Profile, err error) {
-	if profile == nil {
-		return nil, ErrNilProfile
-	}
-
+func (s *MySQLStore) CreateProfile(ctx context.Context, profile Profile) (_ Profile, err error) {
 	// if ObjectID is not 0, then it's not considered as new
 	if profile.UserID == 0 {
-		return nil, ErrZeroUserID
+		return profile, ErrZeroUserID
 	}
 
 	_, err = s.connection.NewSession(nil).
@@ -61,14 +57,14 @@ func (s *MySQLStore) CreateProfile(ctx context.Context, profile *Profile) (_ *Pr
 		ExecContext(ctx)
 
 	if err != nil {
-		return nil, err
+		return profile, err
 	}
 
 	return profile, nil
 }
 
 // CreateProfile creates a new entry in the storage backend
-func (s *MySQLStore) BulkCreateProfile(ctx context.Context, profiles []*Profile) (_ []*Profile, err error) {
+func (s *MySQLStore) BulkCreateProfile(ctx context.Context, profiles []Profile) (_ []Profile, err error) {
 	// there must be something first
 	if len(profiles) == 0 {
 		return nil, ErrNoInputData
@@ -112,11 +108,11 @@ func (s *MySQLStore) BulkCreateProfile(ctx context.Context, profiles []*Profile)
 	return profiles, nil
 }
 
-func (s *MySQLStore) FetchProfileByUserID(ctx context.Context, id int) (profile *Profile, err error) {
+func (s *MySQLStore) FetchProfileByUserID(ctx context.Context, id uint32) (profile Profile, err error) {
 	return s.fetchProfileByQuery(ctx, "SELECT * FROM `user_profile` WHERE user_id = ? LIMIT 1", id)
 }
 
-func (s *MySQLStore) FetchProfilesByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (profiles []*Profile, err error) {
+func (s *MySQLStore) FetchProfilesByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (profiles []Profile, err error) {
 	_, err = s.connection.NewSession(nil).
 		Select("*").
 		Where(where, args...).
@@ -130,20 +126,20 @@ func (s *MySQLStore) FetchProfilesByWhere(ctx context.Context, order string, lim
 			return profiles, nil
 		}
 
-		return nil, err
+		return profiles, err
 	}
 
 	return profiles, nil
 }
 
-func (s *MySQLStore) UpdateProfile(ctx context.Context, profile *Profile, changelog diff.Changelog) (_ *Profile, err error) {
+func (s *MySQLStore) UpdateProfile(ctx context.Context, profile Profile, changelog diff.Changelog) (_ Profile, err error) {
 	if len(changelog) == 0 {
 		return profile, ErrNothingChanged
 	}
 
 	changes, err := guard.ProcureDBChangesFromChangelog(profile, changelog)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to procure changes from a changelog")
+		return profile, errors.Wrap(err, "failed to procure changes from a changelog")
 	}
 
 	_, err = s.connection.NewSession(nil).
@@ -153,13 +149,13 @@ func (s *MySQLStore) UpdateProfile(ctx context.Context, profile *Profile, change
 		ExecContext(ctx)
 
 	if err != nil {
-		return nil, err
+		return profile, err
 	}
 
 	return profile, nil
 }
 
-func (s *MySQLStore) DeleteProfileByUserID(ctx context.Context, userID int) (err error) {
+func (s *MySQLStore) DeleteProfileByUserID(ctx context.Context, userID uint32) (err error) {
 	if userID == 0 {
 		return ErrZeroID
 	}

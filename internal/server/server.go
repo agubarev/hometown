@@ -8,7 +8,7 @@ import (
 )
 
 type Server struct {
-	core *core.Manager
+	core *core.Core
 }
 
 type Response struct {
@@ -17,7 +17,7 @@ type Response struct {
 	Payload    interface{} `json:"payload,omitempty"`
 }
 
-func New(ctx context.Context, c *core.Manager, addr string) (s *Server, err error) {
+func New(ctx context.Context, c *core.Core, addr string) (s *Server, err error) {
 	r := chi.NewRouter()
 
 	r.Route("/api/v1", func(r chi.Router) {

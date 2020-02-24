@@ -11,10 +11,10 @@ import (
 // Store interface
 // NOTE: ownerID represents the ObjectID of whoever owns a given password
 type Store interface {
-	Upsert(ctx context.Context, p *Password) error
-	Update(ctx context.Context, k Kind, ownerID int, newpass []byte) error
-	Get(ctx context.Context, k Kind, ownerID int) (*Password, error)
-	Delete(ctx context.Context, k Kind, ownerID int) error
+	Upsert(ctx context.Context, p Password) error
+	Update(ctx context.Context, k Kind, ownerID uint32, newpass []byte) error
+	Get(ctx context.Context, k Kind, ownerID uint32) (Password, error)
+	Delete(ctx context.Context, k Kind, ownerID uint32) error
 }
 
 type passwordStore struct {
@@ -29,9 +29,13 @@ func NewPasswordStore(db *dbr.Connection) (Store, error) {
 
 // Upsert stores password
 // ObjectID must be equal to the user's ObjectID
-func (s *passwordStore) Upsert(ctx context.Context, p *Password) (err error) {
-	if p == nil {
-		return ErrNilPassword
+func (s *passwordStore) Upsert(ctx context.Context, p Password) (err error) {
+	if p.OwnerID == 0 {
+		return ErrZeroOwnerID
+	}
+
+	if p.Hash[0] == 0 {
+		return ErrEmptyPassword
 	}
 
 	if err = p.Validate(); err != nil {
@@ -49,7 +53,7 @@ func (s *passwordStore) Upsert(ctx context.Context, p *Password) (err error) {
 }
 
 // UpdatePolicy updates an existing password record
-func (s *passwordStore) Update(ctx context.Context, k Kind, ownerID int, newpass []byte) (err error) {
+func (s *passwordStore) Update(ctx context.Context, k Kind, ownerID uint32, newpass []byte) (err error) {
 	if len(newpass) == 0 {
 		return ErrEmptyPassword
 	}
@@ -70,7 +74,7 @@ func (s *passwordStore) Update(ctx context.Context, k Kind, ownerID int, newpass
 }
 
 // Get retrieves a stored password
-func (s *passwordStore) Get(ctx context.Context, k Kind, userID int) (p *Password, err error) {
+func (s *passwordStore) Get(ctx context.Context, k Kind, userID uint32) (p Password, err error) {
 	// retrieving password
 	err = s.db.NewSession(nil).
 		Select("*").
@@ -80,17 +84,17 @@ func (s *passwordStore) Get(ctx context.Context, k Kind, userID int) (p *Passwor
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return nil, ErrPasswordNotFound
+			return p, ErrPasswordNotFound
 		}
 
-		return nil, err
+		return p, err
 	}
 
 	return p, nil
 }
 
 // DeletePolicy deletes a stored password
-func (s *passwordStore) Delete(ctx context.Context, k Kind, ownerID int) (err error) {
+func (s *passwordStore) Delete(ctx context.Context, k Kind, ownerID uint32) (err error) {
 	_, err = s.db.NewSession(nil).DeleteFrom("password").Where("kind = ? AND id = ?", k, ownerID).ExecContext(ctx)
 	if err != nil {
 		return err

@@ -12,31 +12,31 @@ import (
 )
 
 // CreateUser creates a new user
-func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (NewUserObject, error)) (u *User, err error) {
+func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (NewUserObject, error)) (u User, err error) {
 	l := m.Logger()
 
 	// initializing new object
 	newUser, err := fn(ctx)
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	//---------------------------------------------------------------------------
 	// basic validation
 	//---------------------------------------------------------------------------
 	if newUser.EmailAddr[0] == 0 {
-		return nil, ErrEmptyEmailAddr
+		return u, ErrEmptyEmailAddr
 	}
 
 	if len(newUser.Password) == 0 {
-		return nil, password.ErrEmptyPassword
+		return u, password.ErrEmptyPassword
 	}
 
 	//---------------------------------------------------------------------------
 	// initializing and validating new user
 	//---------------------------------------------------------------------------
 	// initializing new user
-	u = &User{
+	u = User{
 		Essential: newUser.Essential,
 		Metadata: Metadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -45,13 +45,13 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 
 	// validating before storing
 	if err := u.Validate(); err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// creating checksum
@@ -60,7 +60,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	// saving to the store
 	u, err = store.CreateUser(ctx, u)
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// deferring a function to delete this user if there's any error to follow
@@ -80,7 +80,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 			// deleting things that might have been created before panic
 			//---------------------------------------------------------------------------
 			// deleting email
-			if _, xerr := m.DeleteEmailByAddr(ctx, u.ID, newUser.EmailAddr); xerr != nil {
+			if xerr := m.DeleteEmailByAddr(ctx, u.ID, newUser.EmailAddr); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete emails during recovery from panic: %s", xerr)
 				l.Error("failed to delete emails during recovery from panic", zap.Error(err))
 			}
@@ -179,7 +179,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 		panic(errors.Wrap(err, "failed to initialize new password"))
 	}
 
-	if err = m.SetPassword(ctx, u, p); err != nil {
+	if err = m.SetPassword(ctx, u.ID, p); err != nil {
 		// TODO possibly delete the unfinished user or figure out a better way to handle
 		// NOTE: at this point this account cannot be allowed to stay without a password
 		// because there's an explicit attempt to create a new user account WITH PASSWORD,
@@ -191,7 +191,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 
 	m.Logger().Debug(
 		"created new user",
-		zap.Int("id", u.ID),
+		zap.Uint32("id", u.ID),
 		zap.ByteString("username", u.Username[:]),
 		zap.ByteString("email", newUser.EmailAddr[:]),
 	)
@@ -200,7 +200,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 }
 
 // BulkCreateUser creates multiple new user
-func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []*User) (us []*User, err error) {
+func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []User) (us []User, err error) {
 	// obtaining store
 	store, err := m.Store()
 	if err != nil {
@@ -229,42 +229,42 @@ func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []*User) (us []*U
 }
 
 // UserByID returns a user if found by ObjectID
-func (m *Manager) UserByID(ctx context.Context, id uint32) (u *User, err error) {
+func (m *Manager) UserByID(ctx context.Context, id uint32) (u User, err error) {
 	if id == 0 {
-		return nil, ErrUserNotFound
+		return u, ErrUserNotFound
 	}
 
 	u, err = m.store.FetchUserByID(ctx, id)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain user by id: %d", id)
+		return u, errors.Wrapf(err, "failed to obtain user by id: %d", id)
 	}
 
 	return u, nil
 }
 
 // UserByUsername returns a user if found by username
-func (m *Manager) UserByUsername(ctx context.Context, username TUsername) (u *User, err error) {
+func (m *Manager) UserByUsername(ctx context.Context, username TUsername) (u User, err error) {
 	if username[0] == 0 {
-		return nil, ErrUserNotFound
+		return u, ErrUserNotFound
 	}
 
 	u, err = m.store.FetchUserByUsername(ctx, username)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain user by username: %s", username)
+		return u, errors.Wrapf(err, "failed to obtain user by username: %s", username)
 	}
 
 	return u, nil
 }
 
 // UserByEmailAddr returns a user if found by username
-func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u *User, err error) {
+func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u User, err error) {
 	if addr[0] == 0 {
-		return nil, ErrUserNotFound
+		return u, ErrUserNotFound
 	}
 
 	u, err = m.store.FetchUserByEmailAddr(ctx, addr)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to obtain user by email: %s", addr)
+		return u, errors.Wrapf(err, "failed to obtain user by email: %s", addr)
 	}
 
 	return u, nil
@@ -272,7 +272,7 @@ func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u *User
 
 // UpdateUser updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context.Context, r User) (u User, err error)) (u *User, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context.Context, r User) (u User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, essentialChangelog, err
@@ -281,16 +281,16 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 	// obtaining existing user
 	u, err = store.FetchUserByID(ctx, id)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to obtain existing u from the store")
+		return u, nil, errors.Wrap(err, "failed to obtain existing u from the store")
 	}
 
 	// saving backup for further diff comparison
-	backup := *u
+	backup := u
 
 	// initializing an updated user
 	updated, err := fn(ctx, backup)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialize updated u")
+		return u, nil, errors.Wrap(err, "failed to initialize updated u")
 	}
 
 	// pre-save modifications
@@ -299,13 +299,13 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 	// acquiring changelog of essential changes
 	essentialChangelog, err = diff.Diff(u.Essential, updated.Essential)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff essential changes")
+		return u, nil, errors.Wrap(err, "failed to diff essential changes")
 	}
 
 	// acquiring total changelog
 	changelog, err := diff.Diff(u, updated)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to diff total changes")
+		return u, nil, errors.Wrap(err, "failed to diff total changes")
 	}
 
 	// persisting to the store as a final step
@@ -316,7 +316,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int("id", u.ID),
+		zap.Uint32("id", u.ID),
 		zap.ByteString("username", u.Username[:]),
 	)
 
@@ -325,16 +325,16 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 
 // DeleteUserByID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u *User, err error) {
+func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u User, err error) {
 	store, err := m.Store()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain a store")
+		return u, errors.Wrap(err, "failed to obtain a store")
 	}
 
 	if isHard {
 		// hard-deleting this object
 		if err = store.DeleteUserByID(ctx, id); err != nil {
-			return nil, errors.Wrap(err, "failed to delete u")
+			return u, errors.Wrap(err, "failed to delete u")
 		}
 
 		// and finally deleting user's password if the password manager is present
@@ -342,17 +342,17 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u
 		if m.passwords != nil {
 			err = m.passwords.Delete(ctx, password.KUser, id)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed to delete user password")
+				return u, errors.Wrap(err, "failed to delete user password")
 			}
 		}
 
-		return nil, nil
+		return u, nil
 	}
 
 	// obtaining deleted object
 	u, err = m.UserByID(ctx, id)
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// updating to mark this object as deleted
@@ -397,15 +397,11 @@ func (m *Manager) CheckAvailability(ctx context.Context, username TUsername, ema
 }
 
 // SetPassword sets a new password for the user
-func (m *Manager) SetPassword(ctx context.Context, u *User, p *password.Password) (err error) {
-	if u == nil {
-		return errors.Wrap(ErrNilUser, "failed to set user password")
-	}
-
+func (m *Manager) SetPassword(ctx context.Context, userID uint32, p password.Password) (err error) {
 	// paranoid check of whether the user is eligible to have
 	// a password created and stored
-	if u.ID == 0 {
-		return ErrZeroUserID
+	if userID == 0 {
+		return errors.Wrap(ErrZeroUserID, "failed to set user password")
 	}
 
 	// storing password

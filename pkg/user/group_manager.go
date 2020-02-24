@@ -402,3 +402,44 @@ func (m *GroupManager) Groups(ctx context.Context, mask GroupKind) []Group {
 
 	return groups
 }
+
+func (m *Manager) setupDefaultGroups() error {
+	if m.groups == nil {
+		return ErrNilGroupManager
+	}
+
+	// regular user
+	userRole, err := NewGroup(GKRole, "user", "Regular User", nil)
+	if err != nil {
+		return fmt.Errorf("failed to create regular user role: %s", err)
+	}
+
+	err = m.groups.AddGroup(userRole)
+	if err != nil {
+		return err
+	}
+
+	// manager
+	managerRole, err := NewGroup(GKRole, "manager", "userManager", userRole)
+	if err != nil {
+		return fmt.Errorf("failed to create manager role: %s", err)
+	}
+
+	err = m.groups.AddGroup(managerRole)
+	if err != nil {
+		return err
+	}
+
+	// superuser
+	superuserRole, err := NewGroup(GKRole, "superuser", "Super User", managerRole)
+	if err != nil {
+		return fmt.Errorf("failed to create superuser role: %s", err)
+	}
+
+	err = m.groups.AddGroup(superuserRole)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}

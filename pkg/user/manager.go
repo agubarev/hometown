@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/password"
+	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/blevesearch/bleve"
 	"github.com/pkg/errors"
@@ -40,6 +41,8 @@ type Object interface {
 // TODO: consider naming first release `Lidia`
 type Manager struct {
 	passwords password.Manager
+	policies  *AccessPolicyManager
+	groups    *GroupManager
 	store     Store
 	index     bleve.Index
 	logger    *zap.Logger
@@ -131,6 +134,49 @@ func (m *Manager) SetPasswordManager(pm password.Manager) error {
 	}
 
 	m.passwords = pm
+
+	return nil
+}
+
+// SetGroupManager assigns a group manager
+func (m *Manager) SetGroupManager(gm *user.GroupManager) error {
+	if gm == nil {
+		return ErrNilGroupManager
+	}
+
+	err := gm.Validate()
+	if err != nil {
+		return fmt.Errorf("failed to validate group container: %s", err)
+	}
+
+	// setting
+	m.groups = gm
+
+	return nil
+}
+
+// SetTokenManager assigns a token manager
+func (m *Manager) SetTokenManager(tm *token.Manager) error {
+	if tm == nil {
+		return ErrNilTokenManager
+	}
+
+	if err := tm.Validate(); err != nil {
+		return fmt.Errorf("failed to validate token container: %s", err)
+	}
+
+	m.tokens = tm
+
+	return nil
+}
+
+// SetAccessPolicyManager assigns access policy manager
+func (m *Manager) SetAccessPolicyManager(c *user.AccessPolicyManager) error {
+	if c == nil {
+		return ErrNilAccessPolicyContainer
+	}
+
+	m.policies = c
 
 	return nil
 }
