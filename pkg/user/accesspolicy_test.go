@@ -253,19 +253,15 @@ func TestSetRoleRights(t *testing.T) {
 	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
 	a.NoError(err)
 
-	gc, err := user.GroupManagerForTesting(db)
-	a.NoError(err)
-	a.NotNil(gc)
-
 	// adding the user to 2 groups but setting rights to only one
-	role1, err := gc.Create(ctx, 0, user.GKRole, "test_role_1", "test role 1")
+	role1, err := gm.Create(ctx, 0, user.GKRole, "test_role_1", "test role 1")
 	a.NoError(err)
 
 	err = role1.AddMember(ctx, testuser.ID)
 	a.NoError(err)
 	a.True(role1.IsMember(ctx, testuser.ID))
 
-	role2, err := gc.Create(ctx, 0, user.GKRole, "test_role_2", "test role 2")
+	role2, err := gm.Create(ctx, 0, user.GKRole, "test_role_2", "test role 2")
 	a.NoError(err)
 
 	err = role2.AddMember(ctx, testuser.ID)
@@ -357,7 +353,7 @@ func TestSetUserRights(t *testing.T) {
 	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
 
 	// with parent, using legacy only
-	pWithInheritance, err := apm.Create(ctx, assignor.ID, p.ID, "test_name", "test_type", 1, true, false)
+	pWithInheritance, err := apm.Create(ctx, assignor.ID, p.ID, "another name", "another type", 1, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
 
@@ -368,7 +364,7 @@ func TestSetUserRights(t *testing.T) {
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
-	pExtendedNoOwn, err := apm.Create(ctx, assignor.ID, p.ID, "test_name", "test_type", 1, false, true)
+	pExtendedNoOwn, err := apm.Create(ctx, assignor.ID, p.ID, "the name", "the type", 1, false, true)
 	a.NoError(err)
 
 	parent, err = pExtendedNoOwn.Parent(ctx)
@@ -380,7 +376,7 @@ func TestSetUserRights(t *testing.T) {
 	// with parent, legacy false, extend true; using parent's rights with it's own
 	// adding one more right to itself
 	// NOTE: added core.APMove to own rights
-	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "test_name", "test_type", 1, false, true)
+	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "yet another name", "and type", 1, false, true)
 	a.NoError(err)
 
 	err = pExtendedWithOwn.SetUserRights(ctx, assignor.ID, testuser.ID, user.APMove)
