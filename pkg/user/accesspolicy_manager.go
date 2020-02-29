@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/pkg/errors"
 )
 
@@ -146,8 +145,6 @@ func (m *AccessPolicyManager) Create(ctx context.Context, ownerID, parentID int6
 		return ap, err
 	}
 
-	spew.Dump(ap)
-
 	// creating in the store
 	ap, err = m.store.CreatePolicy(ctx, ap)
 	if err != nil {
@@ -224,6 +221,12 @@ func (m *AccessPolicyManager) Update(ctx context.Context, ap AccessPolicy) (_ Ac
 	// thus, clearing backup and rights roster changelist
 	ap.backup = nil
 	ap.RightsRoster.changes = nil
+
+	// updating policy cache
+	err = m.Put(ctx, ap)
+	if err != nil {
+		return ap, err
+	}
 
 	return ap, nil
 }
@@ -330,12 +333,12 @@ func (m *AccessPolicyManager) HasRights(ctx context.Context, ap *AccessPolicy, s
 		return false
 	}
 
-	switch subject.(type) {
+	switch sub := subject.(type) {
 	case nil:
 	case User:
-		return ap.HasRights(ctx, subject.(User).ID, rights)
+		return ap.HasRights(ctx, sub.ID, rights)
 	case Group:
-		return ap.HasGroupRights(ctx, subject.(Group).ID, rights)
+		return ap.HasGroupRights(ctx, sub.ID, rights)
 	}
 
 	return false
@@ -363,22 +366,17 @@ func (m *AccessPolicyManager) SetRights(ctx context.Context, ap *AccessPolicy, a
 	}
 
 	// setting rights depending on the type of a subject
-	switch subject.(type) {
+	switch sub := subject.(type) {
 	case nil:
 		err = ap.SetPublicRights(ctx, assignorID, rights)
-		ap.RightsRoster.addChange(1, SKEveryone, 0, rights)
 	case User:
-		u := subject.(User)
-		err = ap.SetUserRights(ctx, assignorID, u.ID, rights)
-		ap.RightsRoster.addChange(1, SKUser, u.ID, rights)
+		err = ap.SetUserRights(ctx, assignorID, sub.ID, rights)
 	case Group:
-		switch g := subject.(Group); g.Kind {
+		switch sub.Kind {
 		case GKRole:
-			err = ap.SetRoleRights(ctx, assignorID, g, rights)
-			ap.RightsRoster.addChange(1, SKRoleGroup, g.ID, rights)
+			err = ap.SetRoleRights(ctx, assignorID, sub, rights)
 		case GKGroup:
-			err = ap.SetGroupRights(ctx, assignorID, g, rights)
-			ap.RightsRoster.addChange(1, SKGroup, g.ID, rights)
+			err = ap.SetGroupRights(ctx, assignorID, sub, rights)
 		}
 	}
 
@@ -391,30 +389,27 @@ func (m *AccessPolicyManager) SetRights(ctx context.Context, ap *AccessPolicy, a
 }
 
 // UnsetRights removes rights of a given subject to this policy
-func (m *AccessPolicyManager) UnsetRights(ctx context.Context, ap AccessPolicy, assignorID int64, subject interface{}) error {
-	err := ap.Validate()
-	if err != nil {
+func (m *AccessPolicyManager) UnsetRights(ctx context.Context, ap AccessPolicy, assignorID int64, subject interface{}) (err error) {
+	if err = ap.Validate(); err != nil {
 		return err
 	}
 
-	err = ap.CreateBackup()
-	if err != nil {
+	if err = ap.CreateBackup(); err != nil {
 		return err
 	}
 
 	// setting rights depending on the type of a subject
-	switch subject.(type) {
+	switch sub := subject.(type) {
+	case nil:
+		err = ap.UnsetRights(ctx, assignorID, nil)
 	case User:
-		err = ap.UnsetRights(ctx, assignorID, subject.(User))
-		ap.RightsRoster.addChange(0, SKUser, subject.(User).ID, 0)
+		err = ap.UnsetRights(ctx, assignorID, sub)
 	case Group:
-		switch g := subject.(Group); g.Kind {
+		switch sub.Kind {
 		case GKRole:
-			err = ap.UnsetRights(ctx, assignorID, g)
-			ap.RightsRoster.addChange(0, SKRoleGroup, subject.(Group).ID, 0)
+			err = ap.UnsetRights(ctx, assignorID, sub)
 		case GKGroup:
-			err = ap.UnsetRights(ctx, assignorID, g)
-			ap.RightsRoster.addChange(0, SKGroup, subject.(Group).ID, 0)
+			err = ap.UnsetRights(ctx, assignorID, sub)
 		}
 	}
 

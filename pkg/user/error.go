@@ -42,6 +42,8 @@ var (
 	ErrNoPolicyBackup            = errors.New("no policy backup")
 	ErrZeroGroupID               = errors.New("role group id is zero")
 	ErrZeroRoleID                = errors.New("role id is zero")
+	ErrZeroAssignorID            = errors.New("assignor id is zero")
+	ErrZeroAssigneeID            = errors.New("assignee id is zero")
 	ErrInvalidName               = errors.New("invalid name")
 	ErrInvalidObjectType         = errors.New("invalid object type")
 	ErrZeroObjectID              = errors.New("object id is zero")

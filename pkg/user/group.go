@@ -369,7 +369,7 @@ func (g *Group) UnlinkMember(ctx context.Context, userID int64) (err error) {
 		g.Lock()
 		for i, memberID := range members {
 			if memberID == userID {
-				// deleting a group from the list
+				// deleting member from the list
 				g.members[g.ID] = append(g.members[g.ID][0:i], g.members[g.ID][i+1:]...)
 				break
 			}

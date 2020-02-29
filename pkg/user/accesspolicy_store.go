@@ -78,7 +78,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 	}
 
 	// initializing rights roster
-	rr := &RightsRoster{
+	rr := RightsRoster{
 		Group: make(map[int64]AccessRight),
 		Role:  make(map[int64]AccessRight),
 		User:  make(map[int64]AccessRight),
@@ -106,7 +106,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 	}
 
 	// attaching its rights roster
-	ap.RightsRoster = rr
+	ap.RightsRoster = &rr
 
 	return ap, nil
 }
@@ -307,21 +307,7 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 	if ap.RightsRoster != nil {
 		for _, c := range ap.RightsRoster.changes {
 			switch c.action {
-			case 0:
-				//---------------------------------------------------------------------------
-				// deleting
-				//---------------------------------------------------------------------------
-				_, err = tx.Exec(
-					"DELETE FROM accesspolicy_rights_roster WHERE policy_id = ? AND subject_kind = ? AND subject_id = ?",
-					ap.ID,
-					c.subjectKind,
-					c.subjectID,
-				)
-
-				if err != nil {
-					return errors.Wrap(err, "failed to delete rights roster record")
-				}
-			case 1:
+			case RRSet:
 				//---------------------------------------------------------------------------
 				// creating
 				//---------------------------------------------------------------------------
@@ -336,7 +322,21 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 				)
 
 				if err != nil {
-					return errors.Wrap(err, "failed to create rights roster record")
+					return errors.Wrap(err, "failed to upsert rights roster record")
+				}
+			case RRUnset:
+				//---------------------------------------------------------------------------
+				// deleting
+				//---------------------------------------------------------------------------
+				_, err = tx.Exec(
+					"DELETE FROM accesspolicy_rights_roster WHERE policy_id = ? AND subject_kind = ? AND subject_id = ?",
+					ap.ID,
+					c.subjectKind,
+					c.subjectID,
+				)
+
+				if err != nil {
+					return errors.Wrap(err, "failed to delete rights roster record")
 				}
 			}
 		}
@@ -383,18 +383,6 @@ func (s *DefaultAccessPolicyStore) DeletePolicy(ctx context.Context, ap AccessPo
 		return errors.Wrap(err, "failed to begin database transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
-
-	// panic handler
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.Wrap(err, "recovered from panic")
-
-			// rolling back the transaction
-			if xerr := tx.Rollback(); xerr != nil { // oshi-
-				err = errors.Wrap(xerr, "rollback failed")
-			}
-		}
-	}()
 
 	//---------------------------------------------------------------------------
 	// deleting policy along with it's respective rights roster

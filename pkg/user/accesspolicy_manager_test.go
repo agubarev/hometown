@@ -538,7 +538,6 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	//---------------------------------------------------------------------------
 	fetchedPolicy, err := apm.PolicyByID(ctx, ap.ID)
 	a.NoError(err)
-	a.NotNil(fetchedPolicy)
 	a.True(reflect.DeepEqual(ap, fetchedPolicy))
 
 	fetchedPolicy, err = apm.PolicyByName(ctx, ap.Name)
@@ -560,17 +559,17 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	// attempting to get policies after their deletion
 	//---------------------------------------------------------------------------
 	fetchedPolicy, err = apm.PolicyByID(ctx, ap.ID)
-	a.NoError(err)
+	a.Error(err)
 	a.EqualError(user.ErrAccessPolicyNotFound, err.Error())
-	a.Nil(fetchedPolicy)
+	a.Zero(fetchedPolicy.ID)
 
 	fetchedPolicy, err = apm.PolicyByName(ctx, ap.Name)
-	a.NoError(err)
+	a.Error(err)
 	a.EqualError(user.ErrAccessPolicyNotFound, err.Error())
-	a.Nil(fetchedPolicy)
+	a.Zero(fetchedPolicy.ID)
 
 	fetchedPolicy, err = apm.PolicyByObjectTypeAndID(ctx, ap.ObjectType, ap.ObjectID)
-	a.NoError(err)
+	a.Error(err)
 	a.EqualError(user.ErrAccessPolicyNotFound, err.Error())
-	a.Nil(fetchedPolicy)
+	a.Zero(fetchedPolicy.ID)
 }

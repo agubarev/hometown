@@ -1,7 +1,6 @@
 package user_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
@@ -27,7 +26,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	p, err := apm.Create(ctx, 0, 0, "test_name", "test_type", 1, false, false)
+	p, err := apm.Create(ctx, 0, 0, "", "test_type", 1, false, false)
 	a.NoError(err)
 	a.NotNil(p)
 	a.Zero(p.OwnerID)
@@ -35,40 +34,40 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.False(p.IsInherited)
 	a.False(p.IsExtended)
 
-	p, err = apm.Create(ctx, 1, 0, "test_name", "test_type", 1, false, false)
+	p, err = apm.Create(ctx, 1, 0, "test_name", "", 0, false, false)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(1, p.OwnerID)
+	a.Equal(int64(1), p.OwnerID)
 	a.Zero(p.ParentID)
 	a.False(p.IsInherited)
 	a.False(p.IsExtended)
 
 	// with parent
-	p, err = apm.Create(ctx, 0, 1, "test_name", "test_type", 1, false, false)
+	p, err = apm.Create(ctx, 0, 1, "test policy with a parent id", "some object", 1, false, false)
 	a.NoError(err)
 	a.NotNil(p)
 	a.Zero(p.OwnerID)
-	a.Equal(1, p.ParentID)
+	a.Equal(int64(1), p.ParentID)
 	a.False(p.IsInherited)
 	a.False(p.IsExtended)
 
-	// with inheritance
-	p, err = apm.Create(ctx, 0, 0, "test_name", "test_type", 1, true, false)
-	a.NoError(err)
-	a.NotNil(p)
-	a.Zero(p.OwnerID)
-	a.Zero(p.ParentID)
-	a.True(p.IsInherited)
-	a.False(p.IsExtended)
+	// with inheritance (without a parent)
+	p, err = apm.Create(ctx, 0, 0, "test policy without a parent but with inheritance", "another object", 1, true, false)
+	a.Error(err)
 
-	// with extension
-	p, err = apm.Create(ctx, 0, 0, "test_name", "test_type", 1, false, true)
+	// with extension (without a parent)
+	p, err = apm.Create(ctx, 0, 0, "test policy without a parent but with extension", "and another one", 1, false, true)
+	a.Error(err)
+
+	// with inheritance (with a parent)
+	p, err = apm.Create(ctx, 0, 1, "test policy with inheritance", "another object", 1, true, false)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Zero(p.OwnerID)
-	a.Zero(p.ParentID)
-	a.False(p.IsInherited)
-	a.True(p.IsExtended)
+
+	// with extension (with a parent)
+	p, err = apm.Create(ctx, 0, 1, "test policy with extension", "and another one", 1, false, true)
+	a.NoError(err)
+	a.NotNil(p)
 }
 
 func TestSetPublicRights(t *testing.T) {
@@ -95,48 +94,48 @@ func TestSetPublicRights(t *testing.T) {
 	p, err := apm.Create(ctx, 1, 0, "test_name", "test_type", 1, false, false)
 	a.NoError(err)
 
-	err = p.SetPublicRights(context.Background(), 1, wantedRights)
+	err = p.SetPublicRights(ctx, 1, wantedRights)
 	a.NoError(err)
 	a.Equal(wantedRights, p.RightsRoster.Everyone)
-	a.True(p.HasRights(context.Background(), 2, wantedRights))
+	a.True(p.HasRights(ctx, 2, wantedRights))
 
 	// with parent, using legacy only
-	pWithInheritance, err := apm.Create(ctx, 1, 1, "test_name", "test_type", 1, true, false)
+	pWithInheritance, err := apm.Create(ctx, 1, 1, "another name", "some object", 1, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
 
-	parent, err := pWithInheritance.Parent(context.Background())
+	parent, err := pWithInheritance.Parent(ctx)
 	a.NoError(err)
 	a.Equal(wantedRights, parent.RightsRoster.Everyone)
-	a.True(pWithInheritance.HasRights(context.Background(), 2, wantedRights))
+	a.True(pWithInheritance.HasRights(ctx, 2, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
-	pExtendedNoOwn, err := apm.Create(ctx, 1, 1, "test_name", "test_type", 1, false, true)
+	pExtendedNoOwn, err := apm.Create(ctx, 1, 1, "different name", "another object", 1, false, true)
 	a.NoError(err)
 
-	parent, err = pExtendedNoOwn.Parent(context.Background())
+	parent, err = pExtendedNoOwn.Parent(ctx)
 	a.NoError(err)
 
 	a.Equal(wantedRights, parent.RightsRoster.Everyone)
 	a.Equal(user.APNoAccess, pExtendedNoOwn.RightsRoster.Everyone)
-	a.True(pExtendedNoOwn.HasRights(context.Background(), 2, wantedRights))
+	a.True(pExtendedNoOwn.HasRights(ctx, 2, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights with it's own
 	// adding one more right to itself
 	// NOTE: added core.APMove to own rights
-	pExtendedWithOwn, err := apm.Create(ctx, 1, 1, "test_name", "test_type", 1, false, true)
+	pExtendedWithOwn, err := apm.Create(ctx, 1, 1, "not a previous name", "test object", 1, false, true)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetPublicRights(context.Background(), 1, user.APMove)
+	err = pExtendedWithOwn.SetPublicRights(ctx, 1, user.APMove)
 	a.NoError(err)
 
-	parent, err = pExtendedWithOwn.Parent(context.Background())
+	parent, err = pExtendedWithOwn.Parent(ctx)
 	a.NoError(err)
 
 	a.Equal(wantedRights, parent.RightsRoster.Everyone)
 	a.Equal(user.APMove, pExtendedWithOwn.RightsRoster.Everyone)
-	a.True(pExtendedWithOwn.HasRights(context.Background(), 2, wantedRights|user.APMove))
+	a.True(pExtendedWithOwn.HasRights(ctx, 2, wantedRights|user.APMove))
 }
 
 func TestSetGroupRights(t *testing.T) {
@@ -190,7 +189,7 @@ func TestSetGroupRights(t *testing.T) {
 	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
 
 	// with parent, using legacy only
-	pWithInheritance, err := apm.Create(ctx, assignor.ID, 1, "test_name", "test_type", 1, true, false)
+	pWithInheritance, err := apm.Create(ctx, assignor.ID, 1, "the name", "the type", 1, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
 
@@ -202,7 +201,7 @@ func TestSetGroupRights(t *testing.T) {
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
-	pExtendedNoOwn, err := apm.Create(ctx, assignor.ID, 1, "test_name", "test_type", 1, false, true)
+	pExtendedNoOwn, err := apm.Create(ctx, assignor.ID, 1, "a name", "another type", 1, false, true)
 	a.NoError(err)
 
 	parent, err = pExtendedNoOwn.Parent(ctx)
@@ -215,7 +214,7 @@ func TestSetGroupRights(t *testing.T) {
 	// with parent, inheritance false, extend true; using parent's rights with it's own
 	// adding one more right to itself
 	// NOTE: added core.APMove to own rights
-	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, 1, "test_name", "test_type", 1, false, true)
+	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, 1, "some name", "non-conflicting object type name etc", 1, false, true)
 	a.NoError(err)
 
 	err = pExtendedWithOwn.SetGroupRights(ctx, assignor.ID, group1, user.APMove)
@@ -264,25 +263,29 @@ func TestSetRoleRights(t *testing.T) {
 
 	err = role1.AddMember(ctx, testuser.ID)
 	a.NoError(err)
+	a.True(role1.IsMember(ctx, testuser.ID))
 
 	role2, err := gc.Create(ctx, 0, user.GKRole, "test_role_2", "test role 2")
 	a.NoError(err)
 
 	err = role2.AddMember(ctx, testuser.ID)
 	a.NoError(err)
+	a.True(role2.IsMember(ctx, testuser.ID))
 
 	wantedRights := user.APView | user.APChange
 
 	// no parent, not inheriting and not extending
 	// NOTE: "p" will be reused and inherited below in this function
 	p, err := apm.Create(ctx, assignor.ID, 0, "test_name", "test_type", 1, false, false)
+	a.NoError(err)
+
 	err = p.SetRoleRights(ctx, assignor.ID, role1, wantedRights)
 	a.NoError(err)
 	a.Equal(wantedRights, p.RightsRoster.Role[role1.ID])
 	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
 
 	// with parent, using legacy only
-	pWithInheritance, err := apm.Create(ctx, assignor.ID, p.ID, "test_name", "test_type", 1, true, false)
+	pWithInheritance, err := apm.Create(ctx, assignor.ID, p.ID, "another name", "another type name", 1, true, false)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
 
@@ -293,7 +296,7 @@ func TestSetRoleRights(t *testing.T) {
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
-	pExtendedNoOwn, err := apm.Create(ctx, assignor.ID, p.ID, "test_name", "test_type", 1, false, true)
+	pExtendedNoOwn, err := apm.Create(ctx, assignor.ID, p.ID, "different name", "different type name", 1, false, true)
 	a.NoError(err)
 
 	parent, err = pExtendedNoOwn.Parent(ctx)
@@ -305,7 +308,7 @@ func TestSetRoleRights(t *testing.T) {
 	// with parent, legacy false, extend true; using parent's rights with it's own
 	// adding one more right to itself
 	// NOTE: added core.APMove to own rights
-	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "test_name", "test_type", 1, false, true)
+	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "other name", "other type name", 1, false, true)
 	a.NoError(err)
 
 	err = pExtendedWithOwn.SetRoleRights(ctx, assignor.ID, role1, user.APMove)

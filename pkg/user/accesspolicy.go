@@ -49,12 +49,30 @@ func (k SubjectKind) String() string {
 	}
 }
 
+type RRAction uint8
+
+const (
+	RRUnset RRAction = iota
+	RRSet
+)
+
+func (a RRAction) String() string {
+	switch a {
+	case RRUnset:
+		return "unset"
+	case RRSet:
+		return "set"
+	default:
+		return "unrecognized action"
+	}
+}
+
 // AccessRight is a single permission set
 type AccessRight uint64
 
 type accessChange struct {
 	// denotes an action that occurred: -1 deleted, 0 updated, 1 created
-	action      uint8
+	action      RRAction
 	subjectKind SubjectKind
 	subjectID   int64
 	accessRight AccessRight
@@ -153,7 +171,7 @@ func NewRightsRoster() *RightsRoster {
 }
 
 // addChange adds a single change for further storing
-func (rr *RightsRoster) addChange(action uint8, subjectKind SubjectKind, subjectID int64, rights AccessRight) {
+func (rr *RightsRoster) addChange(action RRAction, subjectKind SubjectKind, subjectID int64, rights AccessRight) {
 	change := accessChange{
 		action:      action,
 		subjectKind: subjectKind,
@@ -596,21 +614,24 @@ func (ap *AccessPolicy) SetPublicRights(ctx context.Context, assignorID int64, r
 	ap.RightsRoster.Everyone = rights
 	ap.Unlock()
 
+	// deferred instruction for change
+	ap.RightsRoster.addChange(RRSet, SKEveryone, 0, rights)
+
 	return nil
 }
 
 // SetRoleRights setting rights for the role
-func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, role Group, rights AccessRight) error {
+func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, r Group, rights AccessRight) error {
 	if assignorID == 0 {
-		return ErrZeroUserID
+		return ErrZeroAssignorID
 	}
 
-	if role.ID == 0 {
+	if r.ID == 0 {
 		return ErrZeroRoleID
 	}
 
 	// making sure it's group kind is Role
-	if role.Kind != GKRole {
+	if r.Kind != GKRole {
 		return ErrInvalidKind
 	}
 
@@ -620,8 +641,11 @@ func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, rol
 	}
 
 	ap.Lock()
-	ap.RightsRoster.Role[role.ID] = rights
+	ap.RightsRoster.Role[r.ID] = rights
 	ap.Unlock()
+
+	// deferred instruction for change
+	ap.RightsRoster.addChange(RRSet, SKRoleGroup, r.ID, rights)
 
 	return nil
 }
@@ -629,7 +653,7 @@ func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, rol
 // SetGroupRights setting rights for specific user
 func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID int64, g Group, rights AccessRight) error {
 	if assignorID == 0 {
-		return ErrZeroUserID
+		return ErrZeroAssignorID
 	}
 
 	if g.ID == 0 {
@@ -650,6 +674,9 @@ func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID int64, g 
 	ap.RightsRoster.Group[g.ID] = rights
 	ap.Unlock()
 
+	// deferred instruction for change
+	ap.RightsRoster.addChange(RRSet, SKGroup, g.ID, rights)
+
 	return nil
 }
 
@@ -657,11 +684,11 @@ func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID int64, g 
 // TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each access policy instance
 func (ap *AccessPolicy) SetUserRights(ctx context.Context, assignorID int64, assigneeID int64, rights AccessRight) error {
 	if assignorID == 0 {
-		return errors.New("assignor id is zero")
+		return ErrZeroAssignorID
 	}
 
 	if assigneeID == 0 {
-		return errors.New("assignee id is zero")
+		return ErrZeroAssigneeID
 	}
 
 	// the assignorID must have a right to set rights (APManageRights) and have all the
@@ -673,6 +700,9 @@ func (ap *AccessPolicy) SetUserRights(ctx context.Context, assignorID int64, ass
 	ap.Lock()
 	ap.RightsRoster.User[assigneeID] = rights
 	ap.Unlock()
+
+	// deferred instruction for change
+	ap.RightsRoster.addChange(RRSet, SKUser, assigneeID, rights)
 
 	return nil
 }
@@ -767,15 +797,21 @@ func (ap *AccessPolicy) UnsetRights(ctx context.Context, assignorID int64, assig
 	ap.Lock()
 
 	// deleting assignee from the roster (depending on its type)
-	switch assignee.(type) {
+	switch sub := assignee.(type) {
+	case nil:
+		ap.RightsRoster.Everyone = APNoAccess
+		ap.RightsRoster.addChange(RRSet, SKEveryone, 0, 0)
 	case User:
-		delete(ap.RightsRoster.User, assignee.(User).ID)
+		delete(ap.RightsRoster.User, sub.ID)
+		ap.RightsRoster.addChange(RRUnset, SKUser, sub.ID, 0)
 	case Group:
-		switch g := assignee.(Group); g.Kind {
+		switch sub.Kind {
 		case GKRole:
-			delete(ap.RightsRoster.Role, assignee.(Group).ID)
+			delete(ap.RightsRoster.Role, sub.ID)
+			ap.RightsRoster.addChange(RRUnset, SKRoleGroup, sub.ID, 0)
 		case GKGroup:
-			delete(ap.RightsRoster.Group, assignee.(Group).ID)
+			delete(ap.RightsRoster.Group, sub.ID)
+			ap.RightsRoster.addChange(RRUnset, SKGroup, sub.ID, 0)
 		}
 	}
 
