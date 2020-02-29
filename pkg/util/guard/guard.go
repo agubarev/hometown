@@ -44,9 +44,17 @@ func (m *cache) inspectObject(obj interface{}) (object, error) {
 		return object{}, errors.New("object is nil")
 	}
 
-	// inspecting passed object
-	objInfo := reflect.ValueOf(obj).Elem()
+	var objInfo reflect.Value
 
+	// inspecting passed object
+	switch v := reflect.ValueOf(obj); v.Kind() {
+	case reflect.Struct:
+		objInfo = v
+	case reflect.Ptr:
+		objInfo = v.Elem()
+	}
+
+	// checking cache first
 	m.RLock()
 	cached, ok := m.objects[objInfo.Type().Name()]
 	m.RUnlock()

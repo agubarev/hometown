@@ -39,12 +39,10 @@ func Connection() *dbr.Connection {
 
 // ForTesting simply returns a database connection
 func ForTesting() (*dbr.Connection, error) {
-	/*
-		if flag.Lookup("test.v") == nil {
-			log.Fatal("TruncateTestDatabase() can only be called during testing")
-			return
-		}
-	*/
+	if flag.Lookup("test.v") == nil {
+		log.Fatal("TruncateTestDatabase() can only be called during testing")
+		return nil, nil
+	}
 
 	conn, err := dbr.Open("mysql", os.Getenv("HOMETOWN_TEST_DATABASE"), nil)
 	if err != nil {
@@ -55,17 +53,12 @@ func ForTesting() (*dbr.Connection, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer tx.RollbackUnlessCommitted()
 
 	// temporarily disabling foreign key checks to enable truncate
 	if _, err = tx.Exec("SET foreign_key_checks = 0"); err != nil {
 		panic(err)
 	}
-
-	defer func() {
-		if _, err = tx.Exec("SET foreign_key_checks = 1"); err != nil {
-			panic(err)
-		}
-	}()
 
 	defer func() {
 		if p := recover(); p != nil {
@@ -86,15 +79,21 @@ func ForTesting() (*dbr.Connection, error) {
 		"accesspolicy_rights_roster",
 	}
 
-	// =========================================================================
 	// truncating tables
-	// =========================================================================
 	for _, tableName := range tables {
-		_, err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE `hometown_test`.%s", tableName))
+		_, err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE `%s`", tableName))
 		if err != nil {
 			return nil, errors.Wrap(err, tx.Rollback().Error())
 		}
 	}
 
-	return conn, tx.Commit()
+	if _, err = tx.Exec("SET foreign_key_checks = 1"); err != nil {
+		panic(err)
+	}
+
+	if err := tx.Commit(); err != nil {
+		panic(err)
+	}
+
+	return conn, nil
 }

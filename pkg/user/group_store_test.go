@@ -1,10 +1,10 @@
 package user_test
 
 import (
-	context2 "context"
+	"context"
 	"testing"
 
-	"github.com/agubarev/hometown/internal/core"
+	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/user"
 
 	"github.com/stretchr/testify/assert"
@@ -13,21 +13,26 @@ import (
 func TestGroupStorePut(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	ctx := context.Background()
+
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-
-	a.NoError(core.TruncateDatabaseForTesting(db))
 
 	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
-	a.NotNil(g)
-	a.NoError(err)
+	g := user.Group{
+		ID:          0,
+		Kind:        user.GKGroup,
+		Key:         "test_key",
+		Name:        "test_name",
+		Description: "test description",
+		ParentID:    0,
+	}
 
-	g, err = s.Put(g)
+	g, err = s.UpsertGroup(ctx, g)
 	a.NoError(err)
 	a.NotNil(g)
 }
@@ -35,25 +40,30 @@ func TestGroupStorePut(t *testing.T) {
 func TestGroupStoreGet(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	ctx := context.Background()
+
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-
-	a.NoError(core.TruncateDatabaseForTesting(db))
 
 	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
-	a.NotNil(g)
-	a.NoError(err)
+	g := user.Group{
+		ID:          0,
+		Kind:        user.GKGroup,
+		Key:         "test_key",
+		Name:        "test_name",
+		Description: "test description",
+		ParentID:    0,
+	}
 
-	g, err = s.Put(g)
+	g, err = s.UpsertGroup(ctx, g)
 	a.NoError(err)
 	a.NotNil(g)
 
-	fg, err := s.FetchByID(context2.TODO(), g.ID)
+	fg, err := s.FetchByID(ctx, g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 	a.Equal(g.ID, fg.ID)
@@ -65,38 +75,53 @@ func TestGroupStoreGet(t *testing.T) {
 func TestGroupStoreGetAll(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	ctx := context.Background()
+
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-
-	a.NoError(core.TruncateDatabaseForTesting(db))
 
 	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g1, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
-	a.NotNil(g1)
+	g1 := user.Group{
+		ID:          0,
+		Kind:        user.GKGroup,
+		Key:         "test_group",
+		Name:        "test group",
+		Description: "test description",
+		ParentID:    0,
+	}
+
+	g2 := user.Group{
+		ID:          0,
+		Kind:        user.GKRole,
+		Key:         "test_role",
+		Name:        "test role",
+		Description: "test description",
+		ParentID:    0,
+	}
+
+	g3 := user.Group{
+		ID:          0,
+		Kind:        user.GKGroup,
+		Key:         "test_group123",
+		Name:        "test group 123",
+		Description: "test description",
+		ParentID:    0,
+	}
+
+	g1, err = s.UpsertGroup(ctx, g1)
 	a.NoError(err)
 
-	g2, err := user.NewGroup(user.GKRole, "test_role", "test role", nil)
-	a.NotNil(g2)
+	g2, err = s.UpsertGroup(ctx, g2)
 	a.NoError(err)
 
-	g3, err := user.NewGroup(user.GKGroup, "test_group123", "test group 123", nil)
-	a.NotNil(g3)
+	g3, err = s.UpsertGroup(ctx, g3)
 	a.NoError(err)
 
-	g1, err = s.Put(g1)
-	a.NoError(err)
-
-	g2, err = s.Put(g2)
-	a.NoError(err)
-
-	g3, err = s.Put(g3)
-	a.NoError(err)
-
-	gs, err := s.FetchAllGroups(context2.TODO())
+	gs, err := s.FetchAllGroups(ctx)
 	a.NoError(err)
 	a.Len(gs, 3)
 
@@ -119,75 +144,89 @@ func TestGroupStoreGetAll(t *testing.T) {
 func TestGroupStoreDelete(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	ctx := context.Background()
+
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
-
-	a.NoError(core.TruncateDatabaseForTesting(db))
 
 	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
-	a.NotNil(g)
+	g := user.Group{
+		ID:          0,
+		Kind:        user.GKGroup,
+		Key:         "test_group",
+		Name:        "test group",
+		Description: "test description",
+		ParentID:    0,
+	}
+
+	g, err = s.UpsertGroup(ctx, g)
 	a.NoError(err)
 
-	g, err = s.Put(g)
-	a.NoError(err)
-
-	fg, err := s.FetchByID(context2.TODO(), g.ID)
+	fg, err := s.FetchByID(ctx, g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 
-	err = s.DeleteByID(context2.TODO(), g.ID)
+	err = s.DeleteByID(ctx, g.ID)
 	a.NoError(err)
 
-	fg, err = s.FetchByID(context2.TODO(), g.ID)
+	fg, err = s.FetchByID(ctx, g.ID)
 	a.Nil(fg)
 	a.Error(err)
-	a.EqualError(err, core.ErrGroupNotFound.Error())
+	a.EqualError(err, user.ErrGroupNotFound.Error())
 }
 
 func TestGroupStoreRelations(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := core.DatabaseForTesting()
+	ctx := context.Background()
+
+	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	a.NoError(core.TruncateDatabaseForTesting(db))
+	um, _, err := user.ManagerForTesting(db)
+	a.NoError(err)
+	a.NotNil(um)
 
 	s, err := user.NewGroupStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g, err := user.NewGroup(user.GKGroup, "test_group", "test group", nil)
-	a.NotNil(g)
-	a.NoError(err)
+	g := user.Group{
+		ID:          0,
+		Kind:        user.GKGroup,
+		Key:         "test_group",
+		Name:        "test group",
+		Description: "test description",
+		ParentID:    0,
+	}
 
-	u, err := user.UserNew("testuser", "testuser@example.com", map[string]string{})
+	u, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
 	a.NoError(err)
 	a.NotNil(u)
 
 	// making sure there is no previous relation
-	ok, err := s.HasRelation(context2.TODO(), g.ID, u.ID)
+	ok, err := s.HasRelation(ctx, g.ID, u.ID)
 	a.NoError(err)
 	a.False(ok)
 
 	// creating a relation
-	a.NoError(s.PutRelation(g.ID, u.ID))
+	a.NoError(s.PutRelation(ctx, g.ID, u.ID))
 
 	// now they must be related
-	ok, err = s.HasRelation(context2.TODO(), g.ID, u.ID)
+	ok, err = s.HasRelation(ctx, g.ID, u.ID)
 	a.NoError(err)
 	a.True(ok)
 
 	// breaking relation
-	a.NoError(s.DeleteRelation(g.ID, u.ID))
+	a.NoError(s.DeleteRelation(ctx, g.ID, u.ID))
 
 	// making sure the relation is gone
-	ok, err = s.HasRelation(context2.TODO(), g.ID, u.ID)
+	ok, err = s.HasRelation(ctx, g.ID, u.ID)
 	a.NoError(err)
 	a.False(ok)
 }

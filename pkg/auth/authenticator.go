@@ -109,8 +109,9 @@ type UserCredentials struct {
 // Validate performs basic trimming and validations
 func (c *UserCredentials) Validate() error {
 	// trimming whitespace
-	c.Username = bytes.TrimSpace(c.Username[:])
-	c.Password = bytes.TrimSpace(c.Password[:])
+
+	c.Username = user.TUsernameFromBytes(bytes.TrimSpace(c.Username[:]))
+	copy(c.Password, bytes.TrimSpace(c.Password[:]))
 
 	if c.Username[0] == 0 {
 		return ErrEmptyUsername

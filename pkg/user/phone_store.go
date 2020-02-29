@@ -46,7 +46,7 @@ func (s *MySQLStore) fetchPhonesByQuery(ctx context.Context, q string, args ...i
 // CreatePhone creates a new entry in the storage backend
 func (s *MySQLStore) CreatePhone(ctx context.Context, p Phone) (_ Phone, err error) {
 	// if ObjectID is not 0, then it's not considered as new
-	if p.UserID != 0 {
+	if p.UserID == 0 {
 		return p, ErrZeroUserID
 	}
 
@@ -108,15 +108,15 @@ func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []Phone) (_ []Phone
 	return ps, nil
 }
 
-func (s *MySQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID uint32) (p Phone, err error) {
+func (s *MySQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID int64) (p Phone, err error) {
 	return s.fetchPhoneByQuery(ctx, "SELECT * FROM `user_phone` WHERE user_id = ? AND is_primary = 1 LIMIT 1", userID)
 }
 
-func (s *MySQLStore) FetchPhonesByUserID(ctx context.Context, userID uint32) ([]Phone, error) {
+func (s *MySQLStore) FetchPhonesByUserID(ctx context.Context, userID int64) ([]Phone, error) {
 	return s.fetchPhonesByQuery(ctx, "SELECT * FROM `user_phone` WHERE user_id = ?", userID)
 }
 
-func (s *MySQLStore) FetchPhoneByNumber(ctx context.Context, number TPhoneNumber) (p Phone, err error) {
+func (s *MySQLStore) FetchPhoneByNumber(ctx context.Context, number string) (p Phone, err error) {
 	return s.fetchPhoneByQuery(ctx, "SELECT * FROM `user_phone` WHERE  number = ? LIMIT 1", number)
 }
 
@@ -170,7 +170,7 @@ func (s *MySQLStore) UpdatePhone(ctx context.Context, p Phone, changelog diff.Ch
 	return p, nil
 }
 
-func (s *MySQLStore) DeletePhoneByNumber(ctx context.Context, userID uint32, number TPhoneNumber) (err error) {
+func (s *MySQLStore) DeletePhoneByNumber(ctx context.Context, userID int64, number string) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

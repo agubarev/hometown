@@ -2,6 +2,7 @@ package user
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/gocraft/dbr/v2"
@@ -20,6 +21,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 
 	// initializing new email
 	email = Email{
+		UserID:         newEmail.UserID,
 		EmailEssential: newEmail.EmailEssential,
 		EmailMetadata: EmailMetadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -50,8 +52,8 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 
 	m.Logger().Debug(
 		"created new email",
-		zap.Int("user_id", email.UserID),
-		zap.ByteString("addr", email.Addr[:]),
+		zap.Int64("user_id", email.UserID),
+		zap.String("addr", email.Addr),
 	)
 
 	return email, nil
@@ -87,8 +89,8 @@ func (m *Manager) BulkCreateEmail(ctx context.Context, newEmails []Email) (email
 }
 
 // EmailByAddr obtains an email by a given address
-func (m *Manager) EmailByAddr(ctx context.Context, addr TEmailAddr) (email Email, err error) {
-	if addr[0] == 0 {
+func (m *Manager) EmailByAddr(ctx context.Context, addr string) (email Email, err error) {
+	if strings.TrimSpace(addr) == "" {
 		return email, ErrEmptyEmailAddr
 	}
 
@@ -101,7 +103,7 @@ func (m *Manager) EmailByAddr(ctx context.Context, addr TEmailAddr) (email Email
 }
 
 // PrimaryEmailByUserID obtains the primary email by user id
-func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uint32) (email Email, err error) {
+func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID int64) (email Email, err error) {
 	if userID == 0 {
 		return email, ErrEmailNotFound
 	}
@@ -116,7 +118,7 @@ func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uint32) (emai
 
 // UpdateEmail updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx context.Context, email Email) (_ Email, err error)) (email Email, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx context.Context, email Email) (_ Email, err error)) (email Email, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return email, essentialChangelog, err
@@ -160,8 +162,8 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx 
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int("user_id", email.UserID),
-		zap.ByteString("addr", email.Addr[:]),
+		zap.Int64("user_id", email.UserID),
+		zap.String("addr", email.Addr),
 	)
 
 	return email, essentialChangelog, nil
@@ -169,7 +171,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr TEmailAddr, fn func(ctx 
 
 // DeleteEmailByAddr deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uint32, addr TEmailAddr) (err error) {
+func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID int64, addr string) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")
@@ -184,7 +186,7 @@ func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uint32, addr TEm
 }
 
 // ConfirmEmail this function is used only when user's email is confirmed
-func (m *Manager) ConfirmEmail(ctx context.Context, addr TEmailAddr) (err error) {
+func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 	if addr[0] == 0 {
 		return ErrEmptyEmailAddr
 	}
@@ -209,8 +211,8 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr TEmailAddr) (err error)
 	}
 
 	m.Logger().Info("email confirmed",
-		zap.Int("user_id", email.UserID),
-		zap.ByteString("email", email.Addr[:]),
+		zap.Int64("user_id", email.UserID),
+		zap.String("email", email.Addr),
 	)
 
 	return nil

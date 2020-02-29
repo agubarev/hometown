@@ -1,7 +1,6 @@
 package user
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"sync"
@@ -14,7 +13,7 @@ import (
 )
 
 type (
-	TKey       = [64]byte
+	TGroupKey  = [32]byte
 	TGroupName = [256]byte
 )
 
@@ -43,17 +42,17 @@ const (
 // TODO custom JSON marshalling
 // TODO add mutex and store to the group; store should be set implicitly upon addition to the container
 type Group struct {
-	ID          uint32     `db:"id" json:"id"`
-	Kind        GroupKind  `db:"kind" json:"kind"`
-	Key         TKey       `db:"key" json:"key" valid:"required,ascii"`
-	Name        TGroupName `db:"name" json:"name"`
-	Description []byte     `db:"description" json:"description"`
+	ID          int64     `db:"id" json:"id"`
+	Kind        GroupKind `db:"kind" json:"kind"`
+	Key         string    `db:"key" json:"key" valid:"required,ascii"`
+	Name        string    `db:"name" json:"name"`
+	Description string    `db:"description" json:"description"`
 
 	// these fields are basically just for the storage
-	ParentID uint32 `db:"parent_id" json:"parent_id"`
+	ParentID int64 `db:"parent_id" json:"parent_id"`
 
 	manager *GroupManager
-	members map[uint32][]uint32
+	members map[int64][]int64
 	ap      *AccessPolicy
 	logger  *zap.Logger
 	sync.RWMutex
@@ -68,46 +67,16 @@ func (g *Group) Parent() Group {
 	return p
 }
 
-// NewGroup initializing a new group struct
-// ! IMPORTANT: group kind is permanent and must never change
-func NewGroup(kind GroupKind, key TKey, name TGroupName, parent Group) (g Group, err error) {
-	if parent.ID != 0 {
-		if err := parent.Validate(); err != nil {
-			return g, errors.Wrap(err, "parent group validation failed")
-		}
-	}
-
-	// initializing new group
-	g = Group{
-		Kind:    kind,
-		members: make(map[uint32][]uint32, 0),
-	}
-
-	// sanitizing values
-	copy(g.Key[:], bytes.ToLower(bytes.TrimSpace(key[:])))
-	copy(g.Name[:], bytes.ToLower(bytes.TrimSpace(name[:])))
-
-	if err := g.SetParent(parent); err != nil {
-		return g, err
-	}
-
-	if err = g.Validate(); err != nil {
-		return g, errors.Wrap(err, "new group validation failed")
-	}
-
-	return g, g.Validate()
-}
-
 // SetLogger assigns a logger for this group
 func (g *Group) SetLogger(logger *zap.Logger) error {
 	if logger != nil {
 		logger = logger.Named(g.StringID())
 
 		logger.With(
-			zap.Uint32("id", g.ID),
-			zap.ByteString("key", g.Key[:]),
+			zap.Int64("id", g.ID),
+			zap.String("key", g.Key),
 			zap.String("kind", g.Kind.String()),
-			zap.ByteString("name", g.Name[:]),
+			zap.String("name", g.Name),
 		)
 	}
 
@@ -166,7 +135,7 @@ func (g *Group) Validate() error {
 func (g *Group) Init() error {
 	// initializing necessary fields (in case they're not)
 	if g.members == nil {
-		g.members = make(map[uint32][]uint32, 0)
+		g.members = make(map[int64][]int64, 0)
 	}
 
 	// using manager's logger if it's set
@@ -174,10 +143,10 @@ func (g *Group) Init() error {
 		g.logger = g.manager.logger.Named(g.StringID())
 
 		g.logger.With(
-			zap.Uint32("gid", g.ID),
-			zap.ByteString("key", g.Key[:]),
+			zap.Int64("gid", g.ID),
+			zap.String("key", g.Key),
 			zap.String("kind", g.Kind.String()),
-			zap.ByteString("name", g.Name[:]),
+			zap.String("name", g.Name),
 		)
 	}
 
@@ -214,7 +183,7 @@ func (g *Group) SetDescription(text string) error {
 	return nil
 }
 
-// SetParent assigning a parent group, could be nil
+// SetParentID assigning a parent group, could be nil
 func (g *Group) SetParent(p Group) error {
 	// since parent could be nil thus it's kind is irrelevant
 	if p.ID != 0 {
@@ -264,7 +233,7 @@ func (g *Group) Save(ctx context.Context) error {
 	}
 
 	// saving itself
-	newGroup, err := g.manager.store.Put(ctx, *g)
+	newGroup, err := g.manager.store.UpsertGroup(ctx, *g)
 	if err != nil {
 		return fmt.Errorf("failed to store a group: %s", err)
 	}
@@ -277,7 +246,7 @@ func (g *Group) Save(ctx context.Context) error {
 }
 
 // IsMember tests whether a given member belongs to a given group
-func (g *Group) IsMember(ctx context.Context, userID uint32) bool {
+func (g *Group) IsMember(ctx context.Context, userID int64) bool {
 	if userID == 0 {
 		return false
 	}
@@ -303,7 +272,7 @@ func (g *Group) IsMember(ctx context.Context, userID uint32) bool {
 // AddMember adding member to a group
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
-func (g *Group) AddMember(ctx context.Context, userID uint32) (err error) {
+func (g *Group) AddMember(ctx context.Context, userID int64) (err error) {
 	// to proceed, the userID must be previously properly registered,
 	// and persisted to the store
 	if userID == 0 {
@@ -319,15 +288,15 @@ func (g *Group) AddMember(ctx context.Context, userID uint32) (err error) {
 
 	if g.manager != nil {
 		if g.manager.store != nil {
-			logger.Info("storing group userID relation", zap.Uint32("gid", g.ID), zap.Uint32("uid", userID))
+			logger.Info("storing group userID relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
 
 			// if container is set, then storing group userID relation
 			if err = g.manager.store.PutRelation(ctx, g.ID, userID); err != nil {
-				logger.Info("failed to store group userID relation", zap.Uint32("gid", g.ID), zap.Uint32("uid", userID), zap.Error(err))
+				logger.Info("failed to store group userID relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
 				return err
 			}
 		} else {
-			logger.Info("removing user ID from group while store is not set", zap.Uint32("gid", g.ID), zap.Uint32("uid", userID), zap.Error(err))
+			logger.Info("removing user ID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
 		}
 	}
 
@@ -335,7 +304,7 @@ func (g *Group) AddMember(ctx context.Context, userID uint32) (err error) {
 }
 
 // RemoveMember removes member from a group
-func (g *Group) RemoveMember(ctx context.Context, userID uint32) (err error) {
+func (g *Group) RemoveMember(ctx context.Context, userID int64) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}
@@ -348,14 +317,14 @@ func (g *Group) RemoveMember(ctx context.Context, userID uint32) (err error) {
 	l := g.Logger()
 
 	if g.manager.store != nil {
-		l.Info("deleting group user relation", zap.Uint32("gid", g.ID), zap.Uint32("uid", userID))
+		l.Info("deleting group user relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
 
 		// deleting a stored relation
 		if err := g.manager.store.DeleteRelation(ctx, g.ID, userID); err != nil {
 			return err
 		}
 	} else {
-		l.Info("removing user ID from group while store is not set", zap.Uint32("gid", g.ID), zap.Uint32("uid", userID))
+		l.Info("removing user ID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
 	}
 
 	return nil
@@ -363,7 +332,7 @@ func (g *Group) RemoveMember(ctx context.Context, userID uint32) (err error) {
 
 // LinkMember adds a member to the group members
 // NOTE: does not affect the store
-func (g *Group) LinkMember(ctx context.Context, userID uint32) (err error) {
+func (g *Group) LinkMember(ctx context.Context, userID int64) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}
@@ -375,9 +344,9 @@ func (g *Group) LinkMember(ctx context.Context, userID uint32) (err error) {
 	g.Lock()
 
 	// initializing new slice if it's nil
-	// NOTE: mask layout is: first byte = member kind (uint8), last 4 bytes = member id (uint32)
+	// NOTE: mask layout is: first byte = member kind (uint8), last 4 bytes = member id (int64)
 	if g.members[g.ID] == nil {
-		g.members[g.ID] = []uint32{userID}
+		g.members[g.ID] = []int64{userID}
 	} else {
 		// appending relation mask to a group slice
 		g.members[g.ID] = append(g.members[g.ID], userID)
@@ -390,7 +359,7 @@ func (g *Group) LinkMember(ctx context.Context, userID uint32) (err error) {
 
 // UnlinkMember removes a member from the group members
 // NOTE: does not affect the store
-func (g *Group) UnlinkMember(ctx context.Context, userID uint32) (err error) {
+func (g *Group) UnlinkMember(ctx context.Context, userID int64) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

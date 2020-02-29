@@ -7,20 +7,8 @@ import (
 	"github.com/agubarev/hometown/pkg/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/blevesearch/bleve"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-)
-
-// aliases
-type (
-	TEmailAddr   = [256]byte
-	TPhoneNumber = [15]byte
-	TUsername    = [32]byte
-	TDisplayName = [200]byte
-	TIPAddr      = [15]byte
-	TPersonName  = [120]byte
-	TLanguage    = [2]byte
 )
 
 type ContextKey uint16
@@ -33,7 +21,7 @@ const (
 
 // Member represents a group member contract
 type Object interface {
-	ObjectID() uint32
+	ObjectID() int64
 	ObjectKind() uint8
 }
 
@@ -41,17 +29,17 @@ type Object interface {
 // TODO: consider naming first release `Lidia`
 type Manager struct {
 	passwords password.Manager
-	policies  *AccessPolicyManager
 	groups    *GroupManager
+	policies  *AccessPolicyManager
+	tokens    *token.Manager
 	store     Store
-	index     bleve.Index
 	logger    *zap.Logger
 	sync.RWMutex
 }
 
 // NewManager returns a new user manager instance
 // also initializing by loading necessary data from a given store
-func NewManager(s Store, idx bleve.Index) (*Manager, error) {
+func NewManager(s Store) (*Manager, error) {
 	if s == nil {
 		return nil, errors.Wrap(ErrNilUserStore, "failed to initialize user manager")
 	}
@@ -59,7 +47,6 @@ func NewManager(s Store, idx bleve.Index) (*Manager, error) {
 	// initializing the user manager
 	m := &Manager{
 		store: s,
-		index: idx,
 	}
 
 	// using default logger
@@ -139,7 +126,7 @@ func (m *Manager) SetPasswordManager(pm password.Manager) error {
 }
 
 // SetGroupManager assigns a group manager
-func (m *Manager) SetGroupManager(gm *user.GroupManager) error {
+func (m *Manager) SetGroupManager(gm *GroupManager) error {
 	if gm == nil {
 		return ErrNilGroupManager
 	}
@@ -158,7 +145,7 @@ func (m *Manager) SetGroupManager(gm *user.GroupManager) error {
 // SetTokenManager assigns a token manager
 func (m *Manager) SetTokenManager(tm *token.Manager) error {
 	if tm == nil {
-		return ErrNilTokenManager
+		return token.ErrNilTokenManager
 	}
 
 	if err := tm.Validate(); err != nil {
@@ -171,12 +158,44 @@ func (m *Manager) SetTokenManager(tm *token.Manager) error {
 }
 
 // SetAccessPolicyManager assigns access policy manager
-func (m *Manager) SetAccessPolicyManager(c *user.AccessPolicyManager) error {
-	if c == nil {
-		return ErrNilAccessPolicyContainer
+func (m *Manager) SetAccessPolicyManager(apm *AccessPolicyManager) error {
+	if apm == nil {
+		return ErrNilAccessPolicyManager
 	}
 
-	m.policies = c
+	m.policies = apm
 
 	return nil
+}
+
+func (m *Manager) GroupManager() *GroupManager {
+	if m.groups == nil {
+		panic(ErrNilGroupManager)
+	}
+
+	return m.groups
+}
+
+func (m *Manager) AccessPolicyManager() *AccessPolicyManager {
+	if m.passwords == nil {
+		panic(ErrNilAccessPolicyManager)
+	}
+
+	return m.policies
+}
+
+func (m *Manager) TokenManager() *token.Manager {
+	if m.tokens == nil {
+		panic(token.ErrNilTokenManager)
+	}
+
+	return m.tokens
+}
+
+func (m *Manager) PasswordManager() password.Manager {
+	if m.passwords == nil {
+		panic(ErrNilPasswordManager)
+	}
+
+	return m.passwords
 }

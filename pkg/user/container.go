@@ -34,8 +34,8 @@ func (l List) Filter(fn func(*User) bool) List {
 type Container struct {
 	users     List
 	ids       map[int]*User
-	usernames map[TUsername]*User
-	emails    map[TEmailAddr]*User
+	usernames map[string]*User
+	emails    map[string]*User
 	manager   *Manager
 	logger    *zap.Logger
 	sync.RWMutex
@@ -46,8 +46,8 @@ func NewContainer() (*Container, error) {
 	c := &Container{
 		users:     make([]*User, 0),
 		ids:       make(map[int]*User),
-		usernames: make(map[TUsername]*User),
-		emails:    make(map[TEmailAddr]*User),
+		usernames: make(map[string]*User),
+		emails:    make(map[string]*User),
 	}
 
 	return c, nil

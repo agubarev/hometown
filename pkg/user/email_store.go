@@ -46,7 +46,7 @@ func (s *MySQLStore) fetchEmailsByQuery(ctx context.Context, q string, args ...i
 // CreateEmail creates a new entry in the storage backend
 func (s *MySQLStore) CreateEmail(ctx context.Context, e Email) (_ Email, err error) {
 	// if ObjectID is not 0, then it's not considered as new
-	if e.UserID != 0 {
+	if e.UserID == 0 {
 		return e, ErrZeroUserID
 	}
 
@@ -108,15 +108,15 @@ func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email
 	return es, nil
 }
 
-func (s *MySQLStore) FetchPrimaryEmailByUserID(ctx context.Context, userID uint32) (e Email, err error) {
+func (s *MySQLStore) FetchPrimaryEmailByUserID(ctx context.Context, userID int64) (e Email, err error) {
 	return s.fetchEmailByQuery(ctx, "SELECT * FROM `user_email` WHERE user_id = ? AND is_primary = 1 LIMIT 1", userID)
 }
 
-func (s *MySQLStore) FetchEmailsByUserID(ctx context.Context, userID uint32) ([]Email, error) {
+func (s *MySQLStore) FetchEmailsByUserID(ctx context.Context, userID int64) ([]Email, error) {
 	return s.fetchEmailsByQuery(ctx, "SELECT * FROM `user_email` WHERE user_id = ?", userID)
 }
 
-func (s *MySQLStore) FetchEmailByAddr(ctx context.Context, addr TEmailAddr) (e Email, err error) {
+func (s *MySQLStore) FetchEmailByAddr(ctx context.Context, addr string) (e Email, err error) {
 	return s.fetchEmailByQuery(ctx, "SELECT * FROM `user_email` WHERE addr = ? LIMIT 1", addr)
 }
 
@@ -170,7 +170,7 @@ func (s *MySQLStore) UpdateEmail(ctx context.Context, e Email, changelog diff.Ch
 	return e, nil
 }
 
-func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID uint32, addr TEmailAddr) (err error) {
+func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID int64, addr string) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

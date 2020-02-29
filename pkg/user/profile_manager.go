@@ -20,6 +20,7 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 
 	// initializing new profile
 	profile = Profile{
+		UserID:           newProfile.UserID,
 		ProfileEssential: newProfile.ProfileEssential,
 		ProfileMetadata: ProfileMetadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -48,7 +49,7 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 
 	m.Logger().Debug(
 		"created new profile",
-		zap.Int("id", profile.UserID),
+		zap.Int64("id", profile.UserID),
 	)
 
 	return profile, nil
@@ -84,7 +85,7 @@ func (m *Manager) BulkCreateProfile(ctx context.Context, newProfiles []Profile) 
 }
 
 // GetProfileByID returns a profile if found by ObjectID
-func (m *Manager) GetProfileByID(ctx context.Context, id uint32) (profile Profile, err error) {
+func (m *Manager) GetProfileByID(ctx context.Context, id int64) (profile Profile, err error) {
 	if id == 0 {
 		return profile, ErrProfileNotFound
 	}
@@ -99,7 +100,7 @@ func (m *Manager) GetProfileByID(ctx context.Context, id uint32) (profile Profil
 
 // UpdateProfile updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateProfile(ctx context.Context, id uint32, fn func(ctx context.Context, r Profile) (profile Profile, err error)) (profile Profile, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateProfile(ctx context.Context, id int64, fn func(ctx context.Context, r Profile) (profile Profile, err error)) (profile Profile, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return profile, essentialChangelog, err
@@ -143,15 +144,15 @@ func (m *Manager) UpdateProfile(ctx context.Context, id uint32, fn func(ctx cont
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int("user_id", profile.UserID),
+		zap.Int64("user_id", profile.UserID),
 	)
 
 	return profile, essentialChangelog, nil
 }
 
-// DeleteProfileByID deletes an object and returns an object,
+// DeleteProfileByUserID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteProfileByID(ctx context.Context, userID uint32) (err error) {
+func (m *Manager) DeleteProfileByUserID(ctx context.Context, userID int64) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")

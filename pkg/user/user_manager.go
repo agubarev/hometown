@@ -1,10 +1,13 @@
 package user
 
 import (
+	"bytes"
 	"context"
+	"strings"
 	"time"
 
 	"github.com/agubarev/hometown/pkg/password"
+	"github.com/agubarev/hometown/pkg/util"
 	"github.com/gocraft/dbr/v2"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -22,9 +25,15 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	}
 
 	//---------------------------------------------------------------------------
-	// basic validation
+	// basic cleaning and validation
 	//---------------------------------------------------------------------------
-	if newUser.EmailAddr[0] == 0 {
+	newUser.EmailAddr = strings.ToLower(strings.TrimSpace(newUser.EmailAddr))
+	newUser.Password = bytes.TrimSpace(newUser.Password)
+	newUser.Firstname = strings.TrimSpace(newUser.Firstname)
+	newUser.Middlename = strings.TrimSpace(newUser.Middlename)
+	newUser.Lastname = strings.TrimSpace(newUser.Lastname)
+
+	if newUser.EmailAddr == "" {
 		return u, ErrEmptyEmailAddr
 	}
 
@@ -37,6 +46,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	//---------------------------------------------------------------------------
 	// initializing new user
 	u = User{
+		ULID:      util.NewULID(),
 		Essential: newUser.Essential,
 		Metadata: Metadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -91,6 +101,12 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 				l.Error("failed to delete phones during recovery from panic", zap.Error(err))
 			}
 
+			// deleting profile
+			if xerr := m.DeleteProfileByUserID(ctx, u.ID); xerr != nil {
+				err = errors.Wrapf(err, "failed to delete user profile during recovery from panic: %s", xerr)
+				l.Error("failed to delete user profile during recovery from panic", zap.Error(err))
+			}
+
 			// deleting password
 			if xerr := m.passwords.Delete(ctx, password.KUser, u.ID); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete password during recovery from panic: %s", xerr)
@@ -113,6 +129,9 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 				IsPrimary: true,
 			},
 
+			// email owner ID
+			UserID: u.ID,
+
 			// this email hasn't been confirmed yet
 			IsConfirmed: false,
 		}
@@ -127,7 +146,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	//---------------------------------------------------------------------------
 	// creating new phone record (if number is given)
 	//---------------------------------------------------------------------------
-	if newUser.PhoneNumber[0] != 0 {
+	if newUser.PhoneNumber != "" {
 		_, err = m.CreatePhone(ctx, func(ctx context.Context) (object NewPhoneObject, err error) {
 			object = NewPhoneObject{
 				PhoneEssential: PhoneEssential{
@@ -137,6 +156,9 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 					// first record for the new user means it's primary
 					IsPrimary: true,
 				},
+
+				// email owner ID
+				UserID: u.ID,
 
 				// this phone hasn't been confirmed yet
 				IsConfirmed: false,
@@ -155,22 +177,27 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	//---------------------------------------------------------------------------
 	_, err = m.CreateProfile(ctx, func(ctx context.Context) (object NewProfileObject, err error) {
 		object = NewProfileObject{
+			UserID:           u.ID,
 			ProfileEssential: newUser.ProfileEssential,
 		}
 
 		return object, nil
 	})
 
+	if err != nil {
+		panic(errors.Wrap(err, "failed to create profile"))
+	}
+
 	//---------------------------------------------------------------------------
 	// creating password
 	//---------------------------------------------------------------------------
 	// initializing user input slice to check password safety
 	userdata := []string{
-		string(newUser.Username[:]),
-		string(newUser.DisplayName[:]),
-		string(newUser.Firstname[:]),
-		string(newUser.Middlename[:]),
-		string(newUser.Lastname[:]),
+		newUser.Username,
+		newUser.DisplayName,
+		newUser.Firstname,
+		newUser.Middlename,
+		newUser.Lastname,
 	}
 
 	// initializing new password
@@ -191,9 +218,9 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 
 	m.Logger().Debug(
 		"created new user",
-		zap.Uint32("id", u.ID),
-		zap.ByteString("username", u.Username[:]),
-		zap.ByteString("email", newUser.EmailAddr[:]),
+		zap.Int64("id", u.ID),
+		zap.String("username", u.Username),
+		zap.String("email", newUser.EmailAddr),
 	)
 
 	return u, nil
@@ -229,7 +256,7 @@ func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []User) (us []Use
 }
 
 // UserByID returns a user if found by ObjectID
-func (m *Manager) UserByID(ctx context.Context, id uint32) (u User, err error) {
+func (m *Manager) UserByID(ctx context.Context, id int64) (u User, err error) {
 	if id == 0 {
 		return u, ErrUserNotFound
 	}
@@ -243,8 +270,10 @@ func (m *Manager) UserByID(ctx context.Context, id uint32) (u User, err error) {
 }
 
 // UserByUsername returns a user if found by username
-func (m *Manager) UserByUsername(ctx context.Context, username TUsername) (u User, err error) {
-	if username[0] == 0 {
+func (m *Manager) UserByUsername(ctx context.Context, username string) (u User, err error) {
+	username = strings.ToLower(strings.TrimSpace(username))
+
+	if username == "" {
 		return u, ErrUserNotFound
 	}
 
@@ -257,8 +286,10 @@ func (m *Manager) UserByUsername(ctx context.Context, username TUsername) (u Use
 }
 
 // UserByEmailAddr returns a user if found by username
-func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u User, err error) {
-	if addr[0] == 0 {
+func (m *Manager) UserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
+	addr = strings.ToLower(strings.TrimSpace(addr))
+
+	if addr == "" {
 		return u, ErrUserNotFound
 	}
 
@@ -272,7 +303,7 @@ func (m *Manager) UserByEmailAddr(ctx context.Context, addr TEmailAddr) (u User,
 
 // UpdateUser updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context.Context, r User) (u User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateUser(ctx context.Context, id int64, fn func(ctx context.Context, r User) (u User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, essentialChangelog, err
@@ -316,8 +347,8 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 
 	m.Logger().Debug(
 		"updated",
-		zap.Uint32("id", u.ID),
-		zap.ByteString("username", u.Username[:]),
+		zap.Int64("id", u.ID),
+		zap.String("username", u.Username),
 	)
 
 	return u, essentialChangelog, nil
@@ -325,7 +356,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 
 // DeleteUserByID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u User, err error) {
+func (m *Manager) DeleteUserByID(ctx context.Context, id int64, isHard bool) (u User, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, errors.Wrap(err, "failed to obtain a store")
@@ -366,7 +397,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u
 }
 
 // CheckAvailability tests whether someone with such username or email is already registered
-func (m *Manager) CheckAvailability(ctx context.Context, username TUsername, email TEmailAddr) error {
+func (m *Manager) CheckAvailability(ctx context.Context, username string, email string) error {
 	store, err := m.Store()
 	if err != nil {
 		return err
@@ -397,7 +428,7 @@ func (m *Manager) CheckAvailability(ctx context.Context, username TUsername, ema
 }
 
 // SetPassword sets a new password for the user
-func (m *Manager) SetPassword(ctx context.Context, userID uint32, p password.Password) (err error) {
+func (m *Manager) SetPassword(ctx context.Context, userID int64, p password.Password) (err error) {
 	// paranoid check of whether the user is eligible to have
 	// a password created and stored
 	if userID == 0 {

@@ -49,19 +49,19 @@ func TestUserManagerCreate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(passwordManager)
 
-	userManager, err := user.NewManager(userStore, nil)
+	userManager, _, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(userManager)
 
 	u1, err := userManager.CreateUser(context.Background(), func(ctx context.Context) (object user.NewUserObject, err error) {
 		object = user.NewUserObject{
 			Essential: user.Essential{
-				Username:    user.TUsername{},
-				DisplayName: user.TDisplayName{},
+				Username:    "testuser",
+				DisplayName: "test display name",
 			},
 			ProfileEssential: user.ProfileEssential{},
-			EmailAddr:        user.TEmailAddr{},
-			PhoneNumber:      user.TPhoneNumber{},
+			EmailAddr:        "testuser@example.com",
+			PhoneNumber:      "12398543292",
 			Password:         nil,
 		}
 

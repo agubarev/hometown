@@ -20,6 +20,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 
 	// initializing newphone
 	phone = Phone{
+		UserID:         newPhone.UserID,
 		PhoneEssential: newPhone.PhoneEssential,
 		PhoneMetadata: PhoneMetadata{
 			CreatedAt: dbr.NewNullTime(time.Now()),
@@ -50,8 +51,8 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 
 	m.Logger().Debug(
 		"created new phone",
-		zap.Int("user_id", phone.UserID),
-		zap.ByteString("number", phone.Number[:]),
+		zap.Int64("user_id", phone.UserID),
+		zap.String("number", phone.Number),
 	)
 
 	return phone, nil
@@ -87,7 +88,7 @@ func (m *Manager) BulkCreatePhone(ctx context.Context, newPhones []Phone) (phone
 }
 
 // PrimaryPhoneByUserID obtains the primary phone by user id
-func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uint32) (phone Phone, err error) {
+func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID int64) (phone Phone, err error) {
 	if userID == 0 {
 		return phone, ErrPhoneNotFound
 	}
@@ -102,7 +103,7 @@ func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uint32) (phon
 
 // UpdatePhone updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdatePhone(ctx context.Context, number TPhoneNumber, fn func(ctx context.Context, phone Phone) (_ Phone, err error)) (phone Phone, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx context.Context, phone Phone) (_ Phone, err error)) (phone Phone, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, essentialChangelog, err
@@ -146,8 +147,8 @@ func (m *Manager) UpdatePhone(ctx context.Context, number TPhoneNumber, fn func(
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int("user_id", phone.UserID),
-		zap.ByteString("number", phone.Number[:]),
+		zap.Int64("user_id", phone.UserID),
+		zap.String("number", phone.Number),
 	)
 
 	return phone, essentialChangelog, nil
@@ -155,7 +156,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number TPhoneNumber, fn func(
 
 // DeletePhoneByNumber deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uint32, number TPhoneNumber) (phone Phone, err error) {
+func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID int64, number string) (phone Phone, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, errors.Wrap(err, "failed to obtain a store")

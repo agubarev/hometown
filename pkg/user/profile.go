@@ -14,14 +14,15 @@ import (
 // NewProfileObject contains fields sufficient to create a new object
 type NewProfileObject struct {
 	ProfileEssential
+	UserID int64 `db:"user_id" json:"user_id"`
 }
 
 // ProfileEssential represents an essential part of the primary object
 type ProfileEssential struct {
-	Firstname  TGroupName `db:"firstname" json:"firstname"`
-	Lastname   TGroupName `db:"lastname" json:"lastname"`
-	Middlename TGroupName `db:"middlename" json:"middlename"`
-	Language   TLanguage  `db:"language" json:"language"`
+	Firstname  string `db:"firstname" json:"firstname"`
+	Lastname   string `db:"lastname" json:"lastname"`
+	Middlename string `db:"middlename" json:"middlename"`
+	Language   string `db:"language" json:"language"`
 }
 
 // ProfileMetadata contains generic metadata of the primary object
@@ -29,7 +30,6 @@ type ProfileMetadata struct {
 	Checksum  uint64       `db:"checksum" json:"checksum"`
 	CreatedAt dbr.NullTime `db:"created_at" json:"created_at"`
 	UpdatedAt dbr.NullTime `db:"updated_at" json:"updated_at"`
-	DeletedAt dbr.NullTime `db:"deleted_at" json:"deleted_at"`
 
 	keyHash uint64
 }
@@ -37,7 +37,7 @@ type ProfileMetadata struct {
 // Profile represents certain profiles which are custom
 // and are handled by the customer
 type Profile struct {
-	UserID int `db:"user_id" json:"-"`
+	UserID int64 `db:"user_id" json:"-"`
 
 	ProfileEssential
 	ProfileMetadata
@@ -47,10 +47,10 @@ func (p *Profile) calculateChecksum() uint64 {
 	buf := new(bytes.Buffer)
 
 	fields := []interface{}{
-		p.Firstname,
-		p.Lastname,
-		p.Middlename,
-		p.Language,
+		[]byte(p.Firstname),
+		[]byte(p.Lastname),
+		[]byte(p.Middlename),
+		[]byte(p.Language),
 	}
 
 	for _, field := range fields {
@@ -113,13 +113,13 @@ func (p *Profile) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "Firstname":
-			p.Firstname = change.To.(TGroupName)
+			p.Firstname = change.To.(string)
 		case "Middlename":
-			p.Middlename = change.To.(TGroupName)
+			p.Middlename = change.To.(string)
 		case "Lastname":
-			p.Lastname = change.To.(TGroupName)
+			p.Lastname = change.To.(string)
 		case "Language":
-			p.Language = change.To.(TLanguage)
+			p.Language = change.To.(string)
 		case "Checksum":
 			p.Checksum = change.To.(uint64)
 		}

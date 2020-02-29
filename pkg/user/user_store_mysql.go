@@ -85,7 +85,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error)
 	}
 
 	// setting new ObjectID
-	u.ID = uint32(newID)
+	u.ID = int64(newID)
 
 	return u, nil
 }
@@ -142,26 +142,26 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 
 	// distributing new IDs in their sequential order
 	for i := range us {
-		us[i].ID = uint32(firstNewID)
+		us[i].ID = int64(firstNewID)
 		firstNewID++
 	}
 
 	return us, nil
 }
 
-func (s *MySQLStore) FetchUserByID(ctx context.Context, id uint32) (u User, err error) {
+func (s *MySQLStore) FetchUserByID(ctx context.Context, id int64) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE id = ? LIMIT 1", id)
 }
 
-func (s *MySQLStore) FetchUserByUsername(ctx context.Context, username TUsername) (u User, err error) {
+func (s *MySQLStore) FetchUserByUsername(ctx context.Context, username string) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE username = ? LIMIT 1", username)
 }
 
-func (s *MySQLStore) FetchUserByEmailAddr(ctx context.Context, addr TEmailAddr) (u User, err error) {
+func (s *MySQLStore) FetchUserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` u LEFT JOIN `user_email` e ON u.id=e.user_id WHERE e.addr = ? LIMIT 1", addr)
 }
 
-func (s *MySQLStore) FetchUserByPhoneNumber(ctx context.Context, number TPhoneNumber) (u User, err error) {
+func (s *MySQLStore) FetchUserByPhoneNumber(ctx context.Context, number string) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` u LEFT JOIN `user_phone` e ON u.id=e.user_id WHERE e.number = ? LIMIT 1", number)
 }
 
@@ -195,7 +195,7 @@ func (s *MySQLStore) UpdateUser(ctx context.Context, u User, changelog diff.Chan
 	return u, nil
 }
 
-func (s *MySQLStore) DeleteUserByID(ctx context.Context, id uint32) (err error) {
+func (s *MySQLStore) DeleteUserByID(ctx context.Context, id int64) (err error) {
 	if id == 0 {
 		return ErrZeroID
 	}

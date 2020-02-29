@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 
+	"github.com/agubarev/hometown/pkg/util/guard"
 	"github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr/v2"
 	"github.com/pkg/errors"
@@ -16,18 +17,18 @@ import (
 type AccessPolicyStore interface {
 	CreatePolicy(ctx context.Context, ap AccessPolicy) (AccessPolicy, error)
 	UpdatePolicy(ctx context.Context, ap AccessPolicy) error
-	FetchPolicyByID(ctx context.Context, id uint32) (AccessPolicy, error)
-	FetchPolicyByName(ctx context.Context, name TPolicyName) (ap AccessPolicy, err error)
-	FetchPolicyByObjectTypeAndID(ctx context.Context, objectType TAPObjectType, id uint32) (ap AccessPolicy, err error)
+	FetchPolicyByID(ctx context.Context, id int64) (AccessPolicy, error)
+	FetchPolicyByName(ctx context.Context, name string) (ap AccessPolicy, err error)
+	FetchPolicyByObjectTypeAndID(ctx context.Context, objectType string, id int64) (ap AccessPolicy, err error)
 	DeletePolicy(ctx context.Context, ap AccessPolicy) error
 }
 
 // RightsRosterDatabaseRecord represents a single database row
 type RightsRosterDatabaseRecord struct {
-	PolicyID        uint32      `db:"policy_id"`
+	PolicyID        int64       `db:"policy_id"`
 	SubjectKind     SubjectKind `db:"subject_kind"`
-	SubjectID       uint32      `db:"subject_id"`
-	AccessRight     AccessRight `db:"access_right"`
+	SubjectID       int64       `db:"subject_id"`
+	AccessRight     AccessRight `db:"access"`
 	AccessExplained string      `db:"access_explained"`
 }
 
@@ -54,7 +55,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 	sess := s.db.NewSession(nil)
 
 	// fetching policy itself
-	if err := sess.SelectBySql(q, args).LoadOneContext(ctx, &ap); err != nil {
+	if err := sess.SelectBySql(q, args...).LoadOneContext(ctx, &ap); err != nil {
 		if err == dbr.ErrNotFound {
 			return ap, ErrAccessPolicyNotFound
 		}
@@ -78,9 +79,9 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 
 	// initializing rights roster
 	rr := &RightsRoster{
-		Group: make(map[uint32]AccessRight),
-		Role:  make(map[uint32]AccessRight),
-		User:  make(map[uint32]AccessRight),
+		Group: make(map[int64]AccessRight),
+		Role:  make(map[int64]AccessRight),
+		User:  make(map[int64]AccessRight),
 	}
 
 	// transforming database records into rights roster
@@ -96,7 +97,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 			rr.User[r.SubjectID] = r.AccessRight
 		default:
 			log.Printf(
-				"unrecognized subject kind for access policy (subject_kind=%s, subject_id=%d, access_right=%d)",
+				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
 				r.SubjectKind,
 				r.SubjectID,
 				r.AccessRight,
@@ -111,7 +112,7 @@ func (s *DefaultAccessPolicyStore) get(ctx context.Context, q string, args ...in
 }
 
 func (s *DefaultAccessPolicyStore) getMany(ctx context.Context, q string, args ...interface{}) (aps []AccessPolicy, err error) {
-	count, err := s.db.NewSession(nil).SelectBySql(q, args).LoadContext(ctx, &aps)
+	count, err := s.db.NewSession(nil).SelectBySql(q, args...).LoadContext(ctx, &aps)
 	switch true {
 	case err != nil:
 		return nil, err
@@ -151,41 +152,34 @@ func (s *DefaultAccessPolicyStore) CreatePolicy(ctx context.Context, ap AccessPo
 	if err != nil {
 		return ap, fmt.Errorf("failed to begin a transaction: %s", err)
 	}
-
-	// panic handler
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.Wrap(err, "recovered from panic")
-
-			// rolling back transaction
-			if xerr := tx.Rollback(); xerr != nil { // oshi-
-				err = errors.Wrapf(err, "rollback failed: %s", xerr)
-			}
-		}
-	}()
+	defer tx.RollbackUnlessCommitted()
 
 	//---------------------------------------------------------------------------
 	// creating access policy
 	//---------------------------------------------------------------------------
 	// executing statement
-	result, err := tx.InsertInto("accesspolicy").Record(&ap).ExecContext(ctx)
+
+	result, err := tx.InsertInto("accesspolicy").
+		Columns(guard.DBColumnsFrom(&ap)...).
+		Record(&ap).
+		ExecContext(ctx)
 
 	// error handling
 	if err != nil {
 		switch err := err.(*mysql.MySQLError); err.Number {
 		case 1062:
-			panic(err)
+			return ap, err
 		}
 	}
 
 	if err != nil {
-		panic(err)
+		return ap, err
 	}
 
 	// obtaining new ObjectID
 	newID, err := result.LastInsertId()
 	if err != nil {
-		panic(err)
+		return ap, err
 	}
 
 	//---------------------------------------------------------------------------
@@ -195,42 +189,42 @@ func (s *DefaultAccessPolicyStore) CreatePolicy(ctx context.Context, ap AccessPo
 
 	// for everyone
 	rrs = append(rrs, RightsRosterDatabaseRecord{
-		PolicyID:        uint32(newID),
+		PolicyID:        newID,
 		SubjectKind:     SKEveryone,
 		AccessRight:     ap.RightsRoster.Everyone,
-		AccessExplained: ap.RightsRoster.Everyone.Explain(),
+		AccessExplained: ap.RightsRoster.Everyone.String(),
 	})
 
 	// for roles
 	for id, right := range ap.RightsRoster.Role {
 		rrs = append(rrs, RightsRosterDatabaseRecord{
-			PolicyID:        uint32(newID),
+			PolicyID:        newID,
 			SubjectKind:     SKRoleGroup,
 			SubjectID:       id,
 			AccessRight:     right,
-			AccessExplained: right.Explain(),
+			AccessExplained: right.String(),
 		})
 	}
 
 	// for groups
 	for id, right := range ap.RightsRoster.Group {
 		rrs = append(rrs, RightsRosterDatabaseRecord{
-			PolicyID:        uint32(newID),
+			PolicyID:        newID,
 			SubjectKind:     SKGroup,
 			SubjectID:       id,
 			AccessRight:     right,
-			AccessExplained: right.Explain(),
+			AccessExplained: right.String(),
 		})
 	}
 
 	// for users
 	for id, right := range ap.RightsRoster.User {
 		rrs = append(rrs, RightsRosterDatabaseRecord{
-			PolicyID:        uint32(newID),
+			PolicyID:        newID,
 			SubjectKind:     SKUser,
 			SubjectID:       id,
 			AccessRight:     right,
-			AccessExplained: right.Explain(),
+			AccessExplained: right.String(),
 		})
 	}
 
@@ -238,10 +232,16 @@ func (s *DefaultAccessPolicyStore) CreatePolicy(ctx context.Context, ap AccessPo
 	// creating roster records
 	//---------------------------------------------------------------------------
 	// looping over rights roster to be created
+
+	// TODO: squash into a single insert statement
 	for _, r := range rrs {
-		_, err := tx.InsertInto("accesspolicy").Record(&r).ExecContext(ctx)
+		_, err := tx.InsertInto("accesspolicy_rights_roster").
+			Columns(guard.DBColumnsFrom(&r)...).
+			Record(&r).
+			ExecContext(ctx)
+
 		if err != nil {
-			panic(err)
+			return ap, err
 		}
 	}
 
@@ -249,11 +249,11 @@ func (s *DefaultAccessPolicyStore) CreatePolicy(ctx context.Context, ap AccessPo
 	// commiting transaction
 	//---------------------------------------------------------------------------
 	if err := tx.Commit(); err != nil {
-		panic(err)
+		return ap, errors.Wrap(err, "failed to commit database transaction")
 	}
 
 	// setting its new ObjectID
-	ap.ID = uint32(newID)
+	ap.ID = newID
 
 	return ap, nil
 }
@@ -279,18 +279,7 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 	if err != nil {
 		return errors.Wrap(err, "failed to begin a transaction")
 	}
-
-	// panic handler
-	defer func() {
-		if r := recover(); r != nil {
-			err = errors.Wrap(err, "recovered from panic")
-
-			// rolling back the transaction
-			if xerr := tx.Rollback(); xerr != nil { // oshi-
-				err = errors.Wrap(xerr, "rollback failed")
-			}
-		}
-	}()
+	defer tx.RollbackUnlessCommitted()
 
 	//---------------------------------------------------------------------------
 	// updating access policy and its rights roster (only the changes)
@@ -299,11 +288,12 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 	updates := map[string]interface{}{
 		"parent_id":    ap.ParentID,
 		"owner_id":     ap.OwnerID,
-		"key":          ap.Key,
-		"object_kind":  ap.ObjectType,
+		"name":         ap.Name,
+		"object_type":  ap.ObjectType,
 		"object_id":    ap.ObjectID,
 		"is_extended":  ap.IsExtended,
 		"is_inherited": ap.IsInherited,
+		"checksum":     ap.Checksum,
 	}
 
 	// executing statement
@@ -313,6 +303,7 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 	}
 
 	// checking whether the rights roster has any changes
+	// TODO: optimize by squashing inserts and deletes into single queries
 	if ap.RightsRoster != nil {
 		for _, c := range ap.RightsRoster.changes {
 			switch c.action {
@@ -340,7 +331,7 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 					c.subjectKind,
 					c.subjectID,
 					c.accessRight,
-					c.accessRight.Explain(),
+					c.accessRight.String(),
 					c.accessRight,
 				)
 
@@ -362,17 +353,17 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 }
 
 // GroupByID retrieving a access policy by ObjectID
-func (s *DefaultAccessPolicyStore) FetchPolicyByID(ctx context.Context, policyID uint32) (AccessPolicy, error) {
+func (s *DefaultAccessPolicyStore) FetchPolicyByID(ctx context.Context, policyID int64) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
 }
 
 // PolicyByName retrieving a access policy by a key
-func (s *DefaultAccessPolicyStore) FetchPolicyByName(ctx context.Context, name TPolicyName) (AccessPolicy, error) {
+func (s *DefaultAccessPolicyStore) FetchPolicyByName(ctx context.Context, name string) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `name` = ? LIMIT 1", name)
 }
 
 // PolicyByObjectTypeAndID retrieving a access policy by a kind and its respective id
-func (s *DefaultAccessPolicyStore) FetchPolicyByObjectTypeAndID(ctx context.Context, objectType TAPObjectType, id uint32) (AccessPolicy, error) {
+func (s *DefaultAccessPolicyStore) FetchPolicyByObjectTypeAndID(ctx context.Context, objectType string, id int64) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
@@ -391,7 +382,7 @@ func (s *DefaultAccessPolicyStore) DeletePolicy(ctx context.Context, ap AccessPo
 	if err != nil {
 		return errors.Wrap(err, "failed to begin database transaction")
 	}
-	tx.RollbackUnlessCommitted()
+	defer tx.RollbackUnlessCommitted()
 
 	// panic handler
 	defer func() {
@@ -410,12 +401,12 @@ func (s *DefaultAccessPolicyStore) DeletePolicy(ctx context.Context, ap AccessPo
 	//---------------------------------------------------------------------------
 	// deleting access policy
 	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy WHERE id = ?", ap.ID); err != nil {
-		return errors.Wrap(err, "failed to delete access policy")
+		return errors.Wrapf(err, "failed to delete access policy: policy_id=%d", ap.ID)
 	}
 
 	// deleting rights roster
 	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy_rights_roster WHERE policy_id = ?", ap.ID); err != nil {
-		return errors.Wrap(err, "failed to delete rights roster")
+		return errors.Wrapf(err, "failed to delete rights roster: policy_id=%d", ap.ID)
 	}
 
 	//---------------------------------------------------------------------------

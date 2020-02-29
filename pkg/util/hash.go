@@ -69,7 +69,7 @@ func HashKey(payload []byte) (result uint64) {
 }
 
 // HashCRC32 produces a CRC32 checksum from a given payload
-func HashCRC32(payload []byte) (result uint32) {
+func HashCRC32(payload []byte) (result int64) {
 	resultChan := make(chan interface{}, 0)
 
 	workline <- work{
@@ -78,7 +78,7 @@ func HashCRC32(payload []byte) (result uint32) {
 		result:  resultChan,
 	}
 
-	result = (<-resultChan).(uint32)
+	result = (<-resultChan).(int64)
 	close(resultChan)
 
 	return result

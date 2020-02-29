@@ -75,11 +75,11 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// updating IP from where the u has just authenticated from
-	//u.LastLoginIP = []byte(ri.IP.String())
+	//u.LastLoginIP = []byte(ri.IP.Translate())
 
 	/*
 		// logging user
-		if err := u.Save(r.Context()); err != nil {
+		if err := u.Update(r.Context()); err != nil {
 			util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to save u"), http.StatusInternalServerError)
 			return
 		}

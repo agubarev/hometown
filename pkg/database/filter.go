@@ -264,7 +264,7 @@ func (fl *Filter) FilterQueryFromRequest(obj interface{}, r *http.Request) (*Fil
 		}
 
 		switch kind := f.ObjectKind.ObjectKind(); kind {
-		case reflect.String:
+		case reflect.Translate:
 			where[alias] = vals
 		case reflect.Int:
 			intVals := make([]int64, len(vals))

@@ -14,13 +14,14 @@ import (
 // EmailNewObject contains fields sufficient to create a new object
 type NewEmailObject struct {
 	EmailEssential
+	UserID      int64
 	IsConfirmed bool
 }
 
 // EmailEssential represents an essential part of the primary object
 type EmailEssential struct {
-	Addr      TEmailAddr `db:"addr" json:"addr"`
-	IsPrimary bool       `db:"is_primary" json:"is_primary"`
+	Addr      string `db:"addr" json:"addr"`
+	IsPrimary bool   `db:"is_primary" json:"is_primary"`
 }
 
 // EmailMetadata contains generic metadata of the primary object
@@ -35,7 +36,7 @@ type EmailMetadata struct {
 // Email represents certain emails which are custom
 // and are handled by the customer
 type Email struct {
-	UserID int `db:"user_id" json:"user_id"`
+	UserID int64 `db:"user_id" json:"user_id"`
 
 	EmailEssential
 	EmailMetadata
@@ -43,16 +44,16 @@ type Email struct {
 
 func (email *Email) hashKey() {
 	// panic if ObjectID is zero or a name is empty
-	if email.UserID == 0 || email.Addr[0] == 0 {
+	if email.UserID == 0 || email.Addr == "" {
 		panic(ErrInsufficientDataToHashKey)
 	}
 
 	// initializing a key buffer with and assuming the minimum key length
-	key := bytes.NewBuffer(make([]byte, 0, len("email")+len(email.Addr[:])+8))
+	key := bytes.NewBuffer(make([]byte, 0, len("email")+len(email.Addr)+8))
 
 	// composing a key value
 	key.WriteString("email")
-	key.Write(email.Addr[:])
+	key.WriteString(email.Addr)
 
 	// adding user ObjectID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(email.UserID)); err != nil {
@@ -90,12 +91,12 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			email.UserID = change.To.(int)
+			email.UserID = change.To.(int64)
 		case "Addr":
-			email.Addr = change.To.(TEmailAddr)
+			email.Addr = change.To.(string)
 		case "CreatedAt":
 			email.CreatedAt = change.To.(dbr.NullTime)
-		case "Confirmed_at":
+		case "ConfirmedAt":
 			email.ConfirmedAt = change.To.(dbr.NullTime)
 		case "UpdatedAt":
 			email.UpdatedAt = change.To.(dbr.NullTime)

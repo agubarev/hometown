@@ -14,13 +14,14 @@ import (
 // NewPhoneObject contains fields sufficient to create a new object
 type NewPhoneObject struct {
 	PhoneEssential
+	UserID      int64
 	IsConfirmed bool
 }
 
 // PhoneEssential represents an essential part of the primary object
 type PhoneEssential struct {
-	Number    TPhoneNumber `db:"number" json:"number"`
-	IsPrimary bool         `db:"is_primary" json:"is_primary"`
+	Number    string `db:"number" json:"number"`
+	IsPrimary bool   `db:"is_primary" json:"is_primary"`
 }
 
 // PhoneMetadata contains generic metadata of the primary object
@@ -35,7 +36,7 @@ type PhoneMetadata struct {
 // Phone represents certain emails which are custom
 // and are handled by the customer
 type Phone struct {
-	UserID int `db:"user_id" json:"user_id"`
+	UserID int64 `db:"user_id" json:"user_id"`
 
 	PhoneEssential
 	PhoneMetadata
@@ -52,7 +53,7 @@ func (p *Phone) hashKey() {
 
 	// composing a key value
 	key.WriteString("phone")
-	key.Write(p.Number[:])
+	key.WriteString(p.Number)
 
 	// adding user ObjectID to the key
 	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
@@ -90,9 +91,9 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			p.UserID = change.To.(int)
+			p.UserID = change.To.(int64)
 		case "Number":
-			p.Number = change.To.(TPhoneNumber)
+			p.Number = change.To.(string)
 		case "CreatedAt":
 			p.CreatedAt = change.To.(dbr.NullTime)
 		case "Confirmed_at":

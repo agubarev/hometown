@@ -31,7 +31,7 @@ func TestSignin(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test user manager
-	um, err := user.NewUserManagerForTesting(db)
+	um, _, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 

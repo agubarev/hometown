@@ -23,7 +23,7 @@ func TestAuthenticate(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test u manager
-	um, err := user.NewUserManagerForTesting(db)
+	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
@@ -41,7 +41,7 @@ func TestAuthenticate(t *testing.T) {
 	// using ULID as a random password
 	testpass := util.NewULID().String()
 
-	// creating test u
+	// creating test user
 	testuser, err := um.CreateWithPassword(
 		"testuser",
 		"testuser@example.com",
@@ -83,7 +83,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test u manager
-	um, err := user.NewUserManagerForTesting(db)
+	um, _, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
@@ -143,7 +143,7 @@ func TestDestroySession(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test u manager
-	um, err := user.NewUserManagerForTesting(db)
+	um, _, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
