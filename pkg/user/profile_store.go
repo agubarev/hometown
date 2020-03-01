@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/agubarev/hometown/pkg/util/guard"
+	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -44,23 +45,29 @@ func (s *MySQLStore) fetchProfilesByQuery(ctx context.Context, q string, args ..
 }
 
 // CreateProfile creates a new entry in the storage backend
-func (s *MySQLStore) CreateProfile(ctx context.Context, profile Profile) (_ Profile, err error) {
-	// if ObjectID is not 0, then it's not considered as new
-	if profile.UserID == 0 {
-		return profile, ErrZeroUserID
+func (s *MySQLStore) CreateProfile(ctx context.Context, p Profile) (_ Profile, err error) {
+	if p.UserID == 0 {
+		return p, ErrZeroUserID
 	}
 
 	_, err = s.connection.NewSession(nil).
 		InsertInto("user_profile").
-		Columns(guard.DBColumnsFrom(profile)...).
-		Record(profile).
+		Columns(guard.DBColumnsFrom(p)...).
+		Record(p).
 		ExecContext(ctx)
 
 	if err != nil {
-		return profile, err
+		if myerr, ok := err.(*mysql.MySQLError); ok {
+			switch myerr.Number {
+			case 1062:
+				return p, ErrDuplicateProfile
+			}
+		}
+
+		return p, err
 	}
 
-	return profile, nil
+	return p, nil
 }
 
 // CreateProfile creates a new entry in the storage backend

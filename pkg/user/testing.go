@@ -144,8 +144,8 @@ func CreateTestUser(ctx context.Context, m *Manager, username string, email stri
 			},
 			ProfileEssential: ProfileEssential{
 				Firstname:  "Андрей",
-				Lastname:   "Анатолиевич",
-				Middlename: "Губарев",
+				Lastname:   "Губарев",
+				Middlename: "Анатолиевич",
 				Language:   "RU",
 			},
 			EmailAddr:   email,

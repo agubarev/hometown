@@ -59,12 +59,17 @@ type Group struct {
 }
 
 // Parent returns parent group or nil
-func (g *Group) Parent() Group {
-	g.RLock()
-	p := g.manager.groups[g.ID]
-	g.RUnlock()
+func (g *Group) Parent(ctx context.Context) (p Group, err error) {
+	if g.ParentID == 0 {
+		return p, ErrNoParentGroup
+	}
 
-	return p
+	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	if gm == nil {
+		return p, ErrNilGroupManager
+	}
+
+	return gm.GroupByID(ctx, g.ParentID)
 }
 
 // SetLogger assigns a logger for this group
@@ -105,25 +110,25 @@ func (g *Group) StringID() string {
 }
 
 // Validate tells a group to perform self-check and return errors if something's wrong
-func (g *Group) Validate() error {
+func (g *Group) Validate(ctx context.Context) error {
 	if g == nil {
 		return ErrNilGroup
 	}
 
 	// checking for parent circulation
-	if isCircuited, err := g.IsCircuited(); isCircuited || (err != nil) {
+	if isCircuited, err := g.IsCircuited(ctx); isCircuited || (err != nil) {
 		if err != nil {
-			return fmt.Errorf("%s validation failed: %s", g.Kind, err)
+			return errors.Wrapf(err, "%s validation failed", g.StringID())
 		}
 
 		if isCircuited {
-			return fmt.Errorf("%s validation failed: %s", g.Kind, ErrCircuitedParent)
+			return errors.Wrapf(err, "%s validation failed: %s", g.StringID(), ErrCircuitedParent)
 		}
 	}
 
 	// general field validations
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
-		return fmt.Errorf("%s validation failed: %s", g.Kind, err)
+		return errors.Wrapf(err, "%s validation failed", g.StringID())
 	}
 
 	return nil
@@ -154,23 +159,21 @@ func (g *Group) Init() error {
 }
 
 // IsCircuited tests whether the parents trace back to a nil
-func (g *Group) IsCircuited() (bool, error) {
+func (g *Group) IsCircuited(ctx context.Context) (bool, error) {
 	if g.ParentID == 0 {
 		return false, nil
 	}
 
 	// moving up a parent tree until nil is reached or the signs of circulation are found
 	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
-	p := g.Parent()
+
+	// TODO: obtain timeout from the context or use its deadline
 	timeout := time.Now().Add(5 * time.Millisecond)
-	for !time.Now().After(timeout) {
+	for p, err := g.Parent(ctx); err == nil && !time.Now().After(timeout); p, err = p.Parent(ctx) {
 		if p.ParentID == 0 {
 			// it's all good, reached a no-parent
 			return false, nil
 		}
-
-		// next parent
-		p = p.Parent()
 	}
 
 	return false, ErrCircuitCheckTimeout
@@ -184,7 +187,7 @@ func (g *Group) SetDescription(text string) error {
 }
 
 // SetParentID assigning a parent group, could be nil
-func (g *Group) SetParent(p Group) error {
+func (g *Group) SetParent(ctx context.Context, p Group) error {
 	// since parent could be nil thus it's kind is irrelevant
 	if p.ID != 0 {
 		// checking whether new parent already is set somewhere along the parenthood
@@ -192,20 +195,15 @@ func (g *Group) SetParent(p Group) error {
 		// requested parent is searched and not tested whether the relations
 		// are circuited among themselves
 		if p.ParentID != 0 {
-			if pg := g.Parent(); pg.ID != 0 {
-				for {
-					// no more parents, breaking
-					if pg.ParentID == 0 {
-						break
-					}
+			for pg, err := g.Parent(ctx); err == nil && pg.ID != 0; pg, err = pg.Parent(ctx) {
+				// no more parents, breaking
+				if pg.ParentID == 0 {
+					break
+				}
 
-					// testing equality by comparing each group's ObjectID
-					if pg.ID == p.ID {
-						return ErrDuplicateParent
-					}
-
-					// moving on to a parent's parent
-					pg = g.Parent()
+				// testing equality by comparing each group's ObjectID
+				if pg.ID == p.ID {
+					return ErrDuplicateParent
 				}
 			}
 		}
@@ -235,7 +233,7 @@ func (g *Group) Save(ctx context.Context) error {
 	// saving itself
 	newGroup, err := g.manager.store.UpsertGroup(ctx, *g)
 	if err != nil {
-		return fmt.Errorf("failed to store a group: %s", err)
+		return errors.Wrapf(err, "failed to upsert a group: %s", g.StringID())
 	}
 
 	// replacing itself with retrieved group contents

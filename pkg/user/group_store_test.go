@@ -63,7 +63,7 @@ func TestGroupStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(g)
 
-	fg, err := s.FetchByID(ctx, g.ID)
+	fg, err := s.FetchGroupByID(ctx, g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 	a.Equal(g.ID, fg.ID)
@@ -166,17 +166,16 @@ func TestGroupStoreDelete(t *testing.T) {
 	g, err = s.UpsertGroup(ctx, g)
 	a.NoError(err)
 
-	fg, err := s.FetchByID(ctx, g.ID)
+	fg, err := s.FetchGroupByID(ctx, g.ID)
 	a.NotNil(fg)
 	a.NoError(err)
 
 	err = s.DeleteByID(ctx, g.ID)
 	a.NoError(err)
 
-	fg, err = s.FetchByID(ctx, g.ID)
-	a.Nil(fg)
+	fg, err = s.FetchGroupByID(ctx, g.ID)
 	a.Error(err)
-	a.EqualError(err, user.ErrGroupNotFound.Error())
+	a.EqualError(user.ErrGroupNotFound, err.Error())
 }
 
 func TestGroupStoreRelations(t *testing.T) {

@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"io"
-	"log"
 
 	"github.com/agubarev/hometown/pkg/util/guard"
 	"github.com/go-sql-driver/mysql"
@@ -16,8 +16,11 @@ import (
 type GroupStore interface {
 	UpsertGroup(ctx context.Context, g Group) (Group, error)
 	PutRelation(ctx context.Context, groupID int64, userID int64) error
-	FetchByID(ctx context.Context, groupID int64) (Group, error)
-	FetchAllGroups(ctx context.Context) ([]Group, error)
+	FetchGroupByID(ctx context.Context, groupID int64) (g Group, err error)
+	FetchGroupByKey(ctx context.Context, key string) (g Group, err error)
+	FetchGroupByName(ctx context.Context, name string) (g Group, err error)
+	FetchGroupsByName(ctx context.Context, isPartial bool, name string) (gs []Group, err error)
+	FetchAllGroups(ctx context.Context) (gs []Group, err error)
 	FetchAllRelations(ctx context.Context) (map[int64][]int64, error)
 	HasRelation(ctx context.Context, groupID int64, userID int64) (bool, error)
 	DeleteByID(ctx context.Context, groupID int64) error
@@ -43,7 +46,7 @@ func NewGroupStore(db *dbr.Connection) (GroupStore, error) {
 
 func (s *GroupMySQLStore) get(ctx context.Context, q string, args ...interface{}) (g Group, err error) {
 	err = s.db.NewSession(nil).
-		SelectBySql(q, args).
+		SelectBySql(q, args...).
 		LoadOneContext(ctx, &g)
 
 	if err != nil {
@@ -58,7 +61,7 @@ func (s *GroupMySQLStore) get(ctx context.Context, q string, args ...interface{}
 }
 
 func (s *GroupMySQLStore) getMany(ctx context.Context, q string, args ...interface{}) (gs []Group, err error) {
-	if _, err := s.db.NewSession(nil).SelectBySql(q, args).LoadContext(ctx, &gs); err != nil {
+	if _, err := s.db.NewSession(nil).SelectBySql(q, args...).LoadContext(ctx, &gs); err != nil {
 		return nil, err
 	}
 
@@ -97,11 +100,9 @@ func (s *GroupMySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 		switch err := err.(*mysql.MySQLError); err.Number {
 		case 1062:
 			return g, ErrDuplicateGroup
+		default:
+			return g, err
 		}
-	}
-
-	if err != nil {
-		return g, err
 	}
 
 	return g, nil
@@ -139,19 +140,38 @@ func (s *GroupMySQLStore) Update(ctx context.Context, g Group) (Group, error) {
 	return g, nil
 }
 
-// UserByID retrieving a group by ObjectID
-func (s *GroupMySQLStore) FetchByID(ctx context.Context, id int64) (Group, error) {
+func (s *GroupMySQLStore) FetchGroupByID(ctx context.Context, id int64) (Group, error) {
 	return s.get(ctx, "SELECT * FROM `group` WHERE id = ? LIMIT 1", id)
 }
 
-// FetchAllGroups retrieving all groups
+func (s *GroupMySQLStore) FetchGroupByKey(ctx context.Context, key string) (Group, error) {
+	return s.get(ctx, "SELECT * FROM `group` WHERE `key` = ? LIMIT 1", key)
+}
+
+// FetchGroupByName retrieves a single group by a direct name match
+func (s *GroupMySQLStore) FetchGroupByName(ctx context.Context, name string) (Group, error) {
+	return s.get(ctx, "SELECT * FROM `group` WHERE `name` = ? LIMIT 1", name)
+}
+
+// FetchGroupsByName retrieves groups by their name
+// NOTE: optionally search by partial prefix
+func (s *GroupMySQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name string) ([]Group, error) {
+	if isPartial {
+		return s.getMany(ctx, "SELECT * FROM `group` WHERE `name` LIKE ?", fmt.Sprintf("%s%%", name))
+	}
+
+	return s.getMany(ctx, "SELECT * FROM `group` WHERE `name` = ?", name)
+}
+
+// TODO: 1. decide whether I want to load all existing groups
+// TODO: 2. if (1), then develop a safer way to load all existing groups
 func (s *GroupMySQLStore) FetchAllGroups(ctx context.Context) ([]Group, error) {
 	return s.getMany(ctx, "SELECT * FROM `group`")
 }
 
 // DeletePolicy from the store by group ObjectID
 func (s *GroupMySQLStore) DeleteByID(ctx context.Context, id int64) (err error) {
-	g, err := s.FetchByID(ctx, id)
+	g, err := s.FetchGroupByID(ctx, id)
 	if err != nil {
 		return err
 	}
@@ -163,26 +183,19 @@ func (s *GroupMySQLStore) DeleteByID(ctx context.Context, id int64) (err error) 
 	if err != nil {
 		return err
 	}
+	defer tx.RollbackUnlessCommitted()
 
+	// deleting the actual group
 	_, err = sess.DeleteFrom("group").Where("id = ?", g.ID).ExecContext(ctx)
 	if err != nil {
 		return err
 	}
 
-	defer func() {
-		if p := recover(); p != nil {
-			err = p.(error)
-
-			log.Printf("GroupStore.DeletePolicy(): recovering from panic, transaction rollback: %s", p)
-
-			if xerr := tx.Rollback(); xerr != nil {
-				panic(errors.Wrapf(err, "rollback failed: %s", xerr))
-			}
-		}
-	}()
+	// deleting group relations
+	// TODO: delete group relations
 
 	if err := tx.Commit(); err != nil {
-		return errors.Wrapf(err, "failed to commit transaction")
+		return errors.Wrapf(err, "failed to commit database transaction")
 	}
 
 	return nil
@@ -197,17 +210,7 @@ func (s *GroupMySQLStore) PutRelation(ctx context.Context, groupID int64, userID
 		userID,
 	)
 
-	// error handling
-	if err != nil {
-		switch err := err.(*mysql.MySQLError); err.Number {
-		case 1062:
-			return ErrDuplicateRelation
-		default:
-			return err
-		}
-	}
-
-	return nil
+	return err
 }
 
 // FetchAllRelations retrieving all relations

@@ -231,7 +231,7 @@ func (m *AccessPolicyManager) Update(ctx context.Context, ap AccessPolicy) (_ Ac
 	return ap, nil
 }
 
-// GroupByID returns an access policy by its ObjectID
+// PolicyByID returns an access policy by its ObjectID
 func (m *AccessPolicyManager) PolicyByID(ctx context.Context, id int64) (ap AccessPolicy, err error) {
 	// checking cache first
 	m.RLock()

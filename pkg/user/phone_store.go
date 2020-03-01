@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/agubarev/hometown/pkg/util/guard"
+	"github.com/go-sql-driver/mysql"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -57,6 +58,13 @@ func (s *MySQLStore) CreatePhone(ctx context.Context, p Phone) (_ Phone, err err
 		ExecContext(ctx)
 
 	if err != nil {
+		if myerr, ok := err.(*mysql.MySQLError); ok {
+			switch myerr.Number {
+			case 1062:
+				return p, ErrDuplicatePhoneNumber
+			}
+		}
+
 		return p, err
 	}
 

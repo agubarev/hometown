@@ -7,6 +7,7 @@ import (
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/password"
 	"github.com/agubarev/hometown/pkg/user"
+	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -62,7 +63,7 @@ func TestUserManagerCreate(t *testing.T) {
 			ProfileEssential: user.ProfileEssential{},
 			EmailAddr:        "testuser@example.com",
 			PhoneNumber:      "12398543292",
-			Password:         nil,
+			Password:         util.NewULID().Entropy(),
 		}
 
 		return object, nil

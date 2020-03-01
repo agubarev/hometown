@@ -80,8 +80,6 @@ type accessChange struct {
 
 // declaring discrete rights for all cases
 const (
-	APUnrecognizedFlag = "unrecognized access flag"
-
 	APNoAccess = AccessRight(0)
 	APView     = AccessRight(1 << uint64(iota-1))
 	APCreate
@@ -91,6 +89,9 @@ const (
 	APMove
 	APManageRights
 	APFullAccess = ^AccessRight(0)
+
+	// this flag is used for access bits without translation
+	APUnrecognizedFlag = "unrecognized access flag"
 )
 
 func (r AccessRight) Translate() string {
@@ -460,7 +461,7 @@ func (ap *AccessPolicy) Seal() error {
 }
 
 func (ap *AccessPolicy) StringID() string {
-	return fmt.Sprintf("%s_%d", ap.ObjectType, ap.ID)
+	return fmt.Sprintf("accesspolicy(%s_%d)", ap.ObjectType, ap.ID)
 }
 
 // Clone clones a whole policy
@@ -473,12 +474,18 @@ func (ap *AccessPolicy) Clone() (*AccessPolicy, error) {
 	clone := &AccessPolicy{
 		ID:           ap.ID,
 		ParentID:     ap.ParentID,
+		IDPath:       ap.IDPath,
 		OwnerID:      ap.OwnerID,
+		Name:         ap.Name,
 		ObjectType:   ap.ObjectType,
 		ObjectID:     ap.ObjectID,
-		IsInherited:  ap.IsInherited,
 		IsExtended:   ap.IsExtended,
+		IsInherited:  ap.IsInherited,
+		Checksum:     0,
 		RightsRoster: rr,
+		keyHash:      0,
+		backup:       nil,
+		RWMutex:      sync.RWMutex{},
 	}
 
 	return clone, nil
@@ -782,10 +789,6 @@ func (ap *AccessPolicy) HasGroupRights(ctx context.Context, groupID int64, right
 func (ap *AccessPolicy) UnsetRights(ctx context.Context, assignorID int64, assignee interface{}) error {
 	if assignorID == 0 {
 		return ErrZeroUserID
-	}
-
-	if assignee == nil {
-		return ErrNilAssignee
 	}
 
 	// the assignorID must have a right to set rights (APManageRights) and have all the

@@ -115,7 +115,7 @@ func (m *GroupManager) Init(ctx context.Context) error {
 	// adding groups to a container
 	for _, g := range gs {
 		// adding member to container
-		if err := m.AddGroup(ctx, g); err != nil {
+		if err := m.Put(ctx, g); err != nil {
 			// just warning and moving forward
 			l.Info(
 				"Init() failed to add group to container",
@@ -220,7 +220,7 @@ func (m *GroupManager) Create(ctx context.Context, parentID int64, kind GroupKin
 			return g, errors.Wrap(err, "failed to obtain parent group")
 		}
 
-		if err := parent.Validate(); err != nil {
+		if err := parent.Validate(ctx); err != nil {
 			return g, errors.Wrap(err, "parent group validation failed")
 		}
 
@@ -249,11 +249,11 @@ func (m *GroupManager) Create(ctx context.Context, parentID int64, kind GroupKin
 	}
 
 	// assigning parent group
-	if err := g.SetParent(parent); err != nil {
+	if err := g.SetParent(ctx, parent); err != nil {
 		return g, err
 	}
 
-	if err = g.Validate(); err != nil {
+	if err = g.Validate(ctx); err != nil {
 		return g, errors.Wrap(err, "new group validation failed")
 	}
 
@@ -276,7 +276,7 @@ func (m *GroupManager) Create(ctx context.Context, parentID int64, kind GroupKin
 	}
 
 	// adding new group to manager's registry
-	err = m.AddGroup(ctx, g)
+	err = m.Put(ctx, g)
 	if err != nil {
 		return g, err
 	}
@@ -284,21 +284,18 @@ func (m *GroupManager) Create(ctx context.Context, parentID int64, kind GroupKin
 	return g, nil
 }
 
-// AddGroup adds group to the manager
-func (m *GroupManager) AddGroup(ctx context.Context, g Group) error {
+// Put adds group to the manager
+func (m *GroupManager) Put(ctx context.Context, g Group) error {
 	if g.ID == 0 {
 		return ErrZeroID
 	}
 
-	_, err := m.GroupByID(ctx, g.ID)
-	if err != ErrGroupNotFound {
-		return ErrGroupAlreadyRegistered
-	}
-
 	// linking group to this manager
-	g.Lock()
-	g.manager = m
-	g.Unlock()
+	if g.manager == nil {
+		g.Lock()
+		g.manager = m
+		g.Unlock()
+	}
 
 	// adding group to this manager's container
 	m.Lock()
@@ -309,8 +306,21 @@ func (m *GroupManager) AddGroup(ctx context.Context, g Group) error {
 	return g.Init()
 }
 
-// RemoveGroup removing group from the manager
-func (m *GroupManager) RemoveGroup(ctx context.Context, groupID int64) error {
+// Lookup looks up in cache and returns a group if found
+func (m *GroupManager) Lookup(ctx context.Context, groupID int64) (g Group, err error) {
+	m.RLock()
+	g, ok := m.groups[groupID]
+	m.RUnlock()
+
+	if ok {
+		return g, nil
+	}
+
+	return g, ErrGroupNotFound
+}
+
+// Remove removing group from the manager
+func (m *GroupManager) Remove(ctx context.Context, groupID int64) error {
 	// a bit pedantic but consistent, returning an error if group
 	// is already registered within the manager
 	g, err := m.GroupByID(ctx, groupID)
@@ -347,13 +357,24 @@ func (m *GroupManager) List(kind GroupKind) (gs []Group) {
 	return gs
 }
 
-// GroupByID returns a group by ObjectID
+// GroupByID returns a group by ID
 func (m *GroupManager) GroupByID(ctx context.Context, id int64) (g Group, err error) {
-	if g, ok := m.groups[id]; ok {
+	if g, err = m.Lookup(ctx, id); err != ErrGroupNotFound {
 		return g, nil
 	}
 
-	return g, ErrGroupNotFound
+	// fetching group from the store
+	g, err = m.store.FetchGroupByID(ctx, id)
+	if err != nil {
+		return g, err
+	}
+
+	// updating group cache
+	if err = m.Put(ctx, g); err != nil {
+		return g, err
+	}
+
+	return g, nil
 }
 
 // PolicyByName returns a group by name
@@ -367,6 +388,26 @@ func (m *GroupManager) GroupByKey(ctx context.Context, key string) (g Group, err
 	}
 
 	return g, ErrGroupNotFound
+}
+
+// GroupByName returns an access policy by its key
+// TODO: add expirable caching
+func (m *GroupManager) GroupByName(ctx context.Context, name string) (g Group, err error) {
+	return m.store.FetchGroupByName(ctx, name)
+}
+
+// DeletePolicy returns an access policy by its ObjectID
+// NOTE: also deletes all relations and nested groups (should user have
+// sufficient access rights to do that)
+// TODO: implement recursive deletion
+func (m *GroupManager) DeleteGroup(ctx context.Context, g Group) (err error) {
+	if err = g.Validate(ctx); err != nil {
+		return err
+	}
+
+	panic("not implemented")
+
+	return nil
 }
 
 // GroupsByUserID returns a slice of groups to which a given member belongs

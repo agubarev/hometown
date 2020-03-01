@@ -1,7 +1,6 @@
 package user_test
 
 import (
-	"context"
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
@@ -12,13 +11,11 @@ import (
 func TestManager_Create(t *testing.T) {
 	a := assert.New(t)
 
-	ctx := context.Background()
-
 	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, _, err := user.ManagerForTesting(db)
+	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
@@ -31,11 +28,11 @@ func TestManager_Create(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(u1)
 
-	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser1@example.com")
+	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@example.com")
 	a.NoError(err)
 	a.NotNil(u2)
 
-	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser2@example.com")
+	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@example.com")
 	a.NoError(err)
 	a.NotNil(u1)
 
