@@ -13,11 +13,11 @@ type Backend interface {
 	PutRevokedAccessToken(RevokedAccessToken) error
 	IsRevoked(string) bool
 	DeleteRevokedAccessItem(string) error
-	PutSession(*Session) error
-	GetSession(string) (*Session, error)
-	GetSessionByAccessToken(string) (*Session, error)
-	GetSessionByRefreshToken(string) (*Session, error)
-	DeleteSession(*Session) error
+	PutSession(Session) error
+	GetSession(string) (Session, error)
+	GetSessionByAccessToken(string) (Session, error)
+	GetSessionByRefreshToken(string) (Session, error)
+	DeleteSession(Session) error
 }
 
 // DefaultBackend is a default in-memory implementation
@@ -26,16 +26,16 @@ type DefaultBackend struct {
 	blacklist map[string]RevokedAccessToken
 
 	// session token map, token to session
-	stokenMap map[string]*Session
+	stokenMap map[string]Session
 
 	// access token map, token ObjectID (jti) to session
-	jtiMap map[string]*Session
+	jtiMap map[string]Session
 
 	// refresh token map, token to session
-	rtokenMap map[string]*Session
+	rtokenMap map[string]Session
 
 	// is a map of user IDs to a map of tokens, containing the actual session
-	sessions map[int64]map[string]*Session
+	sessions map[int64]map[string]Session
 
 	// hasWorker flags whether this backend has a cleaner worker started
 	hasWorker bool
@@ -48,8 +48,8 @@ type DefaultBackend struct {
 func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
 		blacklist:      make(map[string]RevokedAccessToken),
-		stokenMap:      make(map[string]*Session),
-		sessions:       make(map[int64]map[string]*Session),
+		stokenMap:      make(map[string]Session),
+		sessions:       make(map[int64]map[string]Session),
 		workerInterval: 1 * time.Minute,
 	}
 
@@ -144,7 +144,7 @@ func (b *DefaultBackend) DeleteRevokedAccessItem(tokenID string) error {
 }
 
 // PutSession stores a given session to a temporary registry backend
-func (b *DefaultBackend) PutSession(s *Session) error {
+func (b *DefaultBackend) PutSession(s Session) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
@@ -153,7 +153,7 @@ func (b *DefaultBackend) PutSession(s *Session) error {
 
 	// initializing a nested map if it hasn't been yet
 	if b.sessions[s.UserID] == nil {
-		b.sessions[s.UserID] = make(map[string]*Session)
+		b.sessions[s.UserID] = make(map[string]Session)
 	}
 
 	// storing session until it's expired and removed
@@ -170,7 +170,7 @@ func (b *DefaultBackend) PutSession(s *Session) error {
 
 // GetSession fetches a session by a given token string,
 // from the registry backend
-func (b *DefaultBackend) GetSession(stok string) (*Session, error) {
+func (b *DefaultBackend) GetSession(stok string) (Session, error) {
 	b.RLock()
 	s, ok := b.stokenMap[stok]
 	b.RUnlock()
@@ -183,7 +183,7 @@ func (b *DefaultBackend) GetSession(stok string) (*Session, error) {
 }
 
 // DeleteSession deletes a given session from the backend registry
-func (b *DefaultBackend) DeleteSession(s *Session) error {
+func (b *DefaultBackend) DeleteSession(s Session) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
@@ -197,7 +197,7 @@ func (b *DefaultBackend) DeleteSession(s *Session) error {
 }
 
 // GetSessionByAccessToken retrieves session by an access token ObjectID (JTI: JWT Token ObjectID)
-func (b *DefaultBackend) GetSessionByAccessToken(jti string) (*Session, error) {
+func (b *DefaultBackend) GetSessionByAccessToken(jti string) (Session, error) {
 	b.RLock()
 	s, ok := b.jtiMap[jti]
 	b.RUnlock()
@@ -210,7 +210,7 @@ func (b *DefaultBackend) GetSessionByAccessToken(jti string) (*Session, error) {
 }
 
 // GetSessionByRefreshToken retrieves session by a refresh token
-func (b *DefaultBackend) GetSessionByRefreshToken(rtok string) (*Session, error) {
+func (b *DefaultBackend) GetSessionByRefreshToken(rtok string) (Session, error) {
 	b.RLock()
 	s, ok := b.rtokenMap[rtok]
 	b.RUnlock()

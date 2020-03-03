@@ -25,7 +25,11 @@ type Endpoint struct {
 }
 
 func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	u, err := e.user.UserManager().GetUserByID(r.Context(), r.Context().Value(keyUserID).(int))
+	u, err := e.core.UserManager().UserByID(
+		r.Context(),
+		r.Context().Value(keyUserID).(int64),
+	)
+
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return

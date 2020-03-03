@@ -26,7 +26,7 @@ type Password struct {
 	IsChangeRequired bool         `db:"is_change_required" json:"-"`
 }
 
-// Validate validates password
+// SanitizeAndValidate validates password
 func (p Password) Validate() error {
 	if p.Kind == 0 {
 		return ErrZeroKind

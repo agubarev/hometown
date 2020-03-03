@@ -90,7 +90,7 @@ type Token struct {
 	ExpireAt time.Time `db:"expire_at" json:"expire_at"`
 }
 
-// Validate checks whether the token is expired or ran out of checkins left
+// SanitizeAndValidate checks whether the token is expired or ran out of checkins left
 // NOTE: returns errors instead of booleans only for more flexible explicitness
 func (t *Token) Validate() error {
 	// checking whether token's expiration time is behind current moment
@@ -247,7 +247,7 @@ func (m *Manager) Store() (Store, error) {
 	return m.store, nil
 }
 
-// Validate validates token container
+// SanitizeAndValidate validates token container
 func (m *Manager) Validate() error {
 	if m == nil {
 		return ErrNilTokenManager

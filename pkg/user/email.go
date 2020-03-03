@@ -64,7 +64,7 @@ func (email *Email) hashKey() {
 	email.keyHash = xxhash.Sum64(key.Bytes())
 }
 
-// Validate validates the object
+// SanitizeAndValidate validates the object
 func (email Email) Validate() (err error) {
 	_, err = govalidator.ValidateStruct(email)
 	return nil

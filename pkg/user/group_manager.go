@@ -196,7 +196,7 @@ func (m *GroupManager) Store() (GroupStore, error) {
 	return m.store, nil
 }
 
-// Validate this group manager
+// SanitizeAndValidate this group manager
 func (m *GroupManager) Validate() error {
 	if m.groups == nil {
 		return errors.New("group map is nil")

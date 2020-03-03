@@ -159,7 +159,7 @@ func (u *User) StringID() string {
 	return fmt.Sprintf("user(%d:%s)", u.ID, u.Username)
 }
 
-// Validate user object
+// SanitizeAndValidate user object
 func (u *User) Validate() error {
 	if u == nil {
 		return ErrNilUser

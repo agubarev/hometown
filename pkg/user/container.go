@@ -70,7 +70,7 @@ func (c *Container) SetUserManager(m *Manager) error {
 	return nil
 }
 
-// Validate this group container
+// SanitizeAndValidate this group container
 func (c *Container) Validate() error {
 	if c.users == nil {
 		return errors.New("users slice is not initialized")

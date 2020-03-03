@@ -64,7 +64,7 @@ func (p *Phone) hashKey() {
 	p.keyHash = xxhash.Sum64(key.Bytes())
 }
 
-// Validate validates the object
+// SanitizeAndValidate validates the object
 func (p Phone) Validate() (err error) {
 	_, err = govalidator.ValidateStruct(p)
 	return nil

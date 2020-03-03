@@ -26,15 +26,14 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = json.Unmarshal(body, &creds)
-	if err != nil {
+	if err = json.Unmarshal(body, &creds); err != nil {
 		util.WriteResponseErrorTo(w, "invalid_payload", err, http.StatusBadRequest)
 		return
 	}
 
 	// performing basic validation of credentials
-	err = creds.Validate()
-	if err != nil {
+
+	if err = creds.SanitizeAndValidate(); err != nil {
 		util.WriteResponseErrorTo(w, "invalid_payload", err, http.StatusBadRequest)
 		return
 	}
@@ -69,13 +68,13 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// logging time
-	if err := u.LastLoginAt.Scan(time.Now()); err != nil {
+	if err = u.LastLoginAt.Scan(time.Now()); err != nil {
 		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to scan time"), http.StatusInternalServerError)
 		return
 	}
 
 	// updating IP from where the u has just authenticated from
-	//u.LastLoginIP = []byte(ri.IP.Translate())
+	u.LastLoginIP = ri.IP.String()
 
 	/*
 		// logging user

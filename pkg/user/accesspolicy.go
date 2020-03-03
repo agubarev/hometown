@@ -412,7 +412,7 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 	return nil
 }
 
-// Validate validates access policy by performing basic self-check
+// SanitizeAndValidate validates access policy by performing basic self-check
 func (ap *AccessPolicy) Validate() error {
 	if ap == nil {
 		return ErrNilAccessPolicy

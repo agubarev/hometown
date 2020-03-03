@@ -61,7 +61,7 @@ func (m *Core) TokenManager() (*token.Manager, error) {
 	return m.tokens, nil
 }
 
-// Validate validates current user manager
+// SanitizeAndValidate validates current user manager
 func (m *Core) Validate() error {
 	if m.users == nil {
 		return user.ErrNilManager

@@ -109,7 +109,7 @@ func (g *Group) StringID() string {
 	return fmt.Sprintf("%s(%d:%s:%s)", g.Kind, g.ID, g.Key, g.Name)
 }
 
-// Validate tells a group to perform self-check and return errors if something's wrong
+// SanitizeAndValidate tells a group to perform self-check and return errors if something's wrong
 func (g *Group) Validate(ctx context.Context) error {
 	if g == nil {
 		return ErrNilGroup

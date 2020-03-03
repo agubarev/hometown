@@ -12,6 +12,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/agubarev/hometown/pkg/password"
@@ -34,7 +35,7 @@ const (
 
 // Claims holds required JWT claims
 type Claims struct {
-	UserID int      `json:"uid"`
+	UserID int64    `json:"uid"`
 	Roles  []string `json:"rs,omitempty"`
 	Groups []string `json:"gs,omitempty"`
 
@@ -48,7 +49,7 @@ type Claims struct {
 // because it contains the refresh token
 type Session struct {
 	Token         string    `json:"t,omitempty"`
-	UserID        int       `json:"uid,omitempty"`
+	UserID        int64     `json:"uid,omitempty"`
 	IP            string    `json:"ip,omitempty"`
 	UserAgent     string    `json:"ua,omitempty"`
 	AccessTokenID string    `json:"jti,omitempty"`
@@ -57,7 +58,7 @@ type Session struct {
 	CreatedAt     time.Time `json:"cat,omitempty"`
 }
 
-// Validate validates the session
+// SanitizeAndValidate validates the session
 func (s *Session) Validate() error {
 	if s.Token == "" {
 		return errors.New("empty token")
@@ -80,7 +81,7 @@ func (s *Session) Validate() error {
 
 // RefreshTokenPayload represents the payload of a refresh token
 type RefreshTokenPayload struct {
-	UserID    int    `json:"uid,omitempty"`
+	UserID    int64  `json:"uid,omitempty"`
 	IP        string `json:"ip,omitempty"`
 	UserAgent string `json:"ua,omitempty"`
 }
@@ -102,18 +103,18 @@ type ClientCredentials struct {
 
 // UserCredentials represents user authentication credentials
 type UserCredentials struct {
-	Username user.TUsername `json:"username"`
-	Password []byte         `json:"password"`
+	Username string `json:"username"`
+	Password []byte `json:"password"`
 }
 
-// Validate performs basic trimming and validations
-func (c *UserCredentials) Validate() error {
-	// trimming whitespace
+// SanitizeAndValidate performs basic trimming and validations
+// TODO: consider preserving original username but still change case to lower
+// NOTE: trimming passwords whitespace to prevent problems when people copy+paste
+func (c *UserCredentials) SanitizeAndValidate() error {
+	c.Username = strings.ToLower(strings.TrimSpace(c.Username))
+	c.Password = bytes.TrimSpace(c.Password)
 
-	c.Username = user.TUsernameFromBytes(bytes.TrimSpace(c.Username[:]))
-	copy(c.Password, bytes.TrimSpace(c.Password[:]))
-
-	if c.Username[0] == 0 {
+	if c.Username == "" {
 		return ErrEmptyUsername
 	}
 
@@ -158,10 +159,10 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 	}
 }
 
-// Validate validates revoked token
+// SanitizeAndValidate validates revoked token
 func (ri *RevokedAccessToken) Validate() error {
 	// a little side-effect that won't hurt
-	ri.TokenID = bytes.TrimSpace(ri.TokenID)
+	ri.TokenID = strings.TrimSpace(ri.TokenID)
 
 	if ri.TokenID == "" {
 		return ErrInvalidTokenID
@@ -297,16 +298,16 @@ func (a *Authenticator) PrivateKey() (*rsa.PrivateKey, error) {
 }
 
 // Authenticate authenticates a user by a given username and password
-func (a *Authenticator) Authenticate(ctx context.Context, username user.TUsername, rawpass []byte, ri *RequestMetadata) (*user.User, error) {
-	u, err := a.UserManager().UserByUsername(ctx, username)
+func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpass []byte, ri *RequestMetadata) (u user.User, err error) {
+	u, err = a.UserManager().UserByUsername(ctx, username)
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// obtaining logger
 	l := a.Logger().With(
-		zap.Int("user_id", u.ID),
-		zap.ByteString("username", u.Username[:]),
+		zap.Int64("user_id", u.ID),
+		zap.String("username", u.Username),
 		zap.String("ip", ri.IP.String()),
 		zap.String("user_agent", ri.UserAgent),
 	)
@@ -319,7 +320,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username user.TUsernam
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time),
 		)
 
-		return nil, ErrUserSuspended
+		return u, ErrUserSuspended
 	}
 
 	// obtaining password manager
@@ -329,13 +330,13 @@ func (a *Authenticator) Authenticate(ctx context.Context, username user.TUsernam
 	userpass, err := pm.Get(ctx, password.KUser, u.ID)
 	if err != nil {
 		l.Info("password not found", zap.Error(err))
-		return nil, err
+		return u, err
 	}
 
 	// comparing passwords
 	if !userpass.Compare(rawpass) {
 		l.Info("wrong password signin attempt")
-		return nil, ErrAuthenticationFailed
+		return u, ErrAuthenticationFailed
 	}
 
 	l.Info("authenticated by credentials")
@@ -344,30 +345,30 @@ func (a *Authenticator) Authenticate(ctx context.Context, username user.TUsernam
 }
 
 // AuthenticateByRefreshToken authenticates a user by a given refresh token
-func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token.Token, ri *RequestMetadata) (u *user.User, err error) {
+func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token.Token, ri *RequestMetadata) (u user.User, err error) {
 	tm := a.TokenManager()
 
 	// validating refresh token
 	err = t.Validate()
 	if err != nil {
-		return nil, ErrInvalidRefreshToken
+		return u, ErrInvalidRefreshToken
 	}
 
 	// unmarshaling the payload
 	payload := RefreshTokenPayload{}
 	if err = json.Unmarshal(t.Payload, &payload); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal payload: %s", err)
+		return u, fmt.Errorf("failed to unmarshal payload: %s", err)
 	}
 
 	// obtaining a u specified in the token's payload
 	u, err = a.users.UserByID(ctx, payload.UserID)
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// obtaining logger
 	l := a.Logger().With(
-		zap.Int("user_id", u.ID),
+		zap.Int64("user_id", u.ID),
 		zap.String("username", u.Username),
 		zap.String("ip", ri.IP.String()),
 		zap.String("user_agent", ri.UserAgent),
@@ -380,10 +381,10 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 		// to prevent any further use (safety first)
 		if err = tm.Delete(ctx, t); err != nil {
 			l.Warn("failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
-			return nil, fmt.Errorf("failed to delete refresh token: %s", t.Token)
+			return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
 		}
 
-		return nil, ErrWrongIP
+		return u, ErrWrongIP
 	}
 
 	// comparing User-Agent strings
@@ -392,7 +393,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 		// deleting session because it could've been exposed (safety first)
 		if err = tm.Delete(ctx, t); err != nil {
 			l.Warn("failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
-			return nil, fmt.Errorf("failed to delete refresh token: %s", t.Token)
+			return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
 		}
 	}
 
@@ -410,10 +411,10 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 		err = tm.Delete(ctx, t)
 		if err != nil {
 			l.Warn("failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
-			return nil, fmt.Errorf("failed to delete refresh token: %s", t.Token)
+			return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
 		}
 
-		return nil, ErrUserSuspended
+		return u, ErrUserSuspended
 	}
 
 	l.Info("authenticated by refresh token")
@@ -422,9 +423,9 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 }
 
 // DestroySession destroys session by token, and as a given user
-func (a *Authenticator) DestroySession(ctx context.Context, destroyedBy *user.User, stok string, ri *RequestMetadata) error {
-	if destroyedBy == nil {
-		return user.ErrNilUser
+func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID int64, stok string, ri *RequestMetadata) error {
+	if destroyedByID == 0 {
+		return user.ErrZeroUserID
 	}
 
 	// obtaining token manager
@@ -437,7 +438,7 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedBy *user.Us
 	}
 
 	// verifying whether this session belongs to this revoker
-	if s.UserID != destroyedBy.ID {
+	if s.UserID != destroyedByID {
 		return ErrWrongUser
 	}
 
@@ -473,8 +474,8 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedBy *user.Us
 }
 
 // GenerateAccessToken generates access token for a given user
-func (a *Authenticator) GenerateAccessToken(u *user.User) (string, string, error) {
-	if u == nil {
+func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (string, string, error) {
+	if u.ID == 0 {
 		return "", "", user.ErrNilUser
 	}
 
@@ -484,7 +485,7 @@ func (a *Authenticator) GenerateAccessToken(u *user.User) (string, string, error
 	gs := make([]string, 0)
 	rs := make([]string, 0)
 
-	for _, g := range gm.GroupsByUserID(user.GKAll) {
+	for _, g := range gm.GroupsByUserID(ctx, u.ID, user.GKAll) {
 		switch g.Kind {
 		case user.GKRole:
 			rs = append(rs, g.Key)
@@ -525,9 +526,9 @@ func (a *Authenticator) GenerateAccessToken(u *user.User) (string, string, error
 }
 
 // GenerateRefreshToken generates a refresh token for a given user
-func (a *Authenticator) GenerateRefreshToken(ctx context.Context, user *user.User, ri *RequestMetadata) (*token.Token, error) {
-	if user == nil {
-		return nil, user.ErrNilUser
+func (a *Authenticator) GenerateRefreshToken(ctx context.Context, user user.User, ri *RequestMetadata) (*token.Token, error) {
+	if user.ID == 0 {
+		return nil, user.ErrZeroUserID
 	}
 
 	// obtaining token manager
@@ -548,19 +549,19 @@ func (a *Authenticator) GenerateRefreshToken(ctx context.Context, user *user.Use
 
 // CreateSession generates a user session
 // NOTE: the session uses AccessTokenTTL for its own expiry
-func (a *Authenticator) CreateSession(user *user.User, ri *RequestMetadata, jti string, rtok *token.Token) (*Session, error) {
-	if user == nil {
-		return nil, user.ErrNilUser
+func (a *Authenticator) CreateSession(ctx context.Context, user user.User, ri *RequestMetadata, jti string, rtok *token.Token) (sess Session, err error) {
+	if user.ID == 0 {
+		return sess, user.ErrZeroUserID
 	}
 
 	// generating token
 	buf, err := util.NewCSPRNG(24)
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate CSPRNG token: %s", err)
+		return sess, fmt.Errorf("failed to generate CSPRNG token: %s", err)
 	}
 
 	// initializing the actual session
-	s := &Session{
+	sess = Session{
 		Token:         base64.URLEncoding.EncodeToString(buf),
 		UserID:        user.ID,
 		IP:            ri.IP.String(),
@@ -572,26 +573,26 @@ func (a *Authenticator) CreateSession(user *user.User, ri *RequestMetadata, jti 
 	}
 
 	// adding session to the registry
-	if err = a.RegisterSession(s); err != nil {
-		return nil, fmt.Errorf("failed to add user session to the registry: %s", err)
+	if err = a.RegisterSession(sess); err != nil {
+		return sess, fmt.Errorf("failed to add user session to the registry: %s", err)
 	}
 
-	return s, nil
+	return sess, nil
 }
 
 // GenerateTokenTrinity generates a trinity of tokens: session, access and refresh
-func (a *Authenticator) GenerateTokenTrinity(user *user.User, ri *RequestMetadata) (*TokenTrinity, error) {
-	atok, jti, err := a.GenerateAccessToken(user)
+func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, user user.User, ri *RequestMetadata) (*TokenTrinity, error) {
+	atok, jti, err := a.GenerateAccessToken(ctx, user)
 	if err != nil {
 		return nil, err
 	}
 
-	rtok, err := a.GenerateRefreshToken(user, ri)
+	rtok, err := a.GenerateRefreshToken(ctx, user, ri)
 	if err != nil {
 		return nil, err
 	}
 
-	session, err := a.CreateSession(user, ri, jti, rtok)
+	session, err := a.CreateSession(ctx, user, ri, jti, rtok)
 	if err != nil {
 		return nil, err
 	}
@@ -606,7 +607,7 @@ func (a *Authenticator) GenerateTokenTrinity(user *user.User, ri *RequestMetadat
 }
 
 // UserFromToken validates a JWT token and returns a corresponding user
-func (a *Authenticator) UserFromToken(tok string) (*user.User, error) {
+func (a *Authenticator) UserFromToken(tok string) (u user.User, err error) {
 	// obtaining manager's private key
 	pk, err := a.PrivateKey()
 	if err != nil {
@@ -655,26 +656,26 @@ func (a *Authenticator) IsRevoked(tokenID string) bool {
 }
 
 // RegisterSession adds a given session
-func (a *Authenticator) RegisterSession(s *Session) error {
-	if s == nil {
-		return ErrNilSession
+func (a *Authenticator) RegisterSession(sess Session) (err error) {
+	if err = sess.Validate(); err != nil {
+		return err
 	}
 
-	return a.backend.PutSession(s)
+	return a.backend.PutSession(sess)
 }
 
 // GetSession returns a session if it's found in the backend
 // by its token string
-func (a *Authenticator) GetSession(stok string) (*Session, error) {
+func (a *Authenticator) GetSession(stok string) (Session, error) {
 	return a.backend.GetSession(stok)
 }
 
 // GetSessionByAccessToken returns a session by access token
-func (a *Authenticator) GetSessionByAccessToken(jti string) (*Session, error) {
+func (a *Authenticator) GetSessionByAccessToken(jti string) (Session, error) {
 	return a.backend.GetSessionByAccessToken(jti)
 }
 
 // GetSessionBySessionToken returns a session by access token
-func (a *Authenticator) GetSessionBySessionToken(rtok string) (*Session, error) {
+func (a *Authenticator) GetSessionBySessionToken(rtok string) (Session, error) {
 	return a.backend.GetSessionByRefreshToken(rtok)
 }

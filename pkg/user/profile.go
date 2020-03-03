@@ -86,7 +86,7 @@ func (p *Profile) hashKey() {
 	p.keyHash = xxhash.Sum64(key.Bytes())
 }
 
-// Validate validates the object
+// SanitizeAndValidate validates the object
 func (p Profile) Validate() (err error) {
 	_, err = govalidator.ValidateStruct(p)
 	return nil

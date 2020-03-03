@@ -46,8 +46,8 @@ func MiddlewareAuth(next http.Handler) http.Handler {
 			ID:   1,
 			ULID: util.NewULID(),
 			Essential: user.Essential{
-				Username:    user.TUsername{},
-				DisplayName: user.TDisplayName{},
+				Username:    "testuser",
+				DisplayName: "Test User",
 			},
 			Metadata: user.Metadata{},
 		}
