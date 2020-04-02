@@ -52,7 +52,7 @@ func TestSignin(t *testing.T) {
 	// creating test user
 	testuser, err := um.CreateWithPassword(
 		"testuser",
-		"testuser@example.com",
+		"testuser@hometown.local",
 		testpass,
 		testReusableUserinfo,
 	)

@@ -7,7 +7,6 @@ import (
 	"crypto/rsa"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -20,6 +19,7 @@ import (
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -526,8 +526,8 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 }
 
 // GenerateRefreshToken generates a refresh token for a given user
-func (a *Authenticator) GenerateRefreshToken(ctx context.Context, user user.User, ri *RequestMetadata) (*token.Token, error) {
-	if user.ID == 0 {
+func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, ri *RequestMetadata) (*token.Token, error) {
+	if u.ID == 0 {
 		return nil, user.ErrZeroUserID
 	}
 
@@ -538,7 +538,7 @@ func (a *Authenticator) GenerateRefreshToken(ctx context.Context, user user.User
 		ctx,
 		token.TkRefreshToken,
 		RefreshTokenPayload{
-			UserID:    user.ID,
+			UserID:    u.ID,
 			UserAgent: ri.UserAgent,
 			IP:        ri.IP.String(),
 		},
@@ -549,21 +549,21 @@ func (a *Authenticator) GenerateRefreshToken(ctx context.Context, user user.User
 
 // CreateSession generates a user session
 // NOTE: the session uses AccessTokenTTL for its own expiry
-func (a *Authenticator) CreateSession(ctx context.Context, user user.User, ri *RequestMetadata, jti string, rtok *token.Token) (sess Session, err error) {
-	if user.ID == 0 {
+func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri *RequestMetadata, jti string, rtok *token.Token) (sess Session, err error) {
+	if u.ID == 0 {
 		return sess, user.ErrZeroUserID
 	}
 
 	// generating token
 	buf, err := util.NewCSPRNG(24)
 	if err != nil {
-		return sess, fmt.Errorf("failed to generate CSPRNG token: %s", err)
+		return sess, errors.Wrap(err, "failed to generate CSPRNG token")
 	}
 
 	// initializing the actual session
 	sess = Session{
 		Token:         base64.URLEncoding.EncodeToString(buf),
-		UserID:        user.ID,
+		UserID:        u.ID,
 		IP:            ri.IP.String(),
 		UserAgent:     ri.UserAgent,
 		AccessTokenID: jti,
@@ -574,7 +574,7 @@ func (a *Authenticator) CreateSession(ctx context.Context, user user.User, ri *R
 
 	// adding session to the registry
 	if err = a.RegisterSession(sess); err != nil {
-		return sess, fmt.Errorf("failed to add user session to the registry: %s", err)
+		return sess, fmt.Errorf("failed to add u session to the registry: %s", err)
 	}
 
 	return sess, nil
@@ -611,14 +611,14 @@ func (a *Authenticator) UserFromToken(tok string) (u user.User, err error) {
 	// obtaining manager's private key
 	pk, err := a.PrivateKey()
 	if err != nil {
-		return nil, ErrNilPrivateKey
+		return u, ErrNilPrivateKey
 	}
 
 	// custom claims
 	claims := new(Claims)
 
 	// validating and parsing token
-	token, err := jwt.ParseWithClaims(tok, claims, func(t *jwt.Token) (interface{}, error) {
+	t, err := jwt.ParseWithClaims(tok, claims, func(t *jwt.Token) (interface{}, error) {
 		// making sure that proper signing method is used
 		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
 			return nil, fmt.Errorf("invalid signing method")
@@ -628,15 +628,15 @@ func (a *Authenticator) UserFromToken(tok string) (u user.User, err error) {
 	})
 
 	if err != nil {
-		return nil, err
+		return u, err
 	}
 
 	// validating a token on a time basis (i.e. expired, not eligible yet)
-	if !token.Valid {
-		return nil, ErrInvalidAccessToken
+	if !t.Valid {
+		return u, ErrInvalidAccessToken
 	}
 
-	return a.users.GetByKey("id", claims.UserID)
+	return a.users.UserByID(nil, u.ID)
 }
 
 // RevokeAccessToken adds a given token ObjectID to the blacklist for the duration

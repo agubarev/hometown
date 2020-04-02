@@ -2,11 +2,17 @@ package core
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
 	"go.uber.org/zap"
+)
+
+// errors
+var (
+	ErrNilCore = errors.New("hometown core is nil")
 )
 
 type Core struct {

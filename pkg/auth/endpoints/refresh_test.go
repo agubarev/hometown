@@ -48,7 +48,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	// creating test user
 	testuser, err := um.CreateUser(
 		"testuser",
-		"testuser@example.com",
+		"testuser@hometown.local",
 		testpass,
 		testReusableUserinfo,
 	)

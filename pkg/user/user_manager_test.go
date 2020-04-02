@@ -61,7 +61,7 @@ func TestUserManagerCreate(t *testing.T) {
 				DisplayName: "test display name",
 			},
 			ProfileEssential: user.ProfileEssential{},
-			EmailAddr:        "testuser@example.com",
+			EmailAddr:        "testuser@hometown.local",
 			PhoneNumber:      "12398543292",
 			Password:         util.NewULID().Entropy(),
 		}

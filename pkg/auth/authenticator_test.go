@@ -39,22 +39,17 @@ func TestAuthenticate(t *testing.T) {
 	a.NoError(am.SetLogger(al))
 
 	// using ULID as a random password
-	testpass := util.NewULID().String()
+	testpass := util.NewULID().Entropy()
 
 	// creating test user
-	testuser, err := um.CreateWithPassword(
-		"testuser",
-		"testuser@example.com",
-		testpass,
-		map[string]string{},
-	)
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 	a.NotNil(testuser)
 
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	u, err := am.Authenticate(testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(testuser, u))
@@ -62,14 +57,14 @@ func TestAuthenticate(t *testing.T) {
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
-	u, err = am.Authenticate("wrongusername", testpass, auth.NewRequestInfo(nil))
+	u, err = am.Authenticate(ctx, "wrongusername", testpass, auth.NewRequestInfo(nil))
 	a.EqualError(user.ErrUserNotFound, err.Error())
 	a.Nil(u)
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
-	u, err = am.Authenticate(testuser.Username, "wrongpass", auth.NewRequestInfo(nil))
+	u, err = am.Authenticate(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestInfo(nil))
 	a.EqualError(auth.ErrAuthenticationFailed, err.Error())
 	a.Nil(u)
 }
@@ -83,7 +78,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test u manager
-	um, _, err := user.ManagerForTesting(db)
+	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
@@ -99,22 +94,19 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NoError(am.SetLogger(al))
 
 	// using ULID as a random password
-	testpass := util.NewULID().String()
+	testpass := util.NewULID().Entropy()
 
 	// creating test u
-	testuser, err := um.CreateWithPassword(
-		"testuser",
-		"testuser@example.com",
-		testpass,
-		map[string]string{},
-	)
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	a.NoError(err)
+	a.NotNil(testuser)
 	a.NoError(err)
 	a.NotNil(testuser)
 
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	u, err := am.Authenticate(testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(testuser, u))
@@ -122,14 +114,14 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
-	u, err = am.Authenticate("wrongusername", testpass, auth.NewRequestInfo(nil))
+	u, err = am.Authenticate(ctx, "wrongusername", testpass, auth.NewRequestInfo(nil))
 	a.EqualError(user.ErrUserNotFound, err.Error())
 	a.Nil(u)
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
-	u, err = am.Authenticate(testuser.Username, "wrongpass", auth.NewRequestInfo(nil))
+	u, err = am.Authenticate(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestInfo(nil))
 	a.EqualError(auth.ErrAuthenticationFailed, err.Error())
 	a.Nil(u)
 }
@@ -143,7 +135,7 @@ func TestDestroySession(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test u manager
-	um, _, err := user.ManagerForTesting(db)
+	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
@@ -159,25 +151,15 @@ func TestDestroySession(t *testing.T) {
 	a.NoError(am.SetLogger(al))
 
 	// using ULID as a random password
-	testpass := util.NewULID().String()
+	testpass := util.NewULID().Entropy()
 
-	// creating u
-	testuser, err := um.CreateWithPassword(
-		"testuser",
-		"testuser@example.com",
-		testpass,
-		map[string]string{},
-	)
+	// creating user
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 	a.NotNil(testuser)
 
-	// creating another u
-	testuser2, err := um.CreateWithPassword(
-		"testuser2",
-		"testuser2@example.com",
-		testpass,
-		map[string]string{},
-	)
+	// creating another user
+	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
 	a.NoError(err)
 	a.NotNil(testuser)
 
@@ -198,13 +180,13 @@ func TestDestroySession(t *testing.T) {
 	}
 
 	// authentication is not necessary for this test, just keeps things consistent
-	u, err := am.Authenticate(testuser.Username, testpass, correctMD)
+	u, err := am.Authenticate(ctx, testuser.Username, testpass, correctMD)
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(testuser, u))
 
-	// generating token trinity for the u with correct request metadata
-	tokenTrinity, err := am.GenerateTokenTrinity(u, correctMD)
+	// generating token trinity for the user with correct request metadata
+	tokenTrinity, err := am.GenerateTokenTrinity(ctx, u, correctMD)
 	a.NoError(err)
 	a.NotNil(tokenTrinity)
 
@@ -221,19 +203,19 @@ func TestDestroySession(t *testing.T) {
 	// this session was created for "testuser", attempting to destroy
 	// by "testuser2"
 	a.EqualError(
-		am.DestroySession(testuser2, bs.Token, correctMD),
+		am.DestroySession(ctx, testuser2.ID, bs.Token, correctMD),
 		auth.ErrWrongUser.Error(),
 	)
 
-	// correct u but wrong IP
+	// correct user but wrong IP
 	a.EqualError(
-		am.DestroySession(testuser, bs.Token, wrongIP),
+		am.DestroySession(ctx, testuser.ID, bs.Token, wrongIP),
 		auth.ErrWrongIP.Error(),
 	)
 
-	// correct u but wrong u agent
+	// correct user but wrong user agent
 	a.EqualError(
-		am.DestroySession(testuser, bs.Token, wrongUserAgent),
+		am.DestroySession(ctx, testuser.ID, bs.Token, wrongUserAgent),
 		auth.ErrWrongUserAgent.Error(),
 	)
 
@@ -241,7 +223,7 @@ func TestDestroySession(t *testing.T) {
 	spew.Dump(bs)
 
 	// and finally, everything should be correct
-	a.NoError(am.DestroySession(testuser, bs.Token, correctMD))
+	a.NoError(am.DestroySession(ctx, testuser.ID, bs.Token, correctMD))
 
 	// ====================================================================================
 	// making sure that session doesn't exist anymore and its

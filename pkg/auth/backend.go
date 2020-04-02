@@ -170,54 +170,54 @@ func (b *DefaultBackend) PutSession(s Session) error {
 
 // GetSession fetches a session by a given token string,
 // from the registry backend
-func (b *DefaultBackend) GetSession(stok string) (Session, error) {
+func (b *DefaultBackend) GetSession(stok string) (sess Session, err error) {
 	b.RLock()
-	s, ok := b.stokenMap[stok]
+	sess, ok := b.stokenMap[stok]
 	b.RUnlock()
 
 	if !ok {
-		return nil, ErrSessionNotFound
+		return sess, ErrSessionNotFound
 	}
 
-	return s, nil
+	return sess, nil
 }
 
 // DeleteSession deletes a given session from the backend registry
-func (b *DefaultBackend) DeleteSession(s Session) error {
-	if err := s.Validate(); err != nil {
+func (b *DefaultBackend) DeleteSession(sess Session) error {
+	if err := sess.Validate(); err != nil {
 		return err
 	}
 
 	b.Lock()
-	delete(b.sessions[s.UserID], s.Token)
-	delete(b.stokenMap, s.Token)
+	delete(b.sessions[sess.UserID], sess.Token)
+	delete(b.stokenMap, sess.Token)
 	b.Unlock()
 
 	return nil
 }
 
 // GetSessionByAccessToken retrieves session by an access token ObjectID (JTI: JWT Token ObjectID)
-func (b *DefaultBackend) GetSessionByAccessToken(jti string) (Session, error) {
+func (b *DefaultBackend) GetSessionByAccessToken(jti string) (sess Session, err error) {
 	b.RLock()
-	s, ok := b.jtiMap[jti]
+	sess, ok := b.jtiMap[jti]
 	b.RUnlock()
 
 	if !ok {
-		return nil, ErrSessionNotFound
+		return sess, ErrSessionNotFound
 	}
 
-	return s, nil
+	return sess, nil
 }
 
 // GetSessionByRefreshToken retrieves session by a refresh token
-func (b *DefaultBackend) GetSessionByRefreshToken(rtok string) (Session, error) {
+func (b *DefaultBackend) GetSessionByRefreshToken(rtok string) (sess Session, err error) {
 	b.RLock()
-	s, ok := b.rtokenMap[rtok]
+	sess, ok := b.rtokenMap[rtok]
 	b.RUnlock()
 
 	if !ok {
-		return nil, ErrSessionNotFound
+		return sess, ErrSessionNotFound
 	}
 
-	return s, nil
+	return sess, nil
 }

@@ -157,10 +157,10 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@example.com")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
@@ -247,10 +247,10 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@example.com")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
@@ -336,10 +336,10 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@example.com")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 
 	wantedRights := user.APView | user.APChange
@@ -408,10 +408,10 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	testuser1, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
+	testuser1, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 
-	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@example.com")
+	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
 	a.NoError(err)
 
 	ap, err := apm.Create(ctx, testuser1.ID, 0, "test_name", "test_type", 1, false, false)
@@ -450,10 +450,10 @@ func TestAccessPolicyClone(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	owner, err := user.CreateTestUser(ctx, um, "owner", "owner@example.com")
+	owner, err := user.CreateTestUser(ctx, um, "owner", "owner@hometown.local")
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 
 	ap, err := apm.Create(ctx, owner.ID, 0, "test_name", "test_type", 1, false, false)
@@ -518,10 +518,10 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@example.com")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
 	a.NoError(err)
 
-	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@example.com")
+	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@hometown.local")
 	a.NoError(err)
 
 	role, err := gm.Create(ctx, 0, user.GKRole, "test_role_group", "Test Role Group")
@@ -593,7 +593,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@example.com")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one

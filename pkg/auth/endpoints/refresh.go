@@ -30,13 +30,13 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// obtaining token manager
-	tm, err := a.UserManager.TokenManager()
+	tm := a.TokenManager()
 	if err != nil {
 		util.WriteResponseErrorTo(w, "internal", err, http.StatusInternalServerError)
 	}
 
 	// obtaining the refresh token
-	rtok, err := tm.Get(string(rbody))
+	rtok, err := tm.Get(ctx, string(rbody))
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", auth.ErrInvalidRefreshToken, http.StatusUnauthorized)
 		return
@@ -99,5 +99,5 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/text")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(response))
+	w.Write(response)
 }

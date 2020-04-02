@@ -204,7 +204,7 @@ func TestGroupStoreRelations(t *testing.T) {
 		ParentID:    0,
 	}
 
-	u, err := user.CreateTestUser(ctx, um, "testuser", "testuser@example.com")
+	u, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
 	a.NoError(err)
 	a.NotNil(u)
 
