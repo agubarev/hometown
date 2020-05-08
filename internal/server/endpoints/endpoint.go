@@ -68,7 +68,7 @@ func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// if access policy is set, then checking whether
-	// this client has access to this Endpoint
+	// this client has access to this endpoint
 	if e.ap != nil {
 		http.Error(w, "this endpoint is protected by access policy", http.StatusForbidden)
 		return

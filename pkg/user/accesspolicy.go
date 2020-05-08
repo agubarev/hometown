@@ -328,11 +328,11 @@ func (ap *AccessPolicy) calculateChecksum() uint64 {
 	buf := new(bytes.Buffer)
 
 	fields := []interface{}{
-		int64(ap.ParentID),
-		int64(ap.OwnerID),
+		ap.ParentID,
+		ap.OwnerID,
 		[]byte(ap.Name),
 		[]byte(ap.ObjectType),
-		int64(ap.ObjectID),
+		ap.ObjectID,
 		ap.IsExtended,
 		ap.IsInherited,
 	}
