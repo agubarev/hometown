@@ -8,9 +8,9 @@ import (
 	"github.com/agubarev/hometown/pkg/auth"
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/user"
-
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +22,7 @@ func TestAuthenticate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	// initializing test u manager
+	// initializing test user manager
 	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
@@ -42,7 +42,7 @@ func TestAuthenticate(t *testing.T) {
 	testpass := util.NewULID().Entropy()
 
 	// creating test user
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
@@ -77,7 +77,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	// initializing test u manager
+	// initializing test user manager
 	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
@@ -97,7 +97,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	testpass := util.NewULID().Entropy()
 
 	// creating test u
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 	a.NoError(err)
@@ -108,22 +108,21 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	// ====================================================================================
 	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
-	a.NotNil(u)
-	a.True(reflect.DeepEqual(testuser, u))
+	a.NotZero(u.ID)
+	a.Equal(testuser.ID, u.ID)
+	a.True(reflect.DeepEqual(testuser.Essential, u.Essential))
 
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
 	u, err = am.Authenticate(ctx, "wrongusername", testpass, auth.NewRequestInfo(nil))
-	a.EqualError(user.ErrUserNotFound, err.Error())
-	a.Nil(u)
+	a.EqualError(user.ErrUserNotFound, errors.Cause(err).Error())
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
 	u, err = am.Authenticate(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestInfo(nil))
-	a.EqualError(auth.ErrAuthenticationFailed, err.Error())
-	a.Nil(u)
+	a.EqualError(auth.ErrAuthenticationFailed, errors.Cause(err).Error())
 }
 
 func TestDestroySession(t *testing.T) {
@@ -134,7 +133,7 @@ func TestDestroySession(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	// initializing test u manager
+	// initializing test user manager
 	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
@@ -154,12 +153,12 @@ func TestDestroySession(t *testing.T) {
 	testpass := util.NewULID().Entropy()
 
 	// creating user
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
 	// creating another user
-	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
+	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 

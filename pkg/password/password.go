@@ -19,7 +19,7 @@ const (
 type Password struct {
 	Kind             Kind         `db:"kind" json:"-"`
 	OwnerID          int64        `db:"owner_id" json:"-"`
-	Hash             [60]byte     `db:"hash" json:"-"`
+	Hash             []byte       `db:"hash" json:"-"`
 	CreatedAt        dbr.NullTime `db:"created_at" json:"-"`
 	UpdatedAt        dbr.NullTime `db:"updated_at" json:"-"`
 	ExpireAt         dbr.NullTime `db:"expire_at" json:"-"`
@@ -36,7 +36,7 @@ func (p Password) Validate() error {
 		return ErrZeroOwnerID
 	}
 
-	if p.Hash[0] == 0 {
+	if len(p.Hash) == 0 {
 		return ErrEmptyPassword
 	}
 
@@ -67,7 +67,6 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 
 // New creates a hash from a given raw password byte slice
 func New(k Kind, ownerID int64, rawpass []byte, data []string) (p Password, err error) {
-
 	if err = EvaluatePasswordStrength(rawpass, data); err != nil {
 		return p, err
 	}
@@ -80,16 +79,15 @@ func New(k Kind, ownerID int64, rawpass []byte, data []string) (p Password, err 
 	p = Password{
 		Kind:      k,
 		OwnerID:   ownerID,
+		Hash:      h,
 		CreatedAt: dbr.NewNullTime(time.Now()),
 		ExpireAt:  dbr.NewNullTime(time.Now().Add(defaultTTL)),
 	}
-
-	copy(p.Hash[:], h)
 
 	return p, nil
 }
 
 // Compare tests whether a given plaintext password is valid
 func (p Password) Compare(rawpass []byte) bool {
-	return bcrypt.CompareHashAndPassword(p.Hash[:], rawpass) == nil
+	return bcrypt.CompareHashAndPassword(p.Hash, rawpass) == nil
 }

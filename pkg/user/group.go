@@ -289,7 +289,7 @@ func (g *Group) AddMember(ctx context.Context, userID int64) (err error) {
 			logger.Info("storing group userID relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
 
 			// if container is set, then storing group userID relation
-			if err = g.manager.store.PutRelation(ctx, g.ID, userID); err != nil {
+			if err = g.manager.store.CreateRelation(ctx, g.ID, userID); err != nil {
 				logger.Info("failed to store group userID relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
 				return err
 			}

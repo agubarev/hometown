@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 
+	"github.com/agubarev/hometown/pkg/util/guard"
 	"github.com/gocraft/dbr/v2"
 )
 
@@ -35,6 +36,7 @@ func (s *tokenStore) Put(ctx context.Context, t *Token) error {
 
 	_, err := s.db.NewSession(nil).
 		InsertInto("token").
+		Columns(guard.DBColumnsFrom(t)...).
 		Record(t).
 		ExecContext(ctx)
 
@@ -50,7 +52,7 @@ func (s *tokenStore) Get(ctx context.Context, token string) (*Token, error) {
 	t := new(Token)
 
 	err := s.db.NewSession(nil).
-		SelectBySql("SELECT * FROM tokens WHERE token = ? LIMIT 1", token).
+		SelectBySql("SELECT * FROM token WHERE token = ? LIMIT 1", token).
 		LoadOneContext(ctx, t)
 
 	if err != nil {

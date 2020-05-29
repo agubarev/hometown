@@ -61,7 +61,7 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// generating a token trinity
-	tokenTrinity, err := a.GenerateTokenTrinity(u, ri)
+	tokenTrinity, err := a.GenerateTokenTrinity(r.Context(), u, ri)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "internal", err, http.StatusInternalServerError)
 		return
@@ -73,7 +73,7 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// updating IP from where the u has just authenticated from
+	// updating IP from where the user has just authenticated from
 	u.LastLoginIP = ri.IP.String()
 
 	/*

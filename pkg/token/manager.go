@@ -289,18 +289,18 @@ func (m *Manager) List(k Kind) []*Token {
 func (m *Manager) Create(ctx context.Context, k Kind, payload interface{}, ttl time.Duration, checkins int) (*Token, error) {
 	t, err := NewToken(k, payload, ttl, checkins)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create new token(%s): %s", k, err)
+		return nil, errors.Wrapf(err, "failed to initialize new token: %s", k)
 	}
 
 	// paranoid check; making sure there is no existing token object with such token key string
 	if _, err := m.Get(ctx, t.Token); err == nil {
-		return nil, fmt.Errorf("failed to create new token(%s): found duplicate token %s", k, t.Token)
+		return nil, errors.Wrapf(err, "found duplicate %s token: %s", k, t.Token)
 	}
 
 	// storing new token
 	err = m.store.Put(ctx, t)
 	if err != nil {
-		return nil, fmt.Errorf("failed to store new token: %s", err)
+		return nil, errors.Wrap(err, "failed to store new token")
 	}
 
 	// adding new token to the container

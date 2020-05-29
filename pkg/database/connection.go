@@ -38,13 +38,13 @@ func Connection() *dbr.Connection {
 }
 
 // ForTesting simply returns a database connection
-func ForTesting() (*dbr.Connection, error) {
+func ForTesting() (conn *dbr.Connection, err error) {
 	if flag.Lookup("test.v") == nil {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
 		return nil, nil
 	}
 
-	conn, err := dbr.Open("mysql", os.Getenv("HOMETOWN_TEST_DATABASE"), nil)
+	conn, err = dbr.Open("mysql", os.Getenv("HOMETOWN_TEST_DATABASE"), nil)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to connect to test database")
 	}

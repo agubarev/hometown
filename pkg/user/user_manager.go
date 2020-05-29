@@ -237,7 +237,7 @@ func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []User) (us []Use
 	// validating each user
 	for _, u := range newUsers {
 		if err = u.Validate(); err != nil {
-			return nil, errors.Wrap(err, "failed to validate u before bulk creation")
+			return nil, errors.Wrap(err, "failed to validate user before bulk creation")
 		}
 	}
 
@@ -312,7 +312,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id int64, fn func(ctx context.
 	// obtaining existing user
 	u, err = store.FetchUserByID(ctx, id)
 	if err != nil {
-		return u, nil, errors.Wrap(err, "failed to obtain existing u from the store")
+		return u, nil, errors.Wrap(err, "failed to obtain existing user from the store")
 	}
 
 	// saving backup for further diff comparison

@@ -27,7 +27,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotNil(db)
 
 	// initializing test user manager
-	um, err := user.NewManagerForTesting(db)
+	um, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
 	a.NotNil(um)
 
@@ -43,61 +43,55 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NoError(am.SetLogger(al))
 
 	// using ULID as a random password
-	testpass := util.NewULID().String()
+	testpass := []byte(util.NewULID().String())
 
 	// creating test user
-	testuser, err := um.CreateUser(
-		"testuser",
-		"testuser@hometown.local",
-		testpass,
-		testReusableUserinfo,
-	)
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
-	gm, err := um.GroupManager()
-	a.NoError(err)
+	gm := um.GroupManager()
 	a.NotNil(gm)
 
 	// creating groups and roles for testing
-	g1, err := gm.Create(user.GKGroup, "group_1", "Group 1", nil)
+	g1, err := gm.Create(ctx, 0, user.GKGroup, "group_1", "Group 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(user.GKGroup, "group_2", "Group 2", nil)
+	g2, err := gm.Create(ctx, 0, user.GKGroup, "group_2", "Group 2")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(user.GKGroup, "group_3", "Group 3 (sub-group of Group 2)", g2)
+	g3, err := gm.Create(ctx, g2.ID, user.GKGroup, "group_3", "Group 3 (sub-group of Group 2)")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(user.GKRole, "role_1", "Role 1", nil)
+	r1, err := gm.Create(ctx, 0, user.GKRole, "role_1", "Role 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(user.GKRole, "role_2", "Role 2", nil)
+	r2, err := gm.Create(ctx, 0, user.GKRole, "role_2", "Role 2")
 	a.NoError(err)
 	a.NotNil(g1)
 
 	// adding test user to every role and a group
-	g1.AddMember(testuser)
-	g2.AddMember(testuser)
-	g3.AddMember(testuser)
-	r1.AddMember(testuser)
-	r2.AddMember(testuser)
+	a.NoError(g1.AddMember(ctx, testuser.ID))
+	a.NoError(g2.AddMember(ctx, testuser.ID))
+	a.NoError(g3.AddMember(ctx, testuser.ID))
+	a.NoError(r1.AddMember(ctx, testuser.ID))
+	a.NoError(r2.AddMember(ctx, testuser.ID))
 
 	// ====================================================================================
 	// wrong IP case
 	// NOTE: request's RemoteAddr is empty when testing, so validation
 	// can be failed by specifying any IP, i.e. 127.0.0.1
 	// ====================================================================================
-	user, err := am.Authenticate(testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
-	a.NotNil(user)
-	a.True(reflect.DeepEqual(user, testuser))
+	a.NotNil(u)
+	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-	tp, err := am.GenerateTokenTrinity(user, auth.NewRequestInfo(nil))
+	tp, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
 	a.NoError(err)
 	a.NotNil(tp)
 
@@ -127,17 +121,17 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.Empty(rtp.RefreshToken)
 
 	// obtaining an owner of this token
-	user, err = am.UserFromToken(string(rtp.AccessToken))
+	u, err = am.UserFromToken(rtp.AccessToken)
 	a.Error(err)
-	a.Nil(user)
+	a.Zero(u.ID)
 
 	// ====================================================================================
 	// invalid refresh token case
 	// ====================================================================================
-	user, err = am.Authenticate(testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err = am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
-	a.NotNil(user)
-	a.True(reflect.DeepEqual(user, testuser))
+	a.NotNil(u)
+	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
 	req, err = http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString("wrong refresh token"))
 	a.NoError(err)
@@ -165,19 +159,19 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.Empty(rtp.RefreshToken)
 
 	// obtaining an owner of this token
-	user, err = am.UserFromToken(string(rtp.AccessToken))
+	u, err = am.UserFromToken(rtp.AccessToken)
 	a.Error(err)
-	a.Nil(user)
+	a.Zero(u.ID)
 
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	user, err = am.Authenticate(testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err = am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
-	a.NotNil(user)
-	a.True(reflect.DeepEqual(user, testuser))
+	a.NotNil(u)
+	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-	tp, err = am.GenerateTokenTrinity(user, auth.NewRequestInfo(nil))
+	tp, err = am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
 	a.NoError(err)
 	a.NotNil(tp)
 
@@ -208,8 +202,8 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotEmpty(rtp.RefreshToken)
 
 	// obtaining an owner of this token
-	user, err = am.UserFromToken(string(rtp.AccessToken))
+	u, err = am.UserFromToken(rtp.AccessToken)
 	a.NoError(err)
-	a.NotNil(user)
-	a.Equal(testuser, user)
+	a.NotNil(u)
+	a.Equal(testuser, u)
 }

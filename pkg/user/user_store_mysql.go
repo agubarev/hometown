@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/agubarev/hometown/pkg/util/guard"
 	"github.com/gocraft/dbr/v2"
@@ -34,7 +33,7 @@ func (s *MySQLStore) fetchUserByQuery(ctx context.Context, q string, args ...int
 		LoadOneContext(ctx, &u)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == dbr.ErrNotFound {
 			return u, ErrUserNotFound
 		}
 
@@ -52,7 +51,7 @@ func (s *MySQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...in
 		LoadContext(ctx, &us)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == dbr.ErrNotFound {
 			return us, nil
 		}
 
@@ -130,7 +129,7 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 		return nil, errors.Wrap(err, "bulk insert failed")
 	}
 
-	// returned ObjectID belongs to the first u created
+	// returned ObjectID belongs to the first user created
 	firstNewID, err := result.LastInsertId()
 	if err != nil {
 		return nil, err
@@ -142,7 +141,7 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 
 	// distributing new IDs in their sequential order
 	for i := range us {
-		us[i].ID = int64(firstNewID)
+		us[i].ID = firstNewID
 		firstNewID++
 	}
 

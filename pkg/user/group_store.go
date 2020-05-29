@@ -15,7 +15,7 @@ import (
 // GroupStore describes a storage contract for groups specifically
 type GroupStore interface {
 	UpsertGroup(ctx context.Context, g Group) (Group, error)
-	PutRelation(ctx context.Context, groupID int64, userID int64) error
+	CreateRelation(ctx context.Context, groupID int64, userID int64) error
 	FetchGroupByID(ctx context.Context, groupID int64) (g Group, err error)
 	FetchGroupByKey(ctx context.Context, key string) (g Group, err error)
 	FetchGroupByName(ctx context.Context, name string) (g Group, err error)
@@ -201,8 +201,8 @@ func (s *GroupMySQLStore) DeleteByID(ctx context.Context, id int64) (err error) 
 	return nil
 }
 
-// PutRelation store a relation flagging that user belongs to a group
-func (s *GroupMySQLStore) PutRelation(ctx context.Context, groupID int64, userID int64) (err error) {
+// CreateRelation store a relation flagging that user belongs to a group
+func (s *GroupMySQLStore) CreateRelation(ctx context.Context, groupID int64, userID int64) (err error) {
 	_, err = s.db.ExecContext(
 		ctx,
 		"INSERT IGNORE INTO `group_users`(group_id, user_id) VALUES(?, ?)",

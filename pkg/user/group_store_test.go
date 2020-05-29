@@ -214,7 +214,7 @@ func TestGroupStoreRelations(t *testing.T) {
 	a.False(ok)
 
 	// creating a relation
-	a.NoError(s.PutRelation(ctx, g.ID, u.ID))
+	a.NoError(s.CreateRelation(ctx, g.ID, u.ID))
 
 	// now they must be related
 	ok, err = s.HasRelation(ctx, g.ID, u.ID)

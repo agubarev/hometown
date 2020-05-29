@@ -131,26 +131,30 @@ func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
 	return um, ctx, nil
 }
 
-func CreateTestUser(ctx context.Context, m *Manager, username string, email string) (User, error) {
+func CreateTestUser(ctx context.Context, m *Manager, username string, email string, pass []byte) (User, error) {
 	if flag.Lookup("test.v") == nil {
 		log.Fatal("can only be called during testing")
 	}
 
 	return m.CreateUser(ctx, func(ctx context.Context) (userObject NewUserObject, err error) {
+		if pass == nil {
+			pass = []byte("9dcni22lqadffa9h")
+		}
+
 		userObject = NewUserObject{
 			Essential: Essential{
 				Username:    username,
 				DisplayName: util.NewULID().String(),
 			},
 			ProfileEssential: ProfileEssential{
-				Firstname:  "Андрей",
-				Lastname:   "Губарев",
-				Middlename: "Анатолиевич",
-				Language:   "RU",
+				Firstname:  "John",
+				Lastname:   "Smith",
+				Middlename: "Jack",
+				Language:   "EN",
 			},
 			EmailAddr:   email,
 			PhoneNumber: util.NewULID().String()[15:26],
-			Password:    []byte("9dcni22lqadffa9h"),
+			Password:    pass,
 		}
 
 		return userObject, nil

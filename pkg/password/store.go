@@ -2,7 +2,6 @@ package password
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/gocraft/dbr/v2"
 	"github.com/pkg/errors"
@@ -49,6 +48,10 @@ func (s *passwordStore) Upsert(ctx context.Context, p Password) (err error) {
 			p.Kind, p.OwnerID, p.Hash, p.IsChangeRequired, p.CreatedAt, p.ExpireAt, p.Hash, p.UpdatedAt, p.ExpireAt,
 		)
 
+	if err != nil {
+		return errors.Wrap(err, "failed to upsert password")
+	}
+
 	return nil
 }
 
@@ -83,7 +86,7 @@ func (s *passwordStore) Get(ctx context.Context, k Kind, userID int64) (p Passwo
 		LoadOneContext(ctx, &p)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == dbr.ErrNotFound {
 			return p, ErrPasswordNotFound
 		}
 

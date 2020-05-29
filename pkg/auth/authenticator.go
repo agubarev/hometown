@@ -18,6 +18,7 @@ import (
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -181,13 +182,10 @@ type Authenticator struct {
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 
-	users      *user.Manager
-	passwords  password.Manager
-	tokens     *token.Manager
-	groups     *user.GroupManager
-	backend    Backend
-	privateKey *rsa.PrivateKey
-	logger     *zap.Logger
+	userManager *user.Manager
+	backend     Backend
+	privateKey  *rsa.PrivateKey
+	logger      *zap.Logger
 }
 
 // NewAuthenticator initializes a new authenticator
@@ -220,7 +218,7 @@ func NewAuthenticator(pk *rsa.PrivateKey, um *user.Manager, b Backend) (*Authent
 
 	// initializing new authenticator
 	m := &Authenticator{
-		users:           um,
+		userManager:     um,
 		AccessTokenTTL:  15 * time.Minute,
 		RefreshTokenTTL: 24 * time.Hour,
 
@@ -257,35 +255,23 @@ func (a *Authenticator) Logger() *zap.Logger {
 }
 
 func (a *Authenticator) UserManager() *user.Manager {
-	if a.users == nil {
+	if a.userManager == nil {
 		panic(ErrNilUserManager)
 	}
 
-	return a.users
+	return a.userManager
 }
 
 func (a *Authenticator) GroupManager() *user.GroupManager {
-	if a.groups == nil {
-		panic(ErrNilGroupManager)
-	}
-
-	return a.groups
+	return a.UserManager().GroupManager()
 }
 
 func (a *Authenticator) PasswordManager() password.Manager {
-	if a.passwords == nil {
-		panic(ErrNilPasswordManager)
-	}
-
-	return a.passwords
+	return a.UserManager().PasswordManager()
 }
 
 func (a *Authenticator) TokenManager() *token.Manager {
-	if a.passwords == nil {
-		panic(ErrNilTokenManager)
-	}
-
-	return a.tokens
+	return a.UserManager().TokenManager()
 }
 
 // PrivateKey returns a private key (RSA) used by this manager
@@ -312,7 +298,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 		zap.String("user_agent", ri.UserAgent),
 	)
 
-	// before authentication, checking whether this u is suspended
+	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
 		l.Info(
 			"suspended user signin attempt",
@@ -326,10 +312,15 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 	// obtaining password manager
 	pm := a.PasswordManager()
 
-	// obtaining u's password
+	// obtaining user's password
 	userpass, err := pm.Get(ctx, password.KUser, u.ID)
 	if err != nil {
-		l.Info("password not found", zap.Error(err))
+		if err == password.ErrPasswordNotFound {
+			l.Info("password not found", zap.Error(err))
+		} else {
+			l.Warn("failed to obtain password", zap.Error(err))
+		}
+
 		return u, err
 	}
 
@@ -360,8 +351,8 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 		return u, fmt.Errorf("failed to unmarshal payload: %s", err)
 	}
 
-	// obtaining a u specified in the token's payload
-	u, err = a.users.UserByID(ctx, payload.UserID)
+	// obtaining a user specified in the token's payload
+	u, err = a.userManager.UserByID(ctx, payload.UserID)
 	if err != nil {
 		return u, err
 	}
@@ -384,12 +375,15 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 			return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
 		}
 
+		spew.Dump(payload)
+		spew.Dump(ri)
+
 		return u, ErrWrongIP
 	}
 
 	// comparing User-Agent strings
 	if payload.UserAgent != ri.UserAgent {
-		// given u agent doesn't match to what's saved in the session
+		// given user agent doesn't match to what's saved in the session
 		// deleting session because it could've been exposed (safety first)
 		if err = tm.Delete(ctx, t); err != nil {
 			l.Warn("failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
@@ -397,15 +391,15 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 		}
 	}
 
-	// before authentication, checking whether this u is suspended
+	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
 		l.Info(
-			"suspended u signin attempt (via refresh token)",
+			"suspended user signin attempt (via refresh token)",
 			zap.Time("suspended_at", u.SuspendedAt.Time),
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time),
 		)
 
-		// since this u is suspended, then it's safe to assume
+		// since this user is suspended, then it's safe to assume
 		// that this token is a liability and a possible threat,
 		// and... is asking to be deleted
 		err = tm.Delete(ctx, t)
@@ -574,7 +568,7 @@ func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri *Requ
 
 	// adding session to the registry
 	if err = a.RegisterSession(sess); err != nil {
-		return sess, fmt.Errorf("failed to add u session to the registry: %s", err)
+		return sess, fmt.Errorf("failed to add user session to the registry: %s", err)
 	}
 
 	return sess, nil
@@ -636,7 +630,7 @@ func (a *Authenticator) UserFromToken(tok string) (u user.User, err error) {
 		return u, ErrInvalidAccessToken
 	}
 
-	return a.users.UserByID(nil, u.ID)
+	return a.userManager.UserByID(nil, u.ID)
 }
 
 // RevokeAccessToken adds a given token ObjectID to the blacklist for the duration

@@ -1,12 +1,14 @@
 package endpoints
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
 	"time"
 
 	"github.com/agubarev/hometown/pkg/auth"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 )
 
@@ -31,48 +33,48 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	// obtaining token manager
 	tm := a.TokenManager()
-	if err != nil {
-		util.WriteResponseErrorTo(w, "internal", err, http.StatusInternalServerError)
-	}
 
 	// obtaining the refresh token
-	rtok, err := tm.Get(ctx, string(rbody))
+	rtok, err := tm.Get(r.Context(), string(rbody))
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", auth.ErrInvalidRefreshToken, http.StatusUnauthorized)
 		return
 	}
 
 	// attempting authentication by a found refresh token
-	user, err := a.AuthenticateByRefreshToken(rtok, ri)
+	u, err := a.AuthenticateByRefreshToken(r.Context(), rtok, ri)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", err, http.StatusUnauthorized)
 		return
 	}
 
-	// logging time
-	if err := user.LastLoginAt.Scan(time.Now()); err != nil {
-		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to scan time"), http.StatusInternalServerError)
-		return
-	}
+	// logging changes
+	u, _, err = a.UserManager().UpdateUser(r.Context(), u.ID, func(ctx context.Context, u user.User) (_ user.User, err error) {
+		if err := u.LastLoginAt.Scan(time.Now()); err != nil {
+			util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to scan time"), http.StatusInternalServerError)
+			return u, err
+		}
 
-	// updating IP from where the user has just authenticated from
-	user.LastLoginIP = ri.IP.String()
+		// updating IP from where the user has just authenticated from
+		u.LastLoginIP = ri.IP.String()
 
-	// logging user
-	if err := user.Save(ctx); err != nil {
-		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to save user"), http.StatusInternalServerError)
+		return u, nil
+	})
+
+	if err != nil {
+		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to update user"), http.StatusInternalServerError)
 		return
 	}
 
 	// generating new access token
-	atok, jti, err := a.GenerateAccessToken(user)
+	atok, jti, err := a.GenerateAccessToken(r.Context(), u)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", err, http.StatusUnauthorized)
 		return
 	}
 
 	// generating new session
-	s, err := a.CreateSession(user, ri, jti)
+	s, err := a.CreateSession(r.Context(), u, ri, jti, rtok)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", err, http.StatusUnauthorized)
 		return
