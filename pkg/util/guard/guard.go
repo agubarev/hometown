@@ -152,6 +152,19 @@ func ProcureDBChangesFromChangelog(obj interface{}, changelog diff.Changelog) (c
 		// changed object field name
 		field := c.Path[0]
 
+		// TODO: find a better solution instead of hardcoding
+		// accommodating for nested fields
+		// NOTE: an ugly exclusive fix for a Time type
+		if l := len(c.Path); l > 1 {
+			// if the last nested name is not `Time`, then skip this field
+			if c.Path[l-1] != "Time" {
+				continue
+			}
+
+			// otherwise, set field to the pre-last value
+			field = c.Path[l-2]
+		}
+
 		// checking whether this field has a database
 		// column name mapped
 		dbColumn, ok := metadata.dbColumns[field]

@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/agubarev/hometown/pkg/util"
 	"github.com/gocraft/dbr/v2"
 	_ "github.com/jinzhu/gorm/dialects/mysql"
 	"github.com/pkg/errors"
@@ -39,7 +40,7 @@ func Connection() *dbr.Connection {
 
 // ForTesting simply returns a database connection
 func ForTesting() (conn *dbr.Connection, err error) {
-	if flag.Lookup("test.v") == nil {
+	if !util.IsTestMode() {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
 		return nil, nil
 	}

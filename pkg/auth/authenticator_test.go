@@ -28,7 +28,7 @@ func TestAuthenticate(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing access manager
-	am, err := auth.NewAuthenticator(nil, um, nil)
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -52,21 +52,20 @@ func TestAuthenticate(t *testing.T) {
 	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
 	a.NotNil(u)
-	a.True(reflect.DeepEqual(testuser, u))
+	a.Equal(testuser.ID, u.ID)
+	a.True(reflect.DeepEqual(testuser.Essential, u.Essential))
 
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
 	u, err = am.Authenticate(ctx, "wrongusername", testpass, auth.NewRequestInfo(nil))
-	a.EqualError(user.ErrUserNotFound, err.Error())
-	a.Nil(u)
+	a.EqualError(user.ErrUserNotFound, errors.Cause(err).Error())
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
 	u, err = am.Authenticate(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestInfo(nil))
-	a.EqualError(auth.ErrAuthenticationFailed, err.Error())
-	a.Nil(u)
+	a.EqualError(auth.ErrAuthenticationFailed, errors.Cause(err).Error())
 }
 
 func TestAuthenticateByRefreshToken(t *testing.T) {
@@ -83,7 +82,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing access manager
-	am, err := auth.NewAuthenticator(nil, um, nil)
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -98,8 +97,6 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 
 	// creating test u
 	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
-	a.NoError(err)
-	a.NotNil(testuser)
 	a.NoError(err)
 	a.NotNil(testuser)
 
@@ -139,7 +136,7 @@ func TestDestroySession(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing access manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend())
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
 

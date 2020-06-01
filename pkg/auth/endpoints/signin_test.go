@@ -36,7 +36,7 @@ func TestSignin(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing access manager
-	am, err := auth.NewAuthenticator(nil, um, nil)
+	am, err := auth.NewAuthenticator(nil, um, nil, auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -211,7 +211,7 @@ func TestSignin(t *testing.T) {
 	a.NotEmpty(rtp.RefreshToken)
 
 	// obtaining an owner of this token
-	user, err := am.UserFromToken(string(rtp.AccessToken))
+	user, err := am.UserFromToken(ctx, rtp.AccessToken)
 	a.NoError(err)
 	a.NotNil(user)
 	a.Equal(testuser, user)

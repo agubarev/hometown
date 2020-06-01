@@ -174,6 +174,9 @@ func (s *MySQLStore) UpdateUser(ctx context.Context, u User, changelog diff.Chan
 		return u, errors.Wrap(err, "failed to procure changes from a changelog")
 	}
 
+	//spew.Dump(changes)
+	//spew.Dump(changelog)
+
 	result, err := s.connection.NewSession(nil).
 		Update("user").
 		Where("id = ?", u.ID).

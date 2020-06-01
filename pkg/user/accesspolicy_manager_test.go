@@ -51,7 +51,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	apm := um.AccessPolicyManager()
 	a.NotNil(apm)
 
-	u, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	u, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u)
 
@@ -168,11 +168,11 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	apm := ctx.Value(user.CKAccessPolicyManager).(*user.AccessPolicyManager)
 	a.NotNil(apm)
 
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(assignor)
 
-	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@hometown.local")
+	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(assignee)
 
@@ -244,20 +244,20 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(gm)
 
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(assignor)
 
 	// users
-	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local")
+	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u1)
 
-	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
+	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u2)
 
-	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local")
+	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u3)
 
@@ -330,20 +330,20 @@ func TestAccessPolicyManagerBackupAndRestore(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(assignor)
 
 	// users
-	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local")
+	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u1)
 
-	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
+	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u2)
 
-	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local")
+	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u3)
 
@@ -469,20 +469,20 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(assignor)
 
 	// users
-	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local")
+	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u1)
 
-	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
+	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u2)
 
-	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local")
+	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local", nil)
 	a.NoError(err)
 	a.NotNil(u3)
 

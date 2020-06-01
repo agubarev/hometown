@@ -2,7 +2,6 @@ package token
 
 import (
 	"context"
-	"database/sql"
 
 	"github.com/agubarev/hometown/pkg/util/guard"
 	"github.com/gocraft/dbr/v2"
@@ -56,7 +55,7 @@ func (s *tokenStore) Get(ctx context.Context, token string) (*Token, error) {
 		LoadOneContext(ctx, t)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == dbr.ErrNotFound {
 			return nil, ErrTokenNotFound
 		}
 

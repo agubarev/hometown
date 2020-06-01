@@ -10,6 +10,7 @@ import (
 	"github.com/agubarev/hometown/pkg/auth"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
+	"github.com/pkg/errors"
 )
 
 // HandleRefreshToken returns a new access token given the supplied
@@ -51,7 +52,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	// logging changes
 	u, _, err = a.UserManager().UpdateUser(r.Context(), u.ID, func(ctx context.Context, u user.User) (_ user.User, err error) {
 		if err := u.LastLoginAt.Scan(time.Now()); err != nil {
-			util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to scan time"), http.StatusInternalServerError)
+			util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to scan last login time"), http.StatusInternalServerError)
 			return u, err
 		}
 
@@ -62,7 +63,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		util.WriteResponseErrorTo(w, "internal", fmt.Errorf("failed to update user"), http.StatusInternalServerError)
+		util.WriteResponseErrorTo(w, "internal", errors.Wrap(err, "failed to update user"), http.StatusInternalServerError)
 		return
 	}
 

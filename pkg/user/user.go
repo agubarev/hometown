@@ -58,7 +58,7 @@ type Metadata struct {
 // and are handled by the customer
 type User struct {
 	ID   int64     `db:"id" json:"id"`
-	ULID ulid.ULID `db:"ulid" json:"ulid"`
+	ULID ulid.ULID `db:"ulid" json:"ulid" diff:"-"`
 
 	Essential
 	Metadata

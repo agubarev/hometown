@@ -32,7 +32,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing access manager
-	am, err := auth.NewAuthenticator(nil, um, nil)
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -86,16 +86,57 @@ func TestHandleRefreshToken(t *testing.T) {
 	// NOTE: request's RemoteAddr is empty when testing, so validation
 	// can be failed by specifying any IP, i.e. 127.0.0.1
 	// ====================================================================================
+	/*
+		u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
+		a.NoError(err)
+		a.NotNil(u)
+		a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
+
+		tt, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
+		a.NoError(err)
+		a.NotNil(tt)
+
+		req, err := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString(tt.RefreshToken))
+		a.NoError(err)
+
+		req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
+		req = req.WithContext(context.WithValue(context.Background(), auth.CKAuthenticator, am))
+
+		req.Header.Set("Content-Type", "application/json")
+		rr := httptest.NewRecorder()
+
+		// triggering the handler
+		endpoints.HandleRefreshToken(rr, req)
+
+		resp := rr.Result()
+		spew.Dump(resp.Body)
+		a.Equal(http.StatusUnauthorized, resp.StatusCode)
+
+		// response body is a JWT token
+		rbody, err := ioutil.ReadAll(resp.Body)
+		a.NoError(err)
+		a.NotEmpty(rbody)
+
+		rtp := auth.TokenTrinity{}
+		a.NoError(json.Unmarshal(rbody, &rtp))
+		a.Empty(rtp.AccessToken)
+		a.Empty(rtp.RefreshToken)
+
+		// obtaining an owner of this token
+		u, err = am.UserFromToken(rtp.AccessToken)
+		a.Error(err)
+		a.Zero(u.ID)
+	*/
+
+	// ====================================================================================
+	// invalid refresh token case
+	// ====================================================================================
 	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-	tp, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
-	a.NoError(err)
-	a.NotNil(tp)
-
-	req, err := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString(tp.RefreshToken))
+	req, err := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString("wrong refresh token"))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -121,45 +162,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.Empty(rtp.RefreshToken)
 
 	// obtaining an owner of this token
-	u, err = am.UserFromToken(rtp.AccessToken)
-	a.Error(err)
-	a.Zero(u.ID)
-
-	// ====================================================================================
-	// invalid refresh token case
-	// ====================================================================================
-	u, err = am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
-	a.NoError(err)
-	a.NotNil(u)
-	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
-
-	req, err = http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString("wrong refresh token"))
-	a.NoError(err)
-
-	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
-	req = req.WithContext(context.WithValue(context.Background(), auth.CKAuthenticator, am))
-
-	req.Header.Set("Content-Type", "application/json")
-	rr = httptest.NewRecorder()
-
-	// triggering the handler
-	endpoints.HandleRefreshToken(rr, req)
-
-	resp = rr.Result()
-	a.Equal(http.StatusUnauthorized, resp.StatusCode)
-
-	// response body is a JWT token
-	rbody, err = ioutil.ReadAll(resp.Body)
-	a.NoError(err)
-	a.NotEmpty(rbody)
-
-	rtp = auth.TokenTrinity{}
-	a.NoError(json.Unmarshal(rbody, &rtp))
-	a.Empty(rtp.AccessToken)
-	a.Empty(rtp.RefreshToken)
-
-	// obtaining an owner of this token
-	u, err = am.UserFromToken(rtp.AccessToken)
+	u, err = am.UserFromToken(ctx, rtp.AccessToken)
 	a.Error(err)
 	a.Zero(u.ID)
 
@@ -171,11 +174,11 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-	tp, err = am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
+	tt, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
 	a.NoError(err)
-	a.NotNil(tp)
+	a.NotNil(tt)
 
-	req, err = http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString(tp.RefreshToken))
+	req, err = http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString(tt.RefreshToken))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -202,8 +205,9 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotEmpty(rtp.RefreshToken)
 
 	// obtaining an owner of this token
-	u, err = am.UserFromToken(rtp.AccessToken)
+	u, err = am.UserFromToken(ctx, rtp.AccessToken)
 	a.NoError(err)
 	a.NotNil(u)
-	a.Equal(testuser, u)
+	a.True(reflect.DeepEqual(testuser.Essential, u.Essential))
+	a.Equal(testuser.ID, u.ID)
 }

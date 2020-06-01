@@ -321,7 +321,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id int64, fn func(ctx context.
 	// initializing an updated user
 	updated, err := fn(ctx, backup)
 	if err != nil {
-		return u, nil, errors.Wrap(err, "failed to initialize updated u")
+		return u, nil, errors.Wrap(err, "failed to initialize updated user")
 	}
 
 	// pre-save modifications
