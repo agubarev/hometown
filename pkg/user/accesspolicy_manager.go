@@ -152,8 +152,8 @@ func (m *AccessPolicyManager) Create(ctx context.Context, ownerID, parentID int6
 	}
 
 	// adding new policy to the registry
-	err = m.Put(ctx, ap)
-	if err != nil {
+
+	if err = m.Put(ctx, ap); err != nil {
 		return ap, errors.Wrap(err, "failed to add access policy to container registry")
 	}
 
@@ -196,8 +196,7 @@ func (m *AccessPolicyManager) Update(ctx context.Context, ap AccessPolicy) (_ Ac
 	}
 
 	// checking by an object, just in case kind and id changes,
-	// and new kind and object is already attached to a different
-	// access policy
+	// and new kind and object is already attached to a different access policy
 	if ap.ObjectType != "" && ap.ObjectID != 0 {
 		existingPolicy, err := m.PolicyByObjectTypeAndID(ctx, ap.ObjectType, ap.ObjectID)
 		if err != nil {
@@ -223,8 +222,7 @@ func (m *AccessPolicyManager) Update(ctx context.Context, ap AccessPolicy) (_ Ac
 	ap.RightsRoster.changes = nil
 
 	// updating policy cache
-	err = m.Put(ctx, ap)
-	if err != nil {
+	if err = m.Put(ctx, ap); err != nil {
 		return ap, err
 	}
 
@@ -250,8 +248,7 @@ func (m *AccessPolicyManager) PolicyByID(ctx context.Context, id int64) (ap Acce
 	}
 
 	// adding policy to registry
-	err = m.Put(ctx, ap)
-	if err != nil {
+	if err = m.Put(ctx, ap); err != nil {
 		return ap, err
 	}
 
@@ -276,8 +273,7 @@ func (m *AccessPolicyManager) PolicyByName(ctx context.Context, name string) (ap
 	}
 
 	// adding policy to registry
-	err = m.Put(ctx, ap)
-	if err != nil {
+	if err = m.Put(ctx, ap); err != nil {
 		return ap, err
 	}
 
@@ -374,9 +370,9 @@ func (m *AccessPolicyManager) SetRights(ctx context.Context, ap *AccessPolicy, a
 	case Group:
 		switch sub.Kind {
 		case GKRole:
-			err = ap.SetRoleRights(ctx, assignorID, sub, rights)
+			err = ap.SetRoleRights(ctx, assignorID, sub.ID, rights)
 		case GKGroup:
-			err = ap.SetGroupRights(ctx, assignorID, sub, rights)
+			err = ap.SetGroupRights(ctx, assignorID, sub.ID, rights)
 		}
 	}
 

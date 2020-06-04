@@ -157,10 +157,10 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
@@ -183,7 +183,7 @@ func TestSetGroupRights(t *testing.T) {
 	p, err := apm.Create(ctx, assignor.ID, 0, "test_name", "test_type", 1, false, false)
 	a.NoError(err)
 
-	err = p.SetGroupRights(ctx, assignor.ID, group1, wantedRights)
+	err = p.SetGroupRights(ctx, assignor.ID, group1.ID, wantedRights)
 	a.NoError(err)
 	a.Equal(wantedRights, p.RightsRoster.Group[group1.ID])
 	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
@@ -217,7 +217,7 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, 1, "some name", "non-conflicting object type name etc", 1, false, true)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetGroupRights(ctx, assignor.ID, group1, user.APMove)
+	err = pExtendedWithOwn.SetGroupRights(ctx, assignor.ID, group1.ID, user.APMove)
 	a.NoError(err)
 
 	parent, err = pExtendedWithOwn.Parent(ctx)
@@ -247,10 +247,10 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
@@ -275,7 +275,7 @@ func TestSetRoleRights(t *testing.T) {
 	p, err := apm.Create(ctx, assignor.ID, 0, "test_name", "test_type", 1, false, false)
 	a.NoError(err)
 
-	err = p.SetRoleRights(ctx, assignor.ID, role1, wantedRights)
+	err = p.SetRoleRights(ctx, assignor.ID, role1.ID, wantedRights)
 	a.NoError(err)
 	a.Equal(wantedRights, p.RightsRoster.Role[role1.ID])
 	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
@@ -307,7 +307,7 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "other name", "other type name", 1, false, true)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetRoleRights(ctx, assignor.ID, role1, user.APMove)
+	err = pExtendedWithOwn.SetRoleRights(ctx, assignor.ID, role1.ID, user.APMove)
 	a.NoError(err)
 
 	parent, err = pExtendedWithOwn.Parent(ctx)
@@ -336,10 +336,10 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 
 	wantedRights := user.APView | user.APChange
@@ -408,10 +408,10 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	testuser1, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser1, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 
-	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local")
+	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", nil)
 	a.NoError(err)
 
 	ap, err := apm.Create(ctx, testuser1.ID, 0, "test_name", "test_type", 1, false, false)
@@ -450,10 +450,10 @@ func TestAccessPolicyClone(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	owner, err := user.CreateTestUser(ctx, um, "owner", "owner@hometown.local")
+	owner, err := user.CreateTestUser(ctx, um, "owner", "owner@hometown.local", nil)
 	a.NoError(err)
 
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local")
+	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 
 	ap, err := apm.Create(ctx, owner.ID, 0, "test_name", "test_type", 1, false, false)
@@ -518,10 +518,10 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	gm := ctx.Value(user.CKGroupManager).(*user.GroupManager)
 	a.NotNil(gm)
 
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 
-	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@hometown.local")
+	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@hometown.local", nil)
 	a.NoError(err)
 
 	role, err := gm.Create(ctx, 0, user.GKRole, "test_role_group", "Test Role Group")
@@ -553,7 +553,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// setting
 	ap, err = apm.Create(ctx, assignor.ID, 0, "test_name 2", "test_type 2", 1, false, false)
 	a.NoError(err)
-	a.NoError(ap.SetRoleRights(ctx, assignor.ID, role, wantedRights))
+	a.NoError(ap.SetRoleRights(ctx, assignor.ID, role.ID, wantedRights))
 	a.Equal(wantedRights, ap.RightsRoster.Role[role.ID])
 
 	// unsetting
@@ -566,7 +566,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// setting
 	ap, err = apm.Create(ctx, assignor.ID, 0, "test_name 3", "test_type 3", 1, false, false)
 	a.NoError(err)
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group, wantedRights))
+	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group.ID, wantedRights))
 	a.Equal(wantedRights, ap.RightsRoster.Group[group.ID])
 
 	// unsetting
@@ -593,7 +593,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating test users via manager
-	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local")
+	assignor, err := user.CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
@@ -617,7 +617,7 @@ func TestHasGroupRights(t *testing.T) {
 	wantedRights := user.APCreate | user.APView
 
 	// setting rights for group 1
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1, wantedRights))
+	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1.ID, wantedRights))
 	a.True(ap.HasGroupRights(ctx, group1.ID, wantedRights))
 	a.True(ap.HasGroupRights(ctx, group2.ID, wantedRights))
 	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
@@ -633,7 +633,7 @@ func TestHasGroupRights(t *testing.T) {
 	wantedRights = user.APCreate | user.APView
 
 	// setting rights for group 2
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2, wantedRights))
+	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2.ID, wantedRights))
 	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
 	a.True(ap.HasGroupRights(ctx, group2.ID, wantedRights))
 	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
@@ -649,7 +649,7 @@ func TestHasGroupRights(t *testing.T) {
 	wantedRights = user.APCreate | user.APView
 
 	// setting rights for group 2
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group3, wantedRights))
+	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group3.ID, wantedRights))
 	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
 	a.False(ap.HasGroupRights(ctx, group2.ID, wantedRights))
 	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
@@ -666,8 +666,8 @@ func TestHasGroupRights(t *testing.T) {
 	wantedRights = user.APDelete | user.APCopy
 
 	// setting rights for group 1 & 2
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1, group1Rights))
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2, wantedRights))
+	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1.ID, group1Rights))
+	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2.ID, wantedRights))
 
 	a.True(ap.HasGroupRights(ctx, group1.ID, group1Rights))
 	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))

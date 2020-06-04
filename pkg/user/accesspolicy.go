@@ -362,7 +362,7 @@ func (ap *AccessPolicy) hashKey() {
 	// composing a key value
 	key.WriteString("AccessPolicy")
 
-	if err := binary.Write(key, binary.LittleEndian, int64(ap.ID)); err != nil {
+	if err := binary.Write(key, binary.LittleEndian, ap.ID); err != nil {
 		panic(errors.Wrapf(err, "failed to hash access policy: %d", ap.ID))
 	}
 
@@ -371,7 +371,7 @@ func (ap *AccessPolicy) hashKey() {
 }
 
 // Key returns a uint64 key hash to be used as a map/cache key
-func (ap AccessPolicy) Key(rehash bool) uint64 {
+func (ap *AccessPolicy) Key(rehash bool) uint64 {
 	// returning a cached key if it's set
 	if ap.keyHash == 0 || rehash {
 		ap.hashKey()
@@ -392,6 +392,8 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 		switch change.Path[0] {
 		case "ParentID":
 			ap.ParentID = change.To.(int64)
+		case "IDPath":
+			ap.IDPath = change.To.(string)
 		case "OwnerID":
 			ap.OwnerID = change.To.(int64)
 		case "Name":
@@ -563,6 +565,7 @@ func (ap *AccessPolicy) SetParentID(parentID int64) error {
 }
 
 // UserAccess returns a summarized access bitmask for a given user
+// TODO: move to the Manager
 func (ap *AccessPolicy) UserAccess(ctx context.Context, userID int64) (rights AccessRight) {
 	if userID == 0 {
 		return APNoAccess
@@ -607,6 +610,7 @@ func (ap *AccessPolicy) UserAccess(ctx context.Context, userID int64) (rights Ac
 }
 
 // SetPublicRights setting rights for everyone
+// TODO: move to the Manager
 func (ap *AccessPolicy) SetPublicRights(ctx context.Context, assignorID int64, rights AccessRight) error {
 	if assignorID == 0 {
 		return ErrZeroUserID
@@ -628,19 +632,22 @@ func (ap *AccessPolicy) SetPublicRights(ctx context.Context, assignorID int64, r
 }
 
 // SetRoleRights setting rights for the role
-func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, r Group, rights AccessRight) error {
+// TODO: move to the Manager
+func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, roleID int64, rights AccessRight) error {
 	if assignorID == 0 {
 		return ErrZeroAssignorID
 	}
 
-	if r.ID == 0 {
+	if roleID == 0 {
 		return ErrZeroRoleID
 	}
 
-	// making sure it's group kind is Role
-	if r.Kind != GKRole {
-		return ErrInvalidKind
-	}
+	/*
+		// making sure it's group kind is Role
+		if roleID.Kind != GKRole {
+			return ErrInvalidKind
+		}
+	*/
 
 	// checking whether the assignorID has at least the assigned rights
 	if !ap.HasRights(ctx, assignorID, rights) {
@@ -648,29 +655,32 @@ func (ap *AccessPolicy) SetRoleRights(ctx context.Context, assignorID int64, r G
 	}
 
 	ap.Lock()
-	ap.RightsRoster.Role[r.ID] = rights
+	ap.RightsRoster.Role[roleID] = rights
 	ap.Unlock()
 
 	// deferred instruction for change
-	ap.RightsRoster.addChange(RRSet, SKRoleGroup, r.ID, rights)
+	ap.RightsRoster.addChange(RRSet, SKRoleGroup, roleID, rights)
 
 	return nil
 }
 
-// SetGroupRights setting rights for specific user
-func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID int64, g Group, rights AccessRight) error {
+// SetGroupRights setting group rights for specific user
+// TODO: move to the Manager
+func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID int64, groupID int64, rights AccessRight) (err error) {
 	if assignorID == 0 {
 		return ErrZeroAssignorID
 	}
 
-	if g.ID == 0 {
+	if groupID == 0 {
 		return ErrZeroGroupID
 	}
 
-	// making sure it's g kind is Group
-	if g.Kind != GKGroup {
-		return ErrInvalidKind
-	}
+	/*
+		// making sure it's g kind is Group
+		if groupID.Kind != GKGroup {
+			return ErrInvalidKind
+		}
+	*/
 
 	// checking whether the assignorID has at least the assigned rights
 	if !ap.HasRights(ctx, assignorID, rights) {
@@ -678,11 +688,11 @@ func (ap *AccessPolicy) SetGroupRights(ctx context.Context, assignorID int64, g 
 	}
 
 	ap.Lock()
-	ap.RightsRoster.Group[g.ID] = rights
+	ap.RightsRoster.Group[groupID] = rights
 	ap.Unlock()
 
 	// deferred instruction for change
-	ap.RightsRoster.addChange(RRSet, SKGroup, g.ID, rights)
+	ap.RightsRoster.addChange(RRSet, SKGroup, groupID, rights)
 
 	return nil
 }
