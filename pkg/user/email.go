@@ -56,7 +56,7 @@ func (email *Email) hashKey() {
 	key.WriteString(email.Addr)
 
 	// adding user ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, int64(email.UserID)); err != nil {
+	if err := binary.Write(key, binary.LittleEndian, email.UserID); err != nil {
 		panic(errors.Wrap(err, "failed to hash email key"))
 	}
 

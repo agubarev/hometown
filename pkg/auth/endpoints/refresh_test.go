@@ -54,23 +54,23 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotNil(gm)
 
 	// creating groups and roles for testing
-	g1, err := gm.Create(ctx, 0, user.GKGroup, "group_1", "Group 1")
+	g1, err := gm.Create(ctx, user.GKGroup, 0, "group_1", "Group 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(ctx, 0, user.GKGroup, "group_2", "Group 2")
+	g2, err := gm.Create(ctx, user.GKGroup, 0, "group_2", "Group 2")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(ctx, g2.ID, user.GKGroup, "group_3", "Group 3 (sub-group of Group 2)")
+	g3, err := gm.Create(ctx, user.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(ctx, 0, user.GKRole, "role_1", "Role 1")
+	r1, err := gm.Create(ctx, user.GKRole, 0, "role_1", "Role 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(ctx, 0, user.GKRole, "role_2", "Role 2")
+	r2, err := gm.Create(ctx, user.GKRole, 0, "role_2", "Role 2")
 	a.NoError(err)
 	a.NotNil(g1)
 

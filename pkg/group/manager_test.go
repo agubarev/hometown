@@ -1,9 +1,10 @@
-package user_test
+package group_test
 
 import (
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/stretchr/testify/assert"
 )
@@ -40,23 +41,23 @@ func TestManager_Create(t *testing.T) {
 	// creating test groups and roles
 	//---------------------------------------------------------------------------
 
-	g1, err := gm.Create(ctx, user.GKGroup, 0, "group_1", "Group 1")
+	g1, err := gm.Create(ctx, group.GKGroup, 0, "group_1", "Group 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(ctx, user.GKGroup, 0, "group_2", "Group 2")
+	g2, err := gm.Create(ctx, group.GKGroup, 0, "group_2", "Group 2")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(ctx, user.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)")
+	g3, err := gm.Create(ctx, group.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(ctx, user.GKRole, 0, "role_1", "Role 1")
+	r1, err := gm.Create(ctx, group.GKRole, 0, "role_1", "Role 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(ctx, user.GKRole, 0, "role_2", "Role 2")
+	r2, err := gm.Create(ctx, group.GKRole, 0, "role_2", "Role 2")
 	a.NoError(err)
 	a.NotNil(g1)
 

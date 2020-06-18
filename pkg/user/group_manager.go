@@ -210,7 +210,7 @@ func (m *GroupManager) Validate() error {
 }
 
 // Upsert creates new group
-func (m *GroupManager) Create(ctx context.Context, parentID int64, kind GroupKind, key string, name string) (g Group, err error) {
+func (m *GroupManager) Create(ctx context.Context, kind GroupKind, parentID int64, key string, name string) (g Group, err error) {
 	var parent Group
 
 	// obtaining parent group
@@ -481,19 +481,19 @@ func (m *Manager) setupDefaultGroups(ctx context.Context) error {
 	}
 
 	// regular user
-	userRole, err := m.groups.Create(ctx, 0, GKRole, "user", "Regular User")
+	userRole, err := m.groups.Create(ctx, GKRole, 0, "user", "Regular User")
 	if err != nil {
 		return errors.Wrap(err, "failed to create regular user role")
 	}
 
 	// manager
-	managerRole, err := m.groups.Create(ctx, userRole.ID, GKRole, "manager", "Manager")
+	managerRole, err := m.groups.Create(ctx, GKRole, userRole.ID, "manager", "Manager")
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
 
 	// super user
-	_, err = m.groups.Create(ctx, managerRole.ID, GKRole, "superuser", "Super User")
+	_, err = m.groups.Create(ctx, GKRole, managerRole.ID, "superuser", "Super User")
 	if err != nil {
 		return fmt.Errorf("failed to create superuser role: %s", err)
 	}

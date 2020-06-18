@@ -262,17 +262,17 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NotNil(u3)
 
 	// roles
-	role, err := gm.Create(ctx, 0, user.GKRole, "test_role_group", "Test Role Group")
+	role, err := gm.Create(ctx, user.GKRole, 0, "test_role_group", "Test Role Group")
 	a.NoError(err)
 
-	role2, err := gm.Create(ctx, 0, user.GKRole, "test_role_group2", "Test Role Group 2")
+	role2, err := gm.Create(ctx, user.GKRole, 0, "test_role_group2", "Test Role Group 2")
 	a.NoError(err)
 
 	// groups
-	group, err := gm.Create(ctx, 0, user.GKGroup, "test_group", "Test Group")
+	group, err := gm.Create(ctx, user.GKGroup, 0, "test_group", "Test Group")
 	a.NoError(err)
 
-	group2, err := gm.Create(ctx, 0, user.GKGroup, "test_group2", "Test Group 2")
+	group2, err := gm.Create(ctx, user.GKGroup, 0, "test_group2", "Test Group 2")
 	a.NoError(err)
 
 	wantedRights := user.APView | user.APChange | user.APDelete
@@ -348,17 +348,17 @@ func TestAccessPolicyManagerBackupAndRestore(t *testing.T) {
 	a.NotNil(u3)
 
 	// roles
-	role, err := gm.Create(ctx, 0, user.GKRole, "test_role_group", "Test Role Group")
+	role, err := gm.Create(ctx, user.GKRole, 0, "test_role_group", "Test Role Group")
 	a.NoError(err)
 
-	role2, err := gm.Create(ctx, 0, user.GKRole, "test_role_group2", "Test Role Group 2")
+	role2, err := gm.Create(ctx, user.GKRole, 0, "test_role_group2", "Test Role Group 2")
 	a.NoError(err)
 
 	// groups
-	group, err := gm.Create(ctx, 0, user.GKGroup, "test_group", "Test Group")
+	group, err := gm.Create(ctx, user.GKGroup, 0, "test_group", "Test Group")
 	a.NoError(err)
 
-	group2, err := gm.Create(ctx, 0, user.GKGroup, "test_group2", "Test Group 2")
+	group2, err := gm.Create(ctx, user.GKGroup, 0, "test_group2", "Test Group 2")
 	a.NoError(err)
 
 	wantedRights := user.APView | user.APChange | user.APDelete
@@ -487,17 +487,17 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NotNil(u3)
 
 	// roles
-	role, err := gm.Create(ctx, 0, user.GKRole, "test_role_group", "Test Role Group")
+	role, err := gm.Create(ctx, user.GKRole, 0, "test_role_group", "Test Role Group")
 	a.NoError(err)
 
-	role2, err := gm.Create(ctx, 0, user.GKRole, "test_role_group2", "Test Role Group 2")
+	role2, err := gm.Create(ctx, user.GKRole, 0, "test_role_group2", "Test Role Group 2")
 	a.NoError(err)
 
 	// groups
-	group, err := gm.Create(ctx, 0, user.GKGroup, "test_group", "Test Group")
+	group, err := gm.Create(ctx, user.GKGroup, 0, "test_group", "Test Group")
 	a.NoError(err)
 
-	group2, err := gm.Create(ctx, 0, user.GKGroup, "test_group2", "Test Group 2")
+	group2, err := gm.Create(ctx, user.GKGroup, 0, "test_group2", "Test Group 2")
 	a.NoError(err)
 
 	wantedRights := user.APView | user.APChange | user.APDelete | user.APCopy

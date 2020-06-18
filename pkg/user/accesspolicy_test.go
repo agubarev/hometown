@@ -164,13 +164,13 @@ func TestSetGroupRights(t *testing.T) {
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
-	group1, err := gm.Create(ctx, 0, user.GKGroup, "test_group_1", "test group 1")
+	group1, err := gm.Create(ctx, user.GKGroup, 0, "test_group_1", "test group 1")
 	a.NoError(err)
 
 	err = group1.AddMember(ctx, testuser.ID)
 	a.NoError(err)
 
-	group2, err := gm.Create(ctx, 0, user.GKGroup, "test_group_2", "test group 2")
+	group2, err := gm.Create(ctx, user.GKGroup, 0, "test_group_2", "test group 2")
 	a.NoError(err)
 
 	err = group2.AddMember(ctx, testuser.ID)
@@ -254,14 +254,14 @@ func TestSetRoleRights(t *testing.T) {
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
-	role1, err := gm.Create(ctx, 0, user.GKRole, "test_role_1", "test role 1")
+	role1, err := gm.Create(ctx, user.GKRole, 0, "test_role_1", "test role 1")
 	a.NoError(err)
 
 	err = role1.AddMember(ctx, testuser.ID)
 	a.NoError(err)
 	a.True(role1.IsMember(ctx, testuser.ID))
 
-	role2, err := gm.Create(ctx, 0, user.GKRole, "test_role_2", "test role 2")
+	role2, err := gm.Create(ctx, user.GKRole, 0, "test_role_2", "test role 2")
 	a.NoError(err)
 
 	err = role2.AddMember(ctx, testuser.ID)
@@ -524,10 +524,10 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	assignee, err := user.CreateTestUser(ctx, um, "assignee", "assignee@hometown.local", nil)
 	a.NoError(err)
 
-	role, err := gm.Create(ctx, 0, user.GKRole, "test_role_group", "Test Role Group")
+	role, err := gm.Create(ctx, user.GKRole, 0, "test_role_group", "Test Role Group")
 	a.NoError(err)
 
-	group, err := gm.Create(ctx, 0, user.GKGroup, "test_group", "Test Group")
+	group, err := gm.Create(ctx, user.GKGroup, 0, "test_group", "Test Group")
 	a.NoError(err)
 
 	wantedRights := user.APView | user.APChange | user.APCopy | user.APDelete
@@ -597,13 +597,13 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(err)
 
 	// adding the user to 2 groups but setting rights to only one
-	group1, err := gm.Create(ctx, 0, user.GKGroup, "test_group_1", "test group 1")
+	group1, err := gm.Create(ctx, user.GKGroup, 0, "test_group_1", "test group 1")
 	a.NoError(err)
 
-	group2, err := gm.Create(ctx, group1.ID, user.GKGroup, "test_group_2", "test group 2")
+	group2, err := gm.Create(ctx, user.GKGroup, group1.ID, "test_group_2", "test group 2")
 	a.NoError(err)
 
-	group3, err := gm.Create(ctx, group2.ID, user.GKGroup, "test_group_3", "test group 3")
+	group3, err := gm.Create(ctx, user.GKGroup, group2.ID, "test_group_3", "test group 3")
 	a.NoError(err)
 
 	//---------------------------------------------------------------------------

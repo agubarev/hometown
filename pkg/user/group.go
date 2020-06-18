@@ -377,3 +377,13 @@ func (g *Group) UnlinkMember(ctx context.Context, userID int64) (err error) {
 
 	return nil
 }
+
+// Invite an existing user to become a member of the group
+// NOTE: this is optional and often can be disabled for better control
+func (g *Group) Invite(ctx context.Context, userID int64) (err error) {
+	// TODO: implement
+
+	panic("not implemented")
+
+	return nil
+}
