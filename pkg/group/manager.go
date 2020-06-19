@@ -1,6 +1,7 @@
 package group
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log"
@@ -25,8 +26,8 @@ var (
 	ErrNonZeroID              = errors.New("id is not zero")
 	ErrZeroMemberID           = errors.New("member id is zero")
 	ErrInvalidMemberKind      = errors.New("member kind is invalid")
-	ErrNilGroupStore          = errors.New("group store is nil")
-	ErrRelationNotFound          = errors.New("relation not found")
+	ErrNilStore               = errors.New("group store is nil")
+	ErrRelationNotFound       = errors.New("relation not found")
 	ErrGroupAlreadyRegistered = errors.New("group is already registered")
 	ErrEmptyGroupName         = errors.New("empty group name")
 	ErrDuplicateGroup         = errors.New("duplicate group")
@@ -36,39 +37,40 @@ var (
 	ErrGroupKindMismatch      = errors.New("group kinds mismatch")
 	ErrInvalidKind            = errors.New("invalid group kind")
 	ErrNotMember              = errors.New("member is not a member")
-	ErrAlreadyMember          = errors.New("already a member")
-	ErrCircuitedParent        = errors.New("circuited parenting")
-	ErrCircuitCheckTimeout    = errors.New("circuit check timed out")
-	ErrNilGroupManager        = errors.New("group manager is nil")
-	ErrGroupNotFound          = errors.New("group not found")
-	ErrGroupKeyTaken          = errors.New("group key is already taken")
+	ErrAlreadyMember       = errors.New("already a member")
+	ErrCircuitedParent     = errors.New("circuited parenting")
+	ErrCircuitCheckTimeout = errors.New("circuit check timed out")
+	ErrNilManager          = errors.New("group manager is nil")
+	ErrGroupNotFound       = errors.New("group not found")
+	ErrGroupKeyTaken       = errors.New("group key is already taken")
 )
 
 // List is a typed slice of groups to make sorting easier
 type List []Group
 
-// userManager is a manager responsible for all operations within its scope
+// Manager is a group manager
 // TODO: add default groups which need not to be assigned explicitly
 type Manager struct {
 	// group id -> group
-	groups map[int64]Group
+	groups map[uint32]Group
 
 	// group key -> group ID
-	keyMap map[TKey]int64
+	keyMap map[TKey]uint32
 
 	// default group ids
 	// NOTE: all tracked members belong to the groups whose IDs
 	// are mentioned in this slide
 	// TODO: unless stated otherwise (work out an exclusion mechanism)
-	defaultIDs []int64
+	defaultIDs []uint32
 
-	// group ID -> user IDs
-	members map[int64][]int64
 
 	// group id -> { key, name, description }
-	keys         map[int64]TKey
-	names        map[int64]TName
-	descriptions map[int64]TDescription
+	keys         map[uint32]TKey
+	names        map[uint32]TName
+
+	// relationships
+	memberGroups map[uint32][]uint32 // member ID -> slice of group IDs
+	groupMembers map[uint32][]uint32 // group ID -> slice of member IDs
 
 	store  Store
 	logger *zap.Logger
@@ -82,10 +84,13 @@ func NewManager(s Store) (*Manager, error) {
 	}
 
 	c := &Manager{
-		groups:     make(map[int64]Group, 0),
-		defaultIDs: make([]int64, 0),
-		keyMap:     make(map[TKey]int64),
-		members:    make(map[int64][]int64),
+		groups:     make(map[uint32]Group, 0),
+		keyMap:     make(map[TKey]uint32),
+		defaultIDs: make([]uint32, 0),
+		keys: make(map[uint32]TKey),
+		names: make(map[uint32]TName),
+		memberGroups: make(map[uint32][]uint32),
+		groupMembers: make(map[uint32][]uint32),
 		store:      s,
 	}
 
@@ -119,12 +124,6 @@ func (m *Manager) Logger() *zap.Logger {
 
 // Init initializes group manager
 func (m *Manager) Init(ctx context.Context) error {
-	if err := m.Validate(); err != nil {
-		return err
-	}
-
-	l := m.Logger()
-
 	s, err := m.Store()
 	if err != nil {
 		return err
@@ -141,9 +140,9 @@ func (m *Manager) Init(ctx context.Context) error {
 		// adding member to container
 		if err := m.Put(ctx, g); err != nil {
 			// just warning and moving forward
-			l.Info(
+			m.Logger().Info(
 				"Init() failed to add group to container",
-				zap.Int64("group_id", g.ID),
+				zap.Uint32("group_id", g.ID),
 				zap.String("kind", g.Kind.String()),
 				zap.ByteString("key", g.Key[:]),
 				zap.Error(err),
@@ -154,11 +153,11 @@ func (m *Manager) Init(ctx context.Context) error {
 	return nil
 }
 
-// DistributeMembers injects given users into the manager, and linking
+// DistributeMembers injects given members into the manager, and linking
 // them to their respective groups and roles
 // NOTE: does not affect the store
-// TODO: replace members slice with a channel to support a large numbers of users
-func (m *Manager) DistributeMembers(ctx context.Context, members []int64) error {
+// TODO: replace members slice with a channel to support a large numbers of members
+func (m *Manager) DistributeMembers(ctx context.Context, members []uint32) (err error) {
 	l := m.Logger()
 
 	s, err := m.Store()
@@ -168,36 +167,38 @@ func (m *Manager) DistributeMembers(ctx context.Context, members []int64) error 
 
 	// fetching all relations
 	l.Info("fetching group relations")
-	rs, err := s.FetchAllRelations(ctx)
+	relations, err := s.FetchAllRelations(ctx)
 	if err != nil {
 		return err
 	}
 
 	// iterating over injected members
 	l.Info("distributing members among their respective groups")
-	for _, userID := range members {
-		// checking whether this userID is listed
-		// among fetched relations
-		if gids, ok := rs[userID]; ok {
-			// iterating over a slice of group IDs related to thismember
-			for _, gid := range gids {
-				// obtaining the respective group
-				g, err := m.GroupByID(ctx, gid)
-				if err != nil {
+	for _, memberID := range members {
+		// checking whether this memberID is listed among fetched relations
+		if groupIDs, ok := relations[memberID]; ok {
+			// iterating over a slice of group IDs related to this member
+			for _, groupID := range groupIDs {
+				// obtaining the corresponding group
+				if _, err = m.GroupByID(ctx, groupID); err != nil {
+					if err != ErrGroupNotFound {
+						return errors.Wrapf(err, "failed to obtain group: %d", groupID)
+					}
+
 					// continuing even if an associated group is not found
 					l.Info(
 						"failed to apply group relation due to missing group",
-						zap.Int64("mid", userID),
-						zap.Int64("gid", gid),
+						zap.Uint32("member_id", memberID),
+						zap.Uint32("group_id", groupID),
 					)
 				}
 
-				// linking userID to a group
-				if err := g.LinkMember(ctx, userID); err != nil {
+				// linking memberID to a group
+				if err = m.LinkMember(ctx, groupID, memberID); err != nil {
 					l.Warn(
-						"failed to link user to group",
-						zap.Int64("gid", gid),
-						zap.Int64("uid", userID),
+						"failed to link member to group",
+						zap.Uint32("member_id", memberID),
+						zap.Uint32("group_id", groupID),
 						zap.Error(err),
 					)
 				}
@@ -211,15 +212,29 @@ func (m *Manager) DistributeMembers(ctx context.Context, members []int64) error 
 // Store returns store if set
 func (m *Manager) Store() (Store, error) {
 	if m.store == nil {
-		return nil, ErrNilGroupStore
+		return nil, ErrNilStore
 	}
 
 	return m.store, nil
 }
 
 // Upsert creates new group
-func (m *Manager) Create(ctx context.Context, kind Kind, parentID int64, key string, name string) (g Group, err error) {
+func (m *Manager) Create(ctx context.Context, kind Kind, parentID uint32, key string, name string, isDefault bool) (g Group, err error) {
 	var parent Group
+
+	// basic validation
+	key = strings.ToLower(strings.TrimSpace(key))
+	name = strings.TrimSpace(name)
+
+	// group must have a key
+	if key == "" {
+		return g, errors.New("group must have a key")
+	}
+
+	// group name must not be empty
+	if name == "" {
+		return g, ErrEmptyGroupName
+	}
 
 	// obtaining parent group
 	if parentID != 0 {
@@ -228,7 +243,8 @@ func (m *Manager) Create(ctx context.Context, kind Kind, parentID int64, key str
 			return g, errors.Wrap(err, "failed to obtain parent group")
 		}
 
-		if err := parent.Validate(ctx); err != nil {
+		// validating parent group
+		if err := m.Validate(ctx, parent.ID); err != nil {
 			return g, errors.Wrap(err, "parent group validation failed")
 		}
 
@@ -238,36 +254,20 @@ func (m *Manager) Create(ctx context.Context, kind Kind, parentID int64, key str
 		}
 	}
 
+
 	// initializing new group
 	g = Group{
 		Kind:    kind,
-		Key:     strings.ToLower(strings.TrimSpace(key)),
-		Name:    strings.ToLower(strings.TrimSpace(name)),
-		members: make(map[int64][]int64, 0),
+		ParentID: parent.ID,
+		IsDefault: isDefault,
 	}
 
-	// group must have a key
-	if g.Key == "" {
-		return g, errors.New("group must have a key")
-	}
-
-	// group name must not be empty
-	if g.Name == "" {
-		return g, ErrEmptyGroupName
-	}
-
-	// assigning parent group
-	if err := g.SetParent(ctx, parent); err != nil {
-		return g, err
-	}
-
-	if err = g.Validate(ctx); err != nil {
-		return g, errors.Wrap(err, "new group validation failed")
-	}
+	// converting string key and a name into array values
+	copy(g.Key[:], bytes.ToLower(bytes.TrimSpace([]byte(key))))
+	copy(g.Key[:], bytes.TrimSpace([]byte(name)))
 
 	// checking whether there's already some group with such key
-	_, err = m.GroupByKey(ctx, g.Key)
-	if err != nil {
+	if _, err = m.GroupByKey(ctx, g.Key); err != nil {
 		// returning on unexpected error
 		if err != ErrGroupNotFound {
 			return g, err
@@ -284,8 +284,7 @@ func (m *Manager) Create(ctx context.Context, kind Kind, parentID int64, key str
 	}
 
 	// adding new group to manager's registry
-	err = m.Put(ctx, g)
-	if err != nil {
+	if err = m.Put(ctx, g); err != nil {
 		return g, err
 	}
 
@@ -313,11 +312,11 @@ func (m *Manager) Put(ctx context.Context, g Group) error {
 
 	m.Unlock()
 
-	return g.Init()
+	return nil
 }
 
 // Lookup looks up in cache and returns a group if found
-func (m *Manager) Lookup(ctx context.Context, groupID int64) (g Group, err error) {
+func (m *Manager) Lookup(ctx context.Context, groupID uint32) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[groupID]
 	m.RUnlock()
@@ -330,26 +329,40 @@ func (m *Manager) Lookup(ctx context.Context, groupID int64) (g Group, err error
 }
 
 // Remove removing group from the manager
-func (m *Manager) Remove(ctx context.Context, groupID int64) error {
+func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
 	// a bit pedantic but consistent, returning an error if group
 	// is already registered within the manager
-	g, err := m.GroupByID(ctx, groupID)
+	g, err := m.Lookup(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	// clearing internal cache
 
 	m.Lock()
 
+	//---------------------------------------------------------------------------
+	// clearing internal cache
+	//---------------------------------------------------------------------------
 	delete(m.groups, g.ID)
 	delete(m.keyMap, g.Key)
 	delete(m.keys, g.ID)
 	delete(m.names, g.ID)
-	delete(m.descriptions, g.ID)
 
+	//---------------------------------------------------------------------------
 	// discarding group membership cache
-	delete(m.members, g.ID)
+	//---------------------------------------------------------------------------
+	// first, clearing out group ID from every related member
+	for _, memberID := range m.groupMembers[groupID] {
+		for i, id := range m.memberGroups[memberID] {
+			if id == groupID {
+				m.memberGroups[memberID] = append(m.memberGroups[memberID][0:i], m.memberGroups[memberID][i+1:]...)
+				break
+			}
+		}
+	}
+
+	// and eventually discarding the group to members relation
+	delete(m.groupMembers, groupID)
 
 	m.Unlock()
 
@@ -370,7 +383,12 @@ func (m *Manager) List(kind Kind) (gs []Group) {
 }
 
 // GroupByID returns a group by ID
-func (m *Manager) GroupByID(ctx context.Context, id int64) (g Group, err error) {
+func (m *Manager) GroupByID(ctx context.Context, id uint32) (g Group, err error) {
+	if id == 0 {
+		return g, ErrZeroGroupID
+	}
+
+	// lookup cache first
 	if g, err = m.Lookup(ctx, id); err != ErrGroupNotFound {
 		return g, nil
 	}
@@ -390,7 +408,7 @@ func (m *Manager) GroupByID(ctx context.Context, id int64) (g Group, err error) 
 }
 
 // PolicyByName returns a group by name
-func (m *Manager) GroupByKey(ctx context.Context, key string) (g Group, err error) {
+func (m *Manager) GroupByKey(ctx context.Context, key TKey) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[m.keyMap[key]]
 	m.RUnlock()
@@ -404,12 +422,12 @@ func (m *Manager) GroupByKey(ctx context.Context, key string) (g Group, err erro
 
 // GroupByName returns an access policy by its key
 // TODO: add expirable caching
-func (m *Manager) GroupByName(ctx context.Context, name string) (g Group, err error) {
+func (m *Manager) GroupByName(ctx context.Context, name TName) (g Group, err error) {
 	return m.store.FetchGroupByName(ctx, name)
 }
 
 // DeletePolicy returns an access policy by its ObjectID
-// NOTE: also deletes all relations and nested groups (should user have
+// NOTE: also deletes all relations and nested groups (should member have
 // sufficient access rights to do that)
 // TODO: implement recursive deletion
 func (m *Manager) DeleteGroup(ctx context.Context, g Group) (err error) {
@@ -422,9 +440,9 @@ func (m *Manager) DeleteGroup(ctx context.Context, g Group) (err error) {
 	return nil
 }
 
-// GroupsByUserID returns a slice of groups to which a given member belongs
-func (m *Manager) GroupsByUserID(ctx context.Context, userID int64, mask Kind) (gs []Group) {
-	if userID == 0 {
+// GroupsBymemberID returns a slice of groups to which a given member belongs
+func (m *Manager) GroupsBymemberID(ctx context.Context, memberID uint32, mask Kind) (gs []Group) {
+	if memberID == 0 {
 		return gs
 	}
 
@@ -433,7 +451,7 @@ func (m *Manager) GroupsByUserID(ctx context.Context, userID int64, mask Kind) (
 	m.RLock()
 	for _, g := range m.groups {
 		if g.Kind&mask != 0 {
-			if g.IsMember(ctx, userID) {
+			if m.IsMember(ctx, g.ID, memberID) {
 				gs = append(gs, g)
 			}
 		}
@@ -446,7 +464,7 @@ func (m *Manager) GroupsByUserID(ctx context.Context, userID int64, mask Kind) (
 // Groups to which the member belongs
 func (m *Manager) Groups(ctx context.Context, mask Kind) []Group {
 	if m.groups == nil {
-		m.groups = make(map[int64]Group, 0)
+		m.groups = make(map[uint32]Group, 0)
 	}
 
 	groups := make([]Group, 0)
@@ -461,25 +479,25 @@ func (m *Manager) Groups(ctx context.Context, mask Kind) []Group {
 
 func (m *Manager) setupDefaultGroups(ctx context.Context) error {
 	if m.groups == nil {
-		return ErrNilGroupManager
+		return ErrNilManager
 	}
 
-	// regular user
-	userRole, err := m.Create(ctx, GKRole, 0, "user", "Regular User")
+	// regular member
+	memberRole, err := m.Create(ctx, GKRole, 0, "member", "Regular member", false)
 	if err != nil {
-		return errors.Wrap(err, "failed to create regular user role")
+		return errors.Wrap(err, "failed to create regular member role")
 	}
 
 	// manager
-	managerRole, err := m.Create(ctx, GKRole, userRole.ID, "manager", "Manager")
+	managerRole, err := m.Create(ctx, GKRole, memberRole.ID, "manager", "Manager", false)
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
 
-	// super user
-	_, err = m.Create(ctx, GKRole, managerRole.ID, "superuser", "Super User")
+	// super member
+	_, err = m.Create(ctx, GKRole, managerRole.ID, "supermember", "Super member", false)
 	if err != nil {
-		return fmt.Errorf("failed to create superuser role: %s", err)
+		return fmt.Errorf("failed to create supermember role: %s", err)
 	}
 
 	return nil
@@ -495,32 +513,39 @@ func (m *Manager) Parent(ctx context.Context, g Group) (p Group, err error) {
 }
 
 // Validate performs an integrity check on a given group
-func (m *Manager) Validate(ctx context.Context, g Group) error {
-	if g.ID == 0 {
-		return ErrZeroGroupID
+func (m *Manager) Validate(ctx context.Context, groupID uint32) (err error) {
+	g, err := m.GroupByID(ctx, groupID)
+	if err != nil {
+		return err
 	}
 
 	// checking for parent circulation
-	if isCircuited, err := g.IsCircuited(ctx); isCircuited || (err != nil) {
+	if isCircuited, err := m.IsCircuited(ctx, g); isCircuited || (err != nil) {
 		if err != nil {
-			return errors.Wrapf(err, "%s validation failed", g.StringID())
+			return errors.Wrapf(err, "%d validation failed", g.ID)
 		}
 
 		if isCircuited {
-			return errors.Wrapf(err, "%s validation failed: %s", g.StringID(), ErrCircuitedParent)
+			return errors.Wrapf(err, "%d validation failed: %s", g.ID, ErrCircuitedParent)
 		}
 	}
 
 	// general field validations
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
-		return errors.Wrapf(err, "%s validation failed", g.StringID())
+		return errors.Wrapf(err, "%d validation failed", g.ID)
 	}
 
 	return nil
 }
 
 // IsCircuited tests whether the parents trace back to a nil
-func (g *Group) IsCircuited(ctx context.Context) (bool, error) {
+func (m *Manager) IsCircuited(ctx context.Context, groupID uint32) (bool, error) {
+	g, err := m.GroupByID(ctx, groupID)
+	if err != nil {
+		return false, err
+	}
+
+	// no parent means no opportunity to make circular parenting
 	if g.ParentID == 0 {
 		return false, nil
 	}
@@ -529,9 +554,9 @@ func (g *Group) IsCircuited(ctx context.Context) (bool, error) {
 	// TODO add checks to discover possible circulation before the timeout in case of a long parent trail
 	// TODO: obtain timeout from the context or use its deadline
 	timeout := time.Now().Add(5 * time.Millisecond)
-	for p, err := g.Parent(ctx); err == nil && !time.Now().After(timeout); p, err = p.Parent(ctx) {
+	for p, err := m.Parent(ctx, g); err == nil && !time.Now().After(timeout); p, err = m.Parent(ctx, p) {
 		if p.ParentID == 0 {
-			// it's all good, reached a no-parent
+			// it's all good, reached a no-parent point
 			return false, nil
 		}
 	}
@@ -539,131 +564,150 @@ func (g *Group) IsCircuited(ctx context.Context) (bool, error) {
 	return false, ErrCircuitCheckTimeout
 }
 
-// SetDescription sets text description for this group
-func (g *Group) SetDescription(text string) error {
-	// TODO: implement
 
-	return nil
-}
+// SetParent assigns a new parent ID
+// NOTE: does not update the database
+func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (err error) {
+	g, err := m.GroupByID(ctx, groupID)
+	if err != nil {
+		return err
+	}
 
-// SetParentID assigning a parent group, could be nil
-func (g *Group) SetParent(ctx context.Context, p Group) error {
-	// since parent could be nil thus it's kind is irrelevant
-	if p.ID != 0 {
+	newParent, err := m.GroupByID(ctx, newParentID)
+	if err != nil {
+		return errors.Wrap(err, "parent group not found")
+	}
+
+	// since new parent could be zero then its kind is irrelevant
+	if newParent.ID != 0 {
 		// checking whether new parent already is set somewhere along the parenthood
 		// by tracing backwards until a no-parent is met; at this point only a
 		// requested parent is searched and not tested whether the relations
 		// are circuited among themselves
-		if p.ParentID != 0 {
-			for pg, err := g.Parent(ctx); err == nil && pg.ID != 0; pg, err = pg.Parent(ctx) {
+		if newParent.ParentID != 0 {
+			for pg, err := m.Parent(ctx, g); err == nil && pg.ID != 0; pg, err = m.Parent(ctx, pg) {
 				// no more parents, breaking
 				if pg.ParentID == 0 {
 					break
 				}
 
 				// testing equality by comparing each group's ObjectID
-				if pg.ID == p.ID {
+				if pg.ID == newParent.ID {
 					return ErrDuplicateParent
 				}
 			}
 		}
 
 		// group kind must be the same all the way back to the top
-		if g.Kind != p.Kind {
+		if g.Kind != newParent.Kind {
 			return ErrGroupKindMismatch
 		}
-
-		// ParentID is used to rebuild parent-child connections after
-		// loading groups from the store
-		g.ParentID = p.ID
 	}
 
-	// assingning a new parent ObjectID
-	g.ParentID = p.ID
+	// previous checks have passed, thus assingning a new parent ID
+	// NOTE: ParentID is used to rebuild parent-child connections after
+	// loading groups from the store
+	g.ParentID = newParent.ID
 
 	return nil
 }
 ⏰
 // IsMember tests whether a given member belongs to a given group
-func (g *Group) IsMember(ctx context.Context, userID int64) bool {
-	if userID == 0 {
+func (m *Manager) IsMember(ctx context.Context, groupID, memberID uint32) bool {
+	if memberID == 0 || groupID == 0 {
 		return false
 	}
 
-	// searching userID if group slice is not nil
-	if members := g.members[g.ID]; members != nil {
-		isFound := false
-		g.RLock()
-		for _, memberID := range members {
-			if memberID == userID {
-				isFound = true
-				break
-			}
-		}
-		g.RUnlock()
-
-		return isFound
+	_, err := m.GroupByID(ctx, groupID)
+	if err != nil {
+		return false
 	}
+
+	m.Lock()
+	for _, gid := range m.memberGroups[memberID] {
+		if gid == groupID {
+			m.RUnlock()
+			return true
+		}
+	}
+	m.Unlock()
 
 	return false
 }
 
-// AddMember adding member to a group
+// CreateRelation adding member to a group
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
-func (g *Group) AddMember(ctx context.Context, userID int64) (err error) {
-	// to proceed, the userID must be previously properly registered,
-	// and persisted to the store
-	if userID == 0 {
-		return ErrZeroUserID
-	}
-
-	// adding userID to this group members
-	if err = g.LinkMember(ctx, userID); err != nil {
+func (m *Manager) CreateRelation(ctx context.Context, groupID, memberID uint32) (err error) {
+	_, err = m.GroupByID(ctx, groupID)
+	if err != nil {
 		return err
 	}
 
-	logger := g.Logger()
+	if memberID == 0 {
+		return ErrZeroMemberID
+	}
 
-	if g.manager != nil {
-		if g.manager.store != nil {
-			logger.Info("storing group userID relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
 
-			// if container is set, then storing group userID relation
-			if err = g.manager.store.CreateRelation(ctx, g.ID, userID); err != nil {
-				logger.Info("failed to store group userID relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
+	s, err := m.Store()
+	if err != nil && err != ErrNilStore{
+		return errors.Wrap(err, "failed to obtain group store")
+	}
+
+	l := m.Logger()
+
+		if s != nil {
+			l.Info("creating group member relationship", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID))
+
+			// persisting relation in the store
+			if err = s.CreateRelation(ctx, groupID, memberID); err != nil {
+				l.Info("failed to store group to member relation", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID), zap.Error(err))
 				return err
 			}
 		} else {
-			logger.Info("removing user ID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
+			l.Info("creating group member relationship while store is not set", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID), zap.Error(err))
 		}
+
+	// adding member ID to group members
+	if err = m.LinkMember(ctx, groupID, memberID); err != nil {
+		return err
 	}
 
 	return nil
 }
 
-// RemoveMember removes member from a group
-func (g *Group) RemoveMember(ctx context.Context, userID int64) (err error) {
-	if userID == 0 {
-		return ErrZeroUserID
-	}
-
-	// removing userID from group members
-	if err = g.UnlinkMember(ctx, userID); err != nil {
+// DeleteRelation removes member from a group
+func (m *Manager) DeleteRelation(ctx context.Context, groupID, memberID uint32) (err error) {
+	_, err = m.GroupByID(ctx, groupID)
+	if err != nil {
 		return err
 	}
 
-	l := g.Logger()
+	if memberID == 0 {
+		return ErrZeroMemberID
+	}
 
-	if g.manager.store != nil {
-		l.Info("deleting group user relation", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
+	// removing memberID from group members
+	if err = m.UnlinkMember(ctx, groupID, memberID); err != nil {
+		return err
+	}
+
+	s, err := m.Store()
+	if err != nil && err != ErrNilStore{
+		return errors.Wrap(err, "failed to obtain group store")
+	}
+
+	l := m.Logger()
+
+	if s != nil {
+		m.Logger().Info("deleting member from group", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID))
 
 		// deleting a stored relation
-		if err := g.manager.store.DeleteRelation(ctx, g.ID, userID); err != nil {
+		if err := s.DeleteRelation(ctx, groupID, memberID); err != nil {
 			return err
 		}
 	} else {
-		l.Info("removing user ID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
+		l.Info("deleting member from group while store is not set", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID))
 	}
 
 	return nil
@@ -671,57 +715,81 @@ func (g *Group) RemoveMember(ctx context.Context, userID int64) (err error) {
 
 // LinkMember adds a member to the group members
 // NOTE: does not affect the store
-func (g *Group) LinkMember(ctx context.Context, userID int64) (err error) {
-	if userID == 0 {
-		return ErrZeroUserID
+func (m *Manager) LinkMember(ctx context.Context, groupID, memberID uint32) (err error) {
+	_, err = m.GroupByID(ctx, groupID)
+	if err != nil {
+		return err
 	}
 
-	if g.IsMember(ctx, userID) {
+	if memberID == 0 {
+		return ErrZeroMemberID
+	}
+
+	if m.IsMember(ctx, groupID, memberID) {
 		return ErrAlreadyMember
 	}
 
-	g.Lock()
+	m.Lock()
 
-	// initializing new slice if it's nil
-	// NOTE: mask layout is: first byte = member kind (uint8), last 4 bytes = member id (int64)
-	if g.members[g.ID] == nil {
-		g.members[g.ID] = []int64{userID}
+	// group ID -> member IDs
+	if m.groupMembers[groupID] == nil {
+		m.groupMembers[groupID] = []uint32{memberID}
 	} else {
-		// appending relation mask to a group slice
-		g.members[g.ID] = append(g.members[g.ID], userID)
+		m.groupMembers[groupID] = append(m.groupMembers[groupID], memberID)
 	}
 
-	g.Unlock()
+	// member ID -> group IDs
+	if m.memberGroups[memberID] == nil {
+		m.memberGroups[memberID] = []uint32{groupID}
+	} else {
+		m.memberGroups[memberID] = append(m.memberGroups[memberID], groupID)
+	}
+
+	m.Unlock()
 
 	return nil
 }
 
 // UnlinkMember removes a member from the group members
 // NOTE: does not affect the store
-func (m *Manager) UnlinkMember(ctx context.Context, userID int64) (err error) {
-	if userID == 0 {
-		return ErrZeroUserID
+func (m *Manager) UnlinkMember(ctx context.Context, groupID, memberID uint32) (err error) {
+	_, err = m.GroupByID(ctx, groupID)
+	if err != nil {
+		return err
 	}
 
-	// removing group from the main slice
-	if members := g.members[g.ID]; members != nil {
-		g.Lock()
-		for i, memberID := range members {
-			if memberID == userID {
-				// deleting member from the list
-				g.members[g.ID] = append(g.members[g.ID][0:i], g.members[g.ID][i+1:]...)
+	if memberID == 0 {
+		return ErrZeroMemberID
+	}
+
+	m.Lock()
+
+	if m.groupMembers[groupID] != nil {
+		for i, mid := range m.groupMembers[groupID] {
+			if mid == memberID {
+				m.groupMembers[groupID] = append(m.groupMembers[groupID][0:i], m.groupMembers[groupID][i+1:]...)
 				break
 			}
 		}
-		g.Unlock()
 	}
+
+	if m.memberGroups[memberID] != nil {
+		for i, gid := range m.memberGroups[memberID] {
+			if gid == groupID{
+				m.memberGroups[memberID] = append(m.memberGroups[memberID][0:i], m.memberGroups[memberID][i+1:]...)
+				break
+			}
+		}
+	}
+
+	m.Unlock()
 
 	return nil
 }
 
-// Invite an existing user to become a member of the group
+// Invite an existing member to become a member of the group
 // NOTE: this is optional and often can be disabled for better control
-func (g *Group) Invite(ctx context.Context, userID int64) (err error) {
+func (m *Manager) Invite(ctx context.Context, memberID uint32) (err error) {
 	// TODO: implement
 
 	panic("not implemented")

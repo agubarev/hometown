@@ -267,7 +267,7 @@ func (g *Group) IsMember(ctx context.Context, userID int64) bool {
 	return false
 }
 
-// AddMember adding member to a group
+// CreateRelation adding member to a group
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
 func (g *Group) AddMember(ctx context.Context, userID int64) (err error) {
@@ -301,7 +301,7 @@ func (g *Group) AddMember(ctx context.Context, userID int64) (err error) {
 	return nil
 }
 
-// RemoveMember removes member from a group
+// DeleteRelation removes member from a group
 func (g *Group) RemoveMember(ctx context.Context, userID int64) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID

@@ -14,11 +14,10 @@ func (k Kind) String() string {
 	}
 }
 
-// type aliases
+// using byte arrays as a replacement for strings
 type (
-	TKey         = [32]byte
-	TName        = [256]byte
-	TDescription = [512]byte
+	TKey  [32]byte
+	TName [128]byte
 )
 
 // group kinds
@@ -30,19 +29,10 @@ const (
 
 // Group represents a member group
 type Group struct {
-	ID        int64 `db:"id" json:"id"`
-	ParentID  int64 `db:"parent_id" json:"parent_id"`
-	Kind      Kind  `db:"kind" json:"kind"`
-	Key       TKey  `db:"key" json:"key" valid:"required,ascii"`
-	IsDefault bool  `db:"is_default" json:"is_default"`
-}
-
-// FullGroup represents a full version of a Group,
-// including its key, name and description, which due to
-// its size would be more expensive to move around as a whole
-type FullGroup struct {
-	Group
-
-	Name        TName        `db:"name" json:"name"`
-	Description TDescription `db:"description" json:"description"`
+	ID        uint32 `db:"id" json:"id"`
+	ParentID  uint32 `db:"parent_id" json:"parent_id"`
+	Kind      Kind   `db:"kind" json:"kind"`
+	Key       TKey   `db:"key" json:"key" valid:"required,ascii"`
+	Name      TName  `db:"name" json:"name"`
+	IsDefault bool   `db:"is_default" json:"is_default"`
 }
