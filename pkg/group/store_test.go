@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/group"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,17 +18,16 @@ func TestGroupStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := NewGroupStore(db)
+	s, err := group.NewStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g := Group{
-		ID:          0,
-		Kind:        GKGroup,
-		Key:         "test_key",
-		Name:        "test_name",
-		Description: "test description",
-		ParentID:    0,
+	g := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKGroup,
+		Key:      group.NewKey("test_key"),
+		Name:     group.NewName("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -44,17 +44,16 @@ func TestGroupStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := NewGroupStore(db)
+	s, err := group.NewStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g := Group{
-		ID:          0,
-		Kind:        GKGroup,
-		Key:         "test_key",
-		Name:        "test_name",
-		Description: "test description",
-		ParentID:    0,
+	g := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKGroup,
+		Key:      group.NewKey("test_key"),
+		Name:     group.NewName("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -79,35 +78,32 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := NewGroupStore(db)
+	s, err := group.NewStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g1 := Group{
-		ID:          0,
-		Kind:        GKGroup,
-		Key:         "test_group",
-		Name:        "test group",
-		Description: "test description",
-		ParentID:    0,
+	g1 := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKGroup,
+		Key:      group.NewKey("test_key"),
+		Name:     group.NewName("test name"),
 	}
 
-	g2 := Group{
-		ID:          0,
-		Kind:        GKRole,
-		Key:         "test_role",
-		Name:        "test role",
-		Description: "test description",
-		ParentID:    0,
+	g2 := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKRole,
+		Key:      group.NewKey("test_role"),
+		Name:     group.NewName("test role"),
 	}
 
-	g3 := Group{
-		ID:          0,
-		Kind:        GKGroup,
-		Key:         "test_group123",
-		Name:        "test group 123",
-		Description: "test description",
-		ParentID:    0,
+	g3 := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKGroup,
+		Key:      group.NewKey("test_group123"),
+		Name:     group.NewName("test group 123"),
 	}
 
 	g1, err = s.UpsertGroup(ctx, g1)
@@ -148,17 +144,16 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := NewGroupStore(db)
+	s, err := group.NewStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g := Group{
-		ID:          0,
-		Kind:        GKGroup,
-		Key:         "test_group",
-		Name:        "test group",
-		Description: "test description",
-		ParentID:    0,
+	g := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKGroup,
+		Key:      group.NewKey("test_group"),
+		Name:     group.NewName("test group"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -173,7 +168,7 @@ func TestGroupStoreDelete(t *testing.T) {
 
 	fg, err = s.FetchGroupByID(ctx, g.ID)
 	a.Error(err)
-	a.EqualError(ErrGroupNotFound, err.Error())
+	a.EqualError(group.ErrGroupNotFound, err.Error())
 }
 
 func TestGroupStoreRelations(t *testing.T) {
@@ -185,45 +180,36 @@ func TestGroupStoreRelations(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, _, err := ManagerForTesting(db)
-	a.NoError(err)
-	a.NotNil(um)
-
-	s, err := NewGroupStore(db)
+	s, err := group.NewStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	g := Group{
-		ID:          0,
-		Kind:        GKGroup,
-		Key:         "test_group",
-		Name:        "test group",
-		Description: "test description",
-		ParentID:    0,
+	g := group.Group{
+		ID:       0,
+		ParentID: 0,
+		Kind:     group.GKGroup,
+		Key:      group.NewKey("test_group"),
+		Name:     group.NewName("test group"),
 	}
 
-	u, err := CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
-	a.NoError(err)
-	a.NotNil(u)
-
 	// making sure there is no previous relation
-	ok, err := s.HasRelation(ctx, g.ID, u.ID)
+	ok, err := s.HasRelation(ctx, g.ID, 1)
 	a.NoError(err)
 	a.False(ok)
 
 	// creating a relation
-	a.NoError(s.CreateRelation(ctx, g.ID, u.ID))
+	a.NoError(s.CreateRelation(ctx, g.ID, 1))
 
 	// now they must be related
-	ok, err = s.HasRelation(ctx, g.ID, u.ID)
+	ok, err = s.HasRelation(ctx, g.ID, 1)
 	a.NoError(err)
 	a.True(ok)
 
 	// breaking relation
-	a.NoError(s.DeleteRelation(ctx, g.ID, u.ID))
+	a.NoError(s.DeleteRelation(ctx, g.ID, 1))
 
 	// making sure the relation is gone
-	ok, err = s.HasRelation(ctx, g.ID, u.ID)
+	ok, err = s.HasRelation(ctx, g.ID, 1)
 	a.NoError(err)
 	a.False(ok)
 }

@@ -32,8 +32,8 @@ type MySQLStore struct {
 	db *dbr.Connection
 }
 
-// NewGroupStore returns a group store with mysql used as a backend
-func NewGroupStore(db *dbr.Connection) (Store, error) {
+// NewStore returns a group store with mysql used as a backend
+func NewStore(db *dbr.Connection) (Store, error) {
 	if db == nil {
 		return nil, ErrNilDatabase
 	}
@@ -89,7 +89,7 @@ func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 		return g, ErrNonZeroID
 	}
 
-	_, err := s.db.NewSession(nil).
+	res, err := s.db.NewSession(nil).
 		InsertInto("group").
 		Columns(guard.DBColumnsFrom(&g)...).
 		Record(&g).
@@ -97,13 +97,16 @@ func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 
 	// error handling
 	if err != nil {
-		switch err := err.(*mysql.MySQLError); err.Number {
-		case 1062:
-			return g, ErrDuplicateGroup
-		default:
-			return g, err
-		}
+		return g, err
 	}
+
+	// obtaining new record ID
+	newID, err := res.LastInsertId()
+	if err != nil {
+		return g, errors.Wrap(err, "failed to obtain new group ID")
+	}
+
+	g.ID = uint32(newID)
 
 	return g, nil
 }
@@ -143,18 +146,18 @@ func (s *MySQLStore) FetchGroupByID(ctx context.Context, id uint32) (Group, erro
 	return s.get(ctx, "SELECT * FROM `group` WHERE id = ? LIMIT 1", id)
 }
 
-func (s *MySQLStore) FetchGroupByKey(ctx context.Context, key string) (Group, error) {
+func (s *MySQLStore) FetchGroupByKey(ctx context.Context, key TKey) (Group, error) {
 	return s.get(ctx, "SELECT * FROM `group` WHERE `key` = ? LIMIT 1", key)
 }
 
 // FetchGroupByName retrieves a single group by a direct name match
-func (s *MySQLStore) FetchGroupByName(ctx context.Context, name string) (Group, error) {
+func (s *MySQLStore) FetchGroupByName(ctx context.Context, name TName) (Group, error) {
 	return s.get(ctx, "SELECT * FROM `group` WHERE `name` = ? LIMIT 1", name)
 }
 
 // FetchGroupsByName retrieves groups by their name
 // NOTE: optionally search by partial prefix
-func (s *MySQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name string) ([]Group, error) {
+func (s *MySQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name TName) ([]Group, error) {
 	if isPartial {
 		return s.getMany(ctx, "SELECT * FROM `group` WHERE `name` LIKE ?", fmt.Sprintf("%s%%", name))
 	}

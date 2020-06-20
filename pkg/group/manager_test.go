@@ -1,11 +1,11 @@
 package group_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/user"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,48 +16,38 @@ func TestManager_Create(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, ctx, err := user.ManagerForTesting(db)
+	s, err := group.NewStore(db)
 	a.NoError(err)
-	a.NotNil(um)
+	a.NotNil(s)
 
-	gm := um.GroupManager()
-
-	//---------------------------------------------------------------------------
-	// creating and storing test users
-	//---------------------------------------------------------------------------
-	u1, err := user.CreateTestUser(ctx, um, "testuser1", "testuser1@hometown.local", nil)
+	m, err := group.NewManager(s)
 	a.NoError(err)
-	a.NotNil(u1)
+	a.NotNil(m)
 
-	u2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", nil)
-	a.NoError(err)
-	a.NotNil(u2)
-
-	u3, err := user.CreateTestUser(ctx, um, "testuser3", "testuser3@hometown.local", nil)
-	a.NoError(err)
-	a.NotNil(u1)
+	// blank context
+	ctx := context.Background()
 
 	//---------------------------------------------------------------------------
 	// creating test groups and roles
 	//---------------------------------------------------------------------------
 
-	g1, err := gm.Create(ctx, group.GKGroup, 0, "group_1", "Group 1")
+	g1, err := m.Create(ctx, group.GKGroup, 0, "group_1", "Group 1", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(ctx, group.GKGroup, 0, "group_2", "Group 2")
+	g2, err := m.Create(ctx, group.GKGroup, 0, "group_2", "Group 2", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(ctx, group.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)")
+	g3, err := m.Create(ctx, group.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(ctx, group.GKRole, 0, "role_1", "Role 1")
+	r1, err := m.Create(ctx, group.GKRole, 0, "role_1", "Role 1", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(ctx, group.GKRole, 0, "role_2", "Role 2")
+	r2, err := m.Create(ctx, group.GKRole, 0, "role_2", "Role 2", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
@@ -65,64 +55,48 @@ func TestManager_Create(t *testing.T) {
 	// assigning users to groups and roles
 	//---------------------------------------------------------------------------
 	// user 1 to group 1
-	a.NoError(g1.AddMember(ctx, u1.ID))
+	a.NoError(m.CreateRelation(ctx, g1.ID, 1))
 
 	// user 2 and 3 to group 2
-	a.NoError(g2.AddMember(ctx, u2.ID))
-	a.NoError(g2.AddMember(ctx, u3.ID))
+	a.NoError(m.CreateRelation(ctx, g2.ID, 2))
+	a.NoError(m.CreateRelation(ctx, g2.ID, 3))
 
 	// user 3 to group 3
-	a.NoError(g3.AddMember(ctx, u3.ID))
+	a.NoError(m.CreateRelation(ctx, g3.ID, 3))
 
 	// user 1 and 2 to role 1
-	a.NoError(r1.AddMember(ctx, u1.ID))
-	a.NoError(r1.AddMember(ctx, u2.ID))
+	a.NoError(m.CreateRelation(ctx, r1.ID, 1))
+	a.NoError(m.CreateRelation(ctx, r1.ID, 2))
 
 	// user 3 to role 2
-	a.NoError(r2.AddMember(ctx, u3.ID))
-
-	//---------------------------------------------------------------------------
-	// reinitializing the user manager and expecting all of its required,
-	// previously created users, groups, roles, tokens, policies etc. to be loaded
-	//---------------------------------------------------------------------------
-	um, _, err = user.ManagerForTesting(db)
-	a.NoError(err)
-	a.NotNil(um)
+	a.NoError(m.CreateRelation(ctx, r2.ID, 3))
 
 	//---------------------------------------------------------------------------
 	// checking groups
 	//---------------------------------------------------------------------------
-	gm = um.GroupManager()
+	// re-initializing group manager and expecting all assignments to be restored
+	m, err = group.NewManager(s)
 	a.NoError(err)
-	a.NotNil(gm)
+	a.NotNil(m)
 
 	// validating user 1
-	u1, err = um.UserByID(ctx, u1.ID)
-	a.NoError(err)
-	a.NotNil(u1)
-	a.True(g1.IsMember(ctx, u1.ID))
-	a.False(g2.IsMember(ctx, u1.ID))
-	a.False(g3.IsMember(ctx, u1.ID))
-	a.True(r1.IsMember(ctx, u1.ID))
-	a.False(r2.IsMember(ctx, u1.ID))
+	a.True(m.IsMember(ctx, g1.ID, 1))
+	a.False(m.IsMember(ctx, g2.ID, 1))
+	a.False(m.IsMember(ctx, g3.ID, 1))
+	a.True(m.IsMember(ctx, r1.ID, 1))
+	a.False(m.IsMember(ctx, r2.ID, 1))
 
 	// validating user 2
-	u2, err = um.UserByID(ctx, u2.ID)
-	a.NoError(err)
-	a.NotNil(u2)
-	a.False(g1.IsMember(ctx, u2.ID))
-	a.True(g2.IsMember(ctx, u2.ID))
-	a.False(g3.IsMember(ctx, u2.ID))
-	a.True(r1.IsMember(ctx, u2.ID))
-	a.False(r2.IsMember(ctx, u2.ID))
+	a.False(m.IsMember(ctx, g1.ID, 2))
+	a.True(m.IsMember(ctx, g2.ID, 2))
+	a.False(m.IsMember(ctx, g3.ID, 2))
+	a.True(m.IsMember(ctx, r1.ID, 2))
+	a.False(m.IsMember(ctx, r2.ID, 2))
 
 	// validating user 3
-	u3, err = um.UserByID(ctx, u3.ID)
-	a.NoError(err)
-	a.NotNil(u3)
-	a.False(g1.IsMember(ctx, u3.ID))
-	a.True(g2.IsMember(ctx, u3.ID))
-	a.True(g3.IsMember(ctx, u3.ID))
-	a.False(r1.IsMember(ctx, u3.ID))
-	a.True(r2.IsMember(ctx, u3.ID))
+	a.False(m.IsMember(ctx, g1.ID, 3))
+	a.True(m.IsMember(ctx, g2.ID, 3))
+	a.True(m.IsMember(ctx, g3.ID, 3))
+	a.False(m.IsMember(ctx, r1.ID, 3))
+	a.True(m.IsMember(ctx, r2.ID, 3))
 }
