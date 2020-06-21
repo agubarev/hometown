@@ -205,7 +205,7 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	// unsetting parent
 	a.NoError(ap.SetParentID(0))
 	a.Zero(ap.ParentID)
-	a.Equal(ap.ParentID, int64(0))
+	a.Equal(ap.ParentID, uint32(0))
 
 	// changing policy name
 	newName := "updated name"

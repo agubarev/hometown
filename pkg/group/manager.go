@@ -63,10 +63,6 @@ type Manager struct {
 	// TODO: unless stated otherwise (work out an exclusion mechanism)
 	defaultIDs []uint32
 
-	// group id -> { key, name, description }
-	keys  map[uint32]TKey
-	names map[uint32]TName
-
 	// relationships
 	memberGroups map[uint32][]uint32 // member ID -> slice of group IDs
 	groupMembers map[uint32][]uint32 // group ID -> slice of member IDs
@@ -77,23 +73,25 @@ type Manager struct {
 }
 
 // NewManager initializing a new group manager
-func NewManager(s Store) (*Manager, error) {
+func NewManager(ctx context.Context, s Store) (m *Manager, err error) {
 	if s == nil {
 		log.Println("NewManager: store is not set")
 	}
 
-	c := &Manager{
+	m = &Manager{
 		groups:       make(map[uint32]Group, 0),
 		keyMap:       make(map[TKey]uint32),
 		defaultIDs:   make([]uint32, 0),
-		keys:         make(map[uint32]TKey),
-		names:        make(map[uint32]TName),
 		memberGroups: make(map[uint32][]uint32),
 		groupMembers: make(map[uint32][]uint32),
 		store:        s,
 	}
 
-	return c, nil
+	if err = m.Init(ctx); err != nil {
+		return nil, errors.Wrap(err, "failed to initialize group manager")
+	}
+
+	return m, nil
 }
 
 // SetLogger assigns a logger for this manager
@@ -129,13 +127,13 @@ func (m *Manager) Init(ctx context.Context) error {
 	}
 
 	// fetching all stored groups
-	gs, err := s.FetchAllGroups(ctx)
+	groups, err := s.FetchAllGroups(ctx)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to fetch all groups")
 	}
 
 	// adding groups to a container
-	for _, g := range gs {
+	for _, g := range groups {
 		// adding member to container
 		if err := m.Put(ctx, g); err != nil {
 			// just warning and moving forward
@@ -146,6 +144,26 @@ func (m *Manager) Init(ctx context.Context) error {
 				zap.ByteString("key", g.Key[:]),
 				zap.Error(err),
 			)
+		}
+	}
+
+	// fetching and distributing group member relations
+	relations, err := s.FetchAllRelations(ctx)
+	if err != nil {
+		return errors.Wrap(err, "failed to fetch all relations")
+	}
+
+	// creating runtime links of groups and members
+	for mid, gids := range relations {
+		for _, gid := range gids {
+			if err = m.LinkMember(ctx, gid, mid); err != nil {
+				m.Logger().Info(
+					"Init() failed to add group to container",
+					zap.Uint32("group_id", gid),
+					zap.Uint32("member_id", mid),
+					zap.Error(err),
+				)
+			}
 		}
 	}
 
@@ -328,8 +346,6 @@ func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
 	//---------------------------------------------------------------------------
 	delete(m.groups, g.ID)
 	delete(m.keyMap, g.Key)
-	delete(m.keys, g.ID)
-	delete(m.names, g.ID)
 
 	//---------------------------------------------------------------------------
 	// discarding group membership cache
@@ -624,19 +640,14 @@ func (m *Manager) IsMember(ctx context.Context, groupID, memberID uint32) bool {
 		return false
 	}
 
-	_, err := m.GroupByID(ctx, groupID)
-	if err != nil {
-		return false
-	}
-
-	m.Lock()
+	m.RLock()
 	for _, gid := range m.memberGroups[memberID] {
 		if gid == groupID {
 			m.RUnlock()
 			return true
 		}
 	}
-	m.Unlock()
+	m.RUnlock()
 
 	return false
 }

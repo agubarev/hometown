@@ -37,7 +37,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	p, err = apm.Create(ctx, 1, 0, "test_name", "", 0, false, false)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(int64(1), p.OwnerID)
+	a.Equal(uint32(1), p.OwnerID)
 	a.Zero(p.ParentID)
 	a.False(p.IsInherited)
 	a.False(p.IsExtended)
@@ -47,7 +47,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(p)
 	a.Zero(p.OwnerID)
-	a.Equal(int64(1), p.ParentID)
+	a.Equal(uint32(1), p.ParentID)
 	a.False(p.IsInherited)
 	a.False(p.IsExtended)
 

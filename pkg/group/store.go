@@ -22,6 +22,7 @@ type Store interface {
 	FetchGroupsByName(ctx context.Context, isPartial bool, name TName) (gs []Group, err error)
 	FetchAllGroups(ctx context.Context) (gs []Group, err error)
 	FetchAllRelations(ctx context.Context) (map[uint32][]uint32, error)
+	FetchGroupRelations(ctx context.Context, groupID uint32) ([]uint32, error)
 	HasRelation(ctx context.Context, groupID, userID uint32) (bool, error)
 	DeleteByID(ctx context.Context, groupID uint32) error
 	DeleteRelation(ctx context.Context, groupID, userID uint32) error
@@ -255,14 +256,14 @@ func (s *MySQLStore) FetchAllRelations(ctx context.Context) (relations map[uint3
 	return relations, nil
 }
 
-// GetGroupRelations retrieving all group-user relations
-func (s *MySQLStore) GetGroupRelations(ctx context.Context, id uint32) ([]uint32, error) {
+// FetchGroupRelations retrieving all group-user relations
+func (s *MySQLStore) FetchGroupRelations(ctx context.Context, groupID uint32) ([]uint32, error) {
 	relations := make([]uint32, 0)
 
 	sess := s.db.NewSession(nil)
 
 	// querying for just one column (user_id)
-	rows, err := sess.QueryContext(ctx, "SELECT user_id FROM `group_users` WHERE group_id = ?", id)
+	rows, err := sess.QueryContext(ctx, "SELECT user_id FROM `group_users` WHERE group_id = ?", groupID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return relations, nil

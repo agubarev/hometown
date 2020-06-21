@@ -253,7 +253,7 @@ func (s *GroupMySQLStore) FetchAllRelations(ctx context.Context) (relations map[
 	return relations, nil
 }
 
-// GetGroupRelations retrieving all group-user relations
+// FetchGroupRelations retrieving all group-user relations
 func (s *GroupMySQLStore) GetGroupRelations(ctx context.Context, id int64) ([]int64, error) {
 	relations := make([]int64, 0)
 

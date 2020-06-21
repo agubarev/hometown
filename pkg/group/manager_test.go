@@ -20,7 +20,7 @@ func TestManager_Create(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	m, err := group.NewManager(s)
+	m, err := group.NewManager(context.Background(), s)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -75,7 +75,7 @@ func TestManager_Create(t *testing.T) {
 	// checking groups
 	//---------------------------------------------------------------------------
 	// re-initializing group manager and expecting all assignments to be restored
-	m, err = group.NewManager(s)
+	m, err = group.NewManager(context.Background(), s)
 	a.NoError(err)
 	a.NotNil(m)
 
