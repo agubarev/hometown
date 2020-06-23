@@ -76,7 +76,7 @@ func ForTesting() (conn *dbr.Connection, err error) {
 		"token",
 		"group",
 		"group_users",
-		"accesspolicy",
+		"security",
 		"accesspolicy_rights_roster",
 	}
 

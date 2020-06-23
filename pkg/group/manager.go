@@ -43,6 +43,9 @@ var (
 	ErrGroupNotFound          = errors.New("group not found")
 	ErrGroupKeyTaken          = errors.New("group key is already taken")
 	ErrUnknownKind            = errors.New("unknown group kind")
+	ErrInvalidGroupKey        = errors.New("invalid group key")
+	ErrInvalidGroupName       = errors.New("invalid group name")
+	ErrEmptyGroupKey          = errors.New("group key is empty")
 )
 
 // List is a typed slice of groups to make sorting easier

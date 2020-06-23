@@ -2,29 +2,29 @@ package user
 
 import "sync"
 
-// RightsRoster denotes who has what rights
-type RightsRoster struct {
-	Everyone AccessRight            `json:"everyone"`
-	Role     map[uint32]AccessRight `json:"role"`
-	Group    map[uint32]AccessRight `json:"group"`
-	User     map[uint32]AccessRight `json:"user"`
+// Roster denotes who has what rights
+type Roster struct {
+	Everyone Right            `json:"everyone"`
+	Role     map[uint32]Right `json:"role"`
+	Group    map[uint32]Right `json:"group"`
+	User     map[uint32]Right `json:"user"`
 
 	changes []accessChange
 	sync.RWMutex
 }
 
-// NewRightsRoster is a shorthand initializer function
-func NewRightsRoster() *RightsRoster {
-	return &RightsRoster{
+// NewRoster is a shorthand initializer function
+func NewRoster() *Roster {
+	return &Roster{
 		Everyone: APNoAccess,
-		Group:    make(map[uint32]AccessRight),
-		Role:     make(map[uint32]AccessRight),
-		User:     make(map[uint32]AccessRight),
+		Group:    make(map[uint32]Right),
+		Role:     make(map[uint32]Right),
+		User:     make(map[uint32]Right),
 	}
 }
 
 // addChange adds a single change for further storing
-func (rr *RightsRoster) addChange(action RRAction, subjectKind SubjectKind, subjectID uint32, rights AccessRight) {
+func (rr *Roster) addChange(action RAction, subjectKind SubjectKind, subjectID uint32, rights Right) {
 	change := accessChange{
 		action:      action,
 		subjectKind: subjectKind,
@@ -43,14 +43,14 @@ func (rr *RightsRoster) addChange(action RRAction, subjectKind SubjectKind, subj
 	rr.Unlock()
 }
 
-func (rr *RightsRoster) clearChanges() {
+func (rr *Roster) clearChanges() {
 	rr.Lock()
 	rr.changes = nil
 	rr.Unlock()
 }
 
 // Summarize summarizing the resulting access right flags
-func (rr *RightsRoster) Summarize(ctx context.Context, userID uint32) AccessRight {
+func (rr *Roster) Summarize(ctx context.Context, userID uint32) Right {
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
 	if gm == nil {
 		panic(ErrNilGroupManager)
@@ -77,12 +77,12 @@ func (rr *RightsRoster) Summarize(ctx context.Context, userID uint32) AccessRigh
 // GroupRights returns the rights of a given group if set explicitly,
 // otherwise returns the rights of the first ancestor group that has
 // any rights record explicitly set
-func (rr *RightsRoster) GroupRights(ctx context.Context, groupID uint32) AccessRight {
+func (rr *Roster) GroupRights(ctx context.Context, groupID uint32) Right {
 	if groupID == 0 {
 		return APNoAccess
 	}
 
-	var rights AccessRight
+	var rights Right
 	var ok bool
 
 	// obtaining group manager

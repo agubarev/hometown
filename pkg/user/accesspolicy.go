@@ -396,7 +396,7 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 			ap.IDPath = change.To.(string)
 		case "OwnerID":
 			ap.OwnerID = change.To.(int64)
-		case "Name":
+		case "Key":
 			ap.Name = change.To.(string)
 		case "ObjectType":
 			ap.ObjectType = change.To.(string)
@@ -463,7 +463,7 @@ func (ap *AccessPolicy) Seal() error {
 }
 
 func (ap *AccessPolicy) StringID() string {
-	return fmt.Sprintf("accesspolicy(%s_%d)", ap.ObjectType, ap.ID)
+	return fmt.Sprintf("security(%s_%d)", ap.ObjectType, ap.ID)
 }
 
 // Clone clones a whole policy

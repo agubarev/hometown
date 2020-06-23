@@ -70,7 +70,7 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 	objInfo := reflect.ValueOf(obj).Elem()
 
 	fl.RLock()
-	cached, ok := fl.objectMap[objInfo.ObjectKind().Name()]
+	cached, ok := fl.objectMap[objInfo.ObjectKind().Key()]
 	fl.RUnlock()
 
 	// if found, returning cached object
@@ -80,7 +80,7 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 
 	// initializing filter object for caching
 	fo := &FilterObject{
-		name:   objInfo.ObjectKind().Name(),
+		name:   objInfo.ObjectKind().Key(),
 		object: obj,
 		typ:    objInfo.ObjectKind(),
 		fields: make(map[string]reflect.StructField),
@@ -97,7 +97,7 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 
 	// caching metadata object
 	fl.Lock()
-	fl.objectMap[objInfo.ObjectKind().Name()] = fo
+	fl.objectMap[objInfo.ObjectKind().Key()] = fo
 	fl.Unlock()
 
 	return fo, nil
@@ -307,7 +307,7 @@ func (fl *Filter) FilterQueryFromRequest(obj interface{}, r *http.Request) (*Fil
 			}
 		case reflect.Struct:
 			// this is where anything other than basic types are handled
-			switch f.ObjectKind.Name() {
+			switch f.ObjectKind.Key() {
 			case "Time":
 				timeVals := make([]string, len(vals))
 

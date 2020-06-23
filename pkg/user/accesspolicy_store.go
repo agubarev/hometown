@@ -159,7 +159,7 @@ func (s *DefaultAccessPolicyStore) CreatePolicy(ctx context.Context, ap AccessPo
 	//---------------------------------------------------------------------------
 	// executing statement
 
-	result, err := tx.InsertInto("accesspolicy").
+	result, err := tx.InsertInto("security").
 		Columns(guard.DBColumnsFrom(&ap)...).
 		Record(&ap).
 		ExecContext(ctx)
@@ -297,7 +297,7 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 	}
 
 	// executing statement
-	_, err = tx.Update("accesspolicy").SetMap(updates).Where("id = ?", ap.ID).ExecContext(ctx)
+	_, err = tx.Update("security").SetMap(updates).Where("id = ?", ap.ID).ExecContext(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to update access policy")
 	}
@@ -354,17 +354,17 @@ func (s *DefaultAccessPolicyStore) UpdatePolicy(ctx context.Context, ap AccessPo
 
 // GroupByID retrieving a access policy by ObjectID
 func (s *DefaultAccessPolicyStore) FetchPolicyByID(ctx context.Context, policyID int64) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
+	return s.get(ctx, "SELECT * FROM security WHERE id = ? LIMIT 1", policyID)
 }
 
 // PolicyByName retrieving a access policy by a key
 func (s *DefaultAccessPolicyStore) FetchPolicyByName(ctx context.Context, name string) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `name` = ? LIMIT 1", name)
+	return s.get(ctx, "SELECT * FROM security WHERE `name` = ? LIMIT 1", name)
 }
 
 // PolicyByObjectTypeAndID retrieving a access policy by a kind and its respective id
 func (s *DefaultAccessPolicyStore) FetchPolicyByObjectTypeAndID(ctx context.Context, objectType string, id int64) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
+	return s.get(ctx, "SELECT * FROM security WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
 // DeletePolicy access policy
@@ -388,7 +388,7 @@ func (s *DefaultAccessPolicyStore) DeletePolicy(ctx context.Context, ap AccessPo
 	// deleting policy along with it's respective rights roster
 	//---------------------------------------------------------------------------
 	// deleting access policy
-	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy WHERE id = ?", ap.ID); err != nil {
+	if _, err = tx.ExecContext(ctx, "DELETE FROM security WHERE id = ?", ap.ID); err != nil {
 		return errors.Wrapf(err, "failed to delete access policy: policy_id=%d", ap.ID)
 	}
 
