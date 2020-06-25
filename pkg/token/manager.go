@@ -272,7 +272,7 @@ func (m *Manager) Validate() error {
 	return nil
 }
 
-// List returns a slice of tokens filtered by a given kind mask
+// Registry returns a slice of tokens filtered by a given kind mask
 func (m *Manager) List(k Kind) []*Token {
 	ts := make([]*Token, 0)
 

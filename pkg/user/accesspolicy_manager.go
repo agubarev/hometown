@@ -70,7 +70,7 @@ func (m *AccessPolicyManager) Put(ctx context.Context, ap AccessPolicy) error {
 	return nil
 }
 
-// RemovePolicy removes policy from container registry
+// remove removes policy from container registry
 func (m *AccessPolicyManager) RemovePolicy(ctx context.Context, ap AccessPolicy) error {
 	err := ap.Validate()
 	if err != nil {

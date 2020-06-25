@@ -7,7 +7,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// List a named slice type for convenience
+// Registry a named slice type for convenience
 type List []*User
 
 // Filter filters current user list by a given predicate

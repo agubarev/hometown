@@ -374,7 +374,7 @@ func TestAccessPolicyManagerBackupAndRestore(t *testing.T) {
 	a.False(ap.IsInherited)
 	a.False(ap.IsExtended)
 
-	// making sure that this roster has no rights set yet
+	// making sure that this rosters has no rights set yet
 	a.Equal(user.APNoAccess, ap.RightsRoster.Everyone)
 	a.Empty(ap.RightsRoster.User)
 	a.Empty(ap.RightsRoster.Role)
@@ -438,7 +438,7 @@ func TestAccessPolicyManagerBackupAndRestore(t *testing.T) {
 	// since its last saving
 	a.NoError(ap.RestoreBackup())
 
-	// checking roster after backup restoration
+	// checking rosters after backup restoration
 	a.Equal(user.APView, ap.RightsRoster.Everyone)
 	a.Equal(user.APView, ap.RightsRoster.User[u1.ID])
 	a.Equal(user.APView, ap.RightsRoster.Role[role.ID])

@@ -284,7 +284,7 @@ func (m *GroupManager) Create(ctx context.Context, kind GroupKind, parentID int6
 	return g, nil
 }
 
-// Put adds group to the manager
+// put adds group to the manager
 func (m *GroupManager) Put(ctx context.Context, g Group) error {
 	if g.ID == 0 {
 		return ErrZeroID

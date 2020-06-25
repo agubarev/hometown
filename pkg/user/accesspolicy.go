@@ -463,7 +463,7 @@ func (ap *AccessPolicy) Seal() error {
 }
 
 func (ap *AccessPolicy) StringID() string {
-	return fmt.Sprintf("security(%s_%d)", ap.ObjectType, ap.ID)
+	return fmt.Sprintf("accesspolicy(%s_%d)", ap.ObjectType, ap.ID)
 }
 
 // Clone clones a whole policy

@@ -2,9 +2,7 @@ package user
 
 import (
 	"bytes"
-	"context"
 	"database/sql/driver"
-	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -160,24 +158,25 @@ func (r Right) String() string {
 }
 
 // AccessPolicy is a generalized ruleset for an object
-// if IsInherited is true, then the policy's own roster will point to it's parent
+// if IsInherited is true, then the policy's own rosters will point to it's parent
 // and everything else will be ignored as long as it's true
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
 // NOTE: an access policy can have only one object identifier set, either ObjectID or a Key
-// TODO: store object rights roster, name and object type in separate maps
+// TODO: store object rights rosters, name and object type in separate maps
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
 // TODO: add caching mechanism to skip rights summarization
-// TODO: disable inheritance if anything is changed about the current policy and create its own rights roster and enable extension by default
+// TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
 type AccessPolicy struct {
+	Flags      uint8       `db:"flags" json:"flags"`
 	ID         uint32      `db:"id" json:"id"`
 	ParentID   uint32      `db:"parent_id" json:"parent_id"`
 	OwnerID    uint32      `db:"owner_id" json:"owner_id"`
-	Key        TKey        `db:"key" json:"key"`
-	ObjectType TObjectType `db:"object_type" json:"object_type"`
 	ObjectID   uint32      `db:"object_id" json:"object_id"`
-	Flags      uint8       `db:"flags" json:"flags"`
+	ObjectType TObjectType `db:"object_type" json:"object_type"`
+	Key        TKey        `db:"key" json:"key"`
+	_          struct{}
 }
 
 // NewAccessPolicy create a new AccessPolicy object
@@ -256,12 +255,12 @@ func (ap *AccessPolicy) Validate() error {
 
 	// inherited means that this is not a standalone policy but simply points
 	// to its parent policy (first standalone policy to be found)
-	if ap.IsInherited && ap.IsExtended {
+	if ap.IsInherited() && ap.IsExtended() {
 		return errors.New("policy cannot be both inherited and extended at the same time")
 	}
 
 	// parent must be set if this policy inherits or extends
-	if ap.ParentID == 0 && (ap.IsInherited || ap.IsExtended) {
+	if ap.ParentID == 0 && (ap.IsInherited() || ap.IsExtended()) {
 		return errors.New("policy cannot inherit or extend without a parent")
 	}
 

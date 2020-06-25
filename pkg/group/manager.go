@@ -48,7 +48,7 @@ var (
 	ErrEmptyGroupKey          = errors.New("group key is empty")
 )
 
-// List is a typed slice of groups to make sorting easier
+// Registry is a typed slice of groups to make sorting easier
 type List []Group
 
 // Manager is a group manager
@@ -296,7 +296,7 @@ func (m *Manager) Create(ctx context.Context, kind Kind, parentID uint32, key st
 	return g, nil
 }
 
-// Put adds group to the manager
+// put adds group to the manager
 func (m *Manager) Put(ctx context.Context, g Group) error {
 	if g.ID == 0 {
 		return ErrZeroID
@@ -371,7 +371,7 @@ func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
 	return nil
 }
 
-// List returns all groups inside a manager
+// Registry returns all groups inside a manager
 func (m *Manager) List(kind Kind) (gs []Group) {
 	gs = make([]Group, 0)
 

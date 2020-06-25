@@ -47,21 +47,24 @@ const (
 )
 
 // Group represents a member group
+// TODO: replace Kind and IsDefault with a Flags bitmask
+// TODO: work out a simple Flags bit layout
 type Group struct {
+	Name      TName  `db:"name" json:"name"`
+	Key       TKey   `db:"key" json:"key" valid:"required,ascii"`
 	ID        uint32 `db:"id" json:"id"`
 	ParentID  uint32 `db:"parent_id" json:"parent_id"`
 	Kind      Kind   `db:"kind" json:"kind"`
-	Key       TKey   `db:"key" json:"key" valid:"required,ascii"`
-	Name      TName  `db:"name" json:"name"`
 	IsDefault bool   `db:"is_default" json:"is_default"`
+	_         struct{}
 }
 
 func NewGroup(kind Kind, parentID uint32, key TKey, name TName, isDefault bool) (g Group, err error) {
 	g = Group{
+		Name:      name,
+		Key:       key,
 		ParentID:  parentID,
 		Kind:      kind,
-		Key:       key,
-		Name:      name,
 		IsDefault: isDefault,
 	}
 

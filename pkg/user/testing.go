@@ -5,7 +5,7 @@ import (
 	"flag"
 	"log"
 
-	"github.com/agubarev/hometown/pkg/password"
+	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/gocraft/dbr/v2"

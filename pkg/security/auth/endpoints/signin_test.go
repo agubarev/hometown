@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/agubarev/hometown/pkg/auth"
-	"github.com/agubarev/hometown/pkg/auth/endpoints"
 	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/security/auth"
+	"github.com/agubarev/hometown/pkg/security/auth/endpoints"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"

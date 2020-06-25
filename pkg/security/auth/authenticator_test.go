@@ -5,8 +5,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/agubarev/hometown/pkg/auth"
 	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/security/auth"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/davecgh/go-spew/spew"

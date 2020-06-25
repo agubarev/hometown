@@ -10,6 +10,7 @@ import (
 
 // errors
 var (
+	ErrNilDatabase                  = errors.New("database is nil")
 	ErrZeroID                       = errors.New("id is zero")
 	ErrNonZeroID                    = errors.New("id is not zero")
 	ErrNilStore                     = errors.New("access policy store is nil")
@@ -18,22 +19,20 @@ var (
 	ErrAccessPolicyEmptyDesignators = errors.New("both key and kind with id are empty")
 	ErrAccessPolicyNameTaken        = errors.New("policy name is taken")
 	ErrAccessPolicyKindAndIDTaken   = errors.New("id of a kind is taken")
-	ErrAccessPolicyBackupExists     = errors.New("policy backup is already created")
-	ErrAccessPolicyBackupNotFound   = errors.New("policy backup not found")
-	ErrAccessPolicyNilSubject       = errors.New("subject entity is nil")
 	ErrEmptyKey                     = errors.New("key is empty")
 	ErrEmptyObjectType              = errors.New("object type is empty")
-	ErrNilRoster                    = errors.New("rights roster is nil")
-	ErrEmptyRightsRoster            = errors.New("rights roster is empty")
+	ErrNilRoster                    = errors.New("rights rosters is nil")
+	ErrCacheMiss                    = errors.New("roster cache miss")
+	ErrEmptyRightsRoster            = errors.New("rights rosters is empty")
 	ErrNilAccessPolicy              = errors.New("access policy is nil")
-	ErrAccessDenied                 = errors.New("user access denied")
+	ErrAccessDenied                 = errors.New("access denied")
 	ErrNoViewRight                  = errors.New("user is not allowed to view this")
-	ErrNilAssignor                  = errors.New("assignor user is nil")
-	ErrNilAssignee                  = errors.New("assignee user is nil")
+	ErrZeroAssignorID               = errors.New("assignor user id is zero ")
+	ErrZeroAssigneeID               = errors.New("assignee user id is zero")
 	ErrExcessOfRights               = errors.New("assignor is attempting to set the rights that excess his own")
 	ErrSameActor                    = errors.New("assignor and assignee is the same user")
 	ErrNoParentPolicy               = errors.New("no parent policy")
-	ErrNilParent                    = errors.New("parent is nil")
+	ErrNoParent                     = errors.New("parent is nil")
 )
 
 // Manager is the access policy registry
@@ -53,6 +52,7 @@ func NewManager(store Store) (*Manager, error) {
 
 	c := &Manager{
 		policies: make(map[uint32]AccessPolicy),
+		roster:   make(map[uint32]Roster),
 		keyMap:   make(map[TKey]uint32),
 		store:    store,
 	}
@@ -61,7 +61,7 @@ func NewManager(store Store) (*Manager, error) {
 }
 
 // UpsertGroup adds policy to container registry
-func (m *Manager) Put(ctx context.Context, ap AccessPolicy) error {
+func (m *Manager) put(ap AccessPolicy, r Roster) error {
 	err := ap.Validate()
 	if err != nil {
 		return err
@@ -70,14 +70,15 @@ func (m *Manager) Put(ctx context.Context, ap AccessPolicy) error {
 	// caching inside container's registry
 	m.Lock()
 	m.policies[ap.ID] = ap
+	m.roster[ap.ID] = r
 	m.keyMap[ap.Key] = ap.ID
 	m.Unlock()
 
 	return nil
 }
 
-// RemovePolicy removes policy from container registry
-func (m *Manager) RemovePolicy(ctx context.Context, ap AccessPolicy) error {
+// remove removes policy from container registry
+func (m *Manager) remove(ap AccessPolicy) error {
 	err := ap.Validate()
 	if err != nil {
 		return err
@@ -86,6 +87,7 @@ func (m *Manager) RemovePolicy(ctx context.Context, ap AccessPolicy) error {
 	// clearing out maps
 	m.Lock()
 	delete(m.policies, ap.ID)
+	delete(m.roster, ap.ID)
 	delete(m.keyMap, ap.Key)
 	m.Unlock()
 
@@ -93,8 +95,8 @@ func (m *Manager) RemovePolicy(ctx context.Context, ap AccessPolicy) error {
 }
 
 // Upsert creates a new access policy
-func (m *Manager) Create(ctx context.Context, ownerID, parentID uint32, key TKey, objectType TObjectType, objectID uint32, isInherited, isExtended bool) (ap AccessPolicy, err error) {
-	ap, err = NewAccessPolicy(key, ownerID, parentID, objectID, objectType, isInherited)
+func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objectID uint32, objectType TObjectType, flags uint8) (ap AccessPolicy, err error) {
+	ap, err = NewAccessPolicy(key, ownerID, parentID, objectID, objectType, flags)
 	if err != nil {
 		return ap, errors.Wrap(err, "failed to initialize new access policy")
 	}
@@ -123,7 +125,7 @@ func (m *Manager) Create(ctx context.Context, ownerID, parentID uint32, key TKey
 		}
 	}
 
-	// initializing or re-using rights roster, depending
+	// initializing or re-using rights rosters, depending
 	// on whether this policy has a parent from which it inherits
 	if parentID != 0 && ap.IsInherited {
 		apm := ctx.Value(CKAccessPolicyManager).(*Manager)
@@ -159,7 +161,7 @@ func (m *Manager) Create(ctx context.Context, ownerID, parentID uint32, key TKey
 
 	// adding new policy to the registry
 
-	if err = m.Put(ctx, ap); err != nil {
+	if err = m.put(ctx, ap); err != nil {
 		return ap, errors.Wrap(err, "failed to add access policy to container registry")
 	}
 
@@ -223,12 +225,12 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, 
 	}
 
 	// at this point it's safe to assume that everything went well,
-	// thus, clearing backup and rights roster changelist
+	// thus, clearing backup and rights rosters changelist
 	ap.backup = nil
 	ap.RightsRoster.changes = nil
 
 	// updating policy cache
-	if err = m.Put(ctx, ap); err != nil {
+	if err = m.put(ctx, ap); err != nil {
 		return ap, err
 	}
 
@@ -254,7 +256,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, e
 	}
 
 	// adding policy to registry
-	if err = m.Put(ctx, ap); err != nil {
+	if err = m.put(ctx, ap); err != nil {
 		return ap, err
 	}
 
@@ -262,7 +264,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, e
 }
 
 // PolicyByName returns an access policy by its key
-func (m *Manager) PolicyByName(ctx context.Context, name string) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByName(ctx context.Context, name TKey) (ap AccessPolicy, err error) {
 	m.RLock()
 	ap, ok := m.policies[m.keyMap[name]]
 	m.RUnlock()
@@ -279,7 +281,7 @@ func (m *Manager) PolicyByName(ctx context.Context, name string) (ap AccessPolic
 	}
 
 	// adding policy to registry
-	if err = m.Put(ctx, ap); err != nil {
+	if err = m.put(ctx, ap); err != nil {
 		return ap, err
 	}
 
@@ -288,20 +290,20 @@ func (m *Manager) PolicyByName(ctx context.Context, name string) (ap AccessPolic
 
 // PolicyByObjectTypeAndID returns an access policy by its kind and id
 // TODO: add cache
-func (m *Manager) PolicyByObjectTypeAndID(ctx context.Context, objectType string, objectID uint32) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByObjectTypeAndID(ctx context.Context, objectType TObjectType, objectID uint32) (ap AccessPolicy, r Roster, err error) {
 	// attempting to obtain policy from the store
-	ap, err = m.store.FetchPolicyByObjectTypeAndID(ctx, objectType, objectID)
+	ap, r, err = m.store.FetchPolicyByObjectTypeAndID(ctx, objectID, objectType)
 	if err != nil {
 		return ap, err
 	}
 
 	// adding policy to registry
-	err = m.Put(ctx, ap)
+	err = m.put(ap, r)
 	if err != nil {
-		return ap, err
+		return ap, r, err
 	}
 
-	return ap, nil
+	return ap, r, nil
 }
 
 // DeletePolicy returns an access policy by its ObjectID
@@ -317,7 +319,7 @@ func (m *Manager) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error)
 	}
 
 	// adding policy to registry
-	err = m.RemovePolicy(ctx, ap)
+	err = m.remove(ap)
 	if err != nil {
 		if err == ErrAccessPolicyNotFound {
 			return nil
@@ -348,7 +350,7 @@ func (m *Manager) HasRights(ctx context.Context, ap *AccessPolicy, subject inter
 
 // SetRights sets rights on a given policy, to a subject, by an assignor
 // NOTE: can be called multiple times before policy changes are persisted
-// NOTE: rights roster changes are not persisted unless explicitly saved
+// NOTE: rights rosters changes are not persisted unless explicitly saved
 // NOTE: changes made with this function will be cancelled and backup restored
 // if there will be any errors when saving this policy
 func (m *Manager) SetRights(ctx context.Context, ap *AccessPolicy, assignorID uint32, subject interface{}, rights Right) (err error) {
@@ -661,7 +663,7 @@ func (ap *AccessPolicy) HasRights(ctx context.Context, userID uint32, rights Rig
 		}
 	}
 
-	// merging with the actual policy's rights roster rights
+	// merging with the actual policy's rights rosters rights
 	ap.RLock()
 	cr |= ap.RightsRoster.Summarize(ctx, userID)
 	ap.RUnlock()
@@ -701,7 +703,7 @@ func (ap *AccessPolicy) UnsetRights(ctx context.Context, assignorID uint32, assi
 
 	ap.Lock()
 
-	// deleting assignee from the roster (depending on its type)
+	// deleting assignee from the rosters (depending on its type)
 	switch sub := assignee.(type) {
 	case nil:
 		ap.RightsRoster.Everyone = APNoAccess
@@ -723,4 +725,76 @@ func (ap *AccessPolicy) UnsetRights(ctx context.Context, assignorID uint32, assi
 	ap.Unlock()
 
 	return nil
+}
+
+// Summarize summarizing the resulting access right flags
+func (r *Roster) Summarize(ctx context.Context, userID uint32) Right {
+	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	if gm == nil {
+		panic(ErrNilGroupManager)
+	}
+
+	r := r.Everyone
+
+	// calculating standard and role group rights
+	// NOTE: if some group doesn't have explicitly set rights, then
+	// attempting to obtain the rights of a first ancestor group,
+	// that has specific rights set
+	for _, g := range gm.GroupsByUserID(ctx, userID, GKRole|GKGroup) {
+		r |= r.GroupRights(ctx, g.ID)
+	}
+
+	// user-specific rights
+	if _, ok := r.User[userID]; ok {
+		r |= r.User[userID]
+	}
+
+	return r
+}
+
+// GroupRights returns the rights of a given group if set explicitly,
+// otherwise returns the rights of the first ancestor group that has
+// any rights record explicitly set
+func (r *Roster) GroupRights(ctx context.Context, groupID uint32) Right {
+	if groupID == 0 {
+		return APNoAccess
+	}
+
+	var rights Right
+	var ok bool
+
+	// obtaining group manager
+	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	if gm == nil {
+		panic(ErrNilGroupManager)
+	}
+
+	// obtaining target group
+	g, err := gm.GroupByID(ctx, groupID)
+	if err != nil {
+		return APNoAccess
+	}
+
+	r.RLock()
+
+	switch g.Kind {
+	case GKGroup:
+		rights, ok = r.Group[g.ID]
+	case GKRole:
+		rights, ok = r.Role[g.ID]
+	}
+
+	r.RUnlock()
+
+	if ok {
+		return rights
+	}
+
+	// now looking for the first set rights by tracing back
+	// through its parents
+	if g.ParentID != 0 {
+		return r.GroupRights(ctx, g.ParentID)
+	}
+
+	return APNoAccess
 }

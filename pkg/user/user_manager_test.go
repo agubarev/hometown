@@ -5,7 +5,7 @@ import (
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
-	"github.com/agubarev/hometown/pkg/password"
+	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"
