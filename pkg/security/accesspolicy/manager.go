@@ -11,7 +11,7 @@ import (
 // errors
 var (
 	ErrNilDatabase                  = errors.New("database is nil")
-	ErrZeroID                       = errors.New("id is zero")
+	ErrZeroPolicyID                 = errors.New("id is zero")
 	ErrNonZeroID                    = errors.New("id is not zero")
 	ErrNilStore                     = errors.New("access policy store is nil")
 	ErrNilAccessPolicyManager       = errors.New("access policy container is nil")
@@ -23,7 +23,7 @@ var (
 	ErrEmptyObjectType              = errors.New("object type is empty")
 	ErrNilRoster                    = errors.New("rights rosters is nil")
 	ErrCacheMiss                    = errors.New("roster cache miss")
-	ErrEmptyRightsRoster            = errors.New("rights rosters is empty")
+	ErrEmptyRoster                  = errors.New("rights rosters is empty")
 	ErrNilAccessPolicy              = errors.New("access policy is nil")
 	ErrAccessDenied                 = errors.New("access denied")
 	ErrNoViewRight                  = errors.New("user is not allowed to view this")

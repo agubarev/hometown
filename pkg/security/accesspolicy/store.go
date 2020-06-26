@@ -2,14 +2,9 @@ package user
 
 import (
 	"context"
-	"database/sql"
-	"database/sql/driver"
-	"fmt"
 	"log"
 
 	"github.com/agubarev/hometown/pkg/util/guard"
-	"github.com/davecgh/go-spew/spew"
-	"github.com/go-sql-driver/mysql"
 	"github.com/gocraft/dbr/v2"
 	"github.com/pkg/errors"
 )
@@ -24,12 +19,13 @@ type Store interface {
 	FetchPolicyByObjectTypeAndID(ctx context.Context, id uint32, objectType TObjectType) (ap AccessPolicy, err error)
 	DeletePolicy(ctx context.Context, ap AccessPolicy) error
 	CreateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
+	FetchRosterByID(ctx context.Context, policyID uint32) (r *Roster, err error)
 	UpdateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
 	DeleteRoster(ctx context.Context, policyID uint32) (err error)
 }
 
-// RightsRosterDatabaseRecord represents a single database row
-type RightsRosterDatabaseRecord struct {
+// RosterDatabaseRecord represents a single database row
+type RosterDatabaseRecord struct {
 	PolicyID        uint32      `db:"policy_id"`
 	SubjectKind     SubjectKind `db:"subject_kind"`
 	SubjectID       uint32      `db:"subject_id"`
@@ -53,53 +49,19 @@ func NewDefaultMySQLStore(db *dbr.Connection) (Store, error) {
 	return s, nil
 }
 
-func (s *DefaultMySQLStore) get(ctx context.Context, q string, args ...interface{}) (ap AccessPolicy, r Roster, err error) {
+func (s *DefaultMySQLStore) get(ctx context.Context, q string, args ...interface{}) (ap AccessPolicy, err error) {
 	sess := s.db.NewSession(nil)
 
 	// fetching policy itself
 	if err := sess.SelectBySql(q, args...).LoadOneContext(ctx, &ap); err != nil {
 		if err == dbr.ErrNotFound {
-			return ap, r, ErrAccessPolicyNotFound
+			return ap, ErrAccessPolicyNotFound
 		}
 
-		return ap, r, err
+		return ap, err
 	}
 
-	// fetching rights rosters
-	rrs := make([]RightsRosterDatabaseRecord, 0)
-
-	count, err := sess.
-		SelectBySql("SELECT * FROM accesspolicy_roster WHERE policy_id = ?", ap.ID).
-		LoadContext(ctx, &rrs)
-
-	switch true {
-	case err != nil:
-		return ap, r, err
-	case count == 0:
-		return ap, r, ErrEmptyRightsRoster
-	}
-
-	// initializing rights rosters
-	r = NewRoster()
-
-	// transforming database records into rights rosters
-	for _, _r := range rrs {
-		switch _r.SubjectKind {
-		case SKEveryone:
-			r.Everyone = _r.AccessRight
-		case SKRoleGroup, SKGroup, SKUser:
-			r.register(_r.SubjectKind, _r.SubjectID, _r.AccessRight)
-		default:
-			log.Printf(
-				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
-				_r.SubjectKind,
-				_r.SubjectID,
-				_r.AccessRight,
-			)
-		}
-	}
-
-	return ap, r, nil
+	return ap, nil
 }
 
 func (s *DefaultMySQLStore) getMany(ctx context.Context, q string, args ...interface{}) (aps []AccessPolicy, err error) {
@@ -109,13 +71,6 @@ func (s *DefaultMySQLStore) getMany(ctx context.Context, q string, args ...inter
 		return nil, err
 	case count == 0:
 		return nil, ErrAccessPolicyNotFound
-	}
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return aps, nil
-		}
-
-		return nil, err
 	}
 
 	return aps, nil
@@ -168,9 +123,9 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap AccessPolicy) (
 // UpdatePolicy updates an existing access policy along with its rights rosters
 // NOTE: rights rosters keeps track of its changes, thus, update will
 // only affect changes mentioned by the respective Roster object
-func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) (err error) {
+func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy) (err error) {
 	if ap.ID == 0 {
-		return ErrZeroID
+		return ErrZeroPolicyID
 	}
 
 	tx, err := s.db.NewSession(nil).Begin()
@@ -198,44 +153,6 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 		return errors.Wrap(err, "failed to update access policy")
 	}
 
-	// checking whether the rights rosters has any changes
-	// TODO: optimize by squashing inserts and deletes into single queries
-	for _, c := range r.changes {
-		switch c.action {
-		case RSet:
-			//---------------------------------------------------------------------------
-			// creating
-			//---------------------------------------------------------------------------
-			_, err = tx.Exec(
-				"INSERT INTO accesspolicy_roster (policy_id, subject_kind, subject_id, access, access_explained) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE access = ?",
-				ap.ID,
-				c.subjectKind,
-				c.subjectID,
-				c.accessRight,
-				c.accessRight.String(),
-				c.accessRight,
-			)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to upsert rights rosters record")
-			}
-		case RUnset:
-			//---------------------------------------------------------------------------
-			// deleting
-			//---------------------------------------------------------------------------
-			_, err = tx.Exec(
-				"DELETE FROM accesspolicy_roster WHERE policy_id = ? AND subject_kind = ? AND subject_id = ?",
-				ap.ID,
-				c.subjectKind,
-				c.subjectID,
-			)
-
-			if err != nil {
-				return errors.Wrap(err, "failed to delete rights rosters record")
-			}
-		}
-	}
-
 	//---------------------------------------------------------------------------
 	// commiting transaction
 	//---------------------------------------------------------------------------
@@ -246,26 +163,25 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 	return nil
 }
 
-// GroupByID retrieving a access policy by ObjectID
-func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (AccessPolicy, *Roster, error) {
+// FetchPolicyByID fetches access policy by ID
+func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
 }
 
 // PolicyByName retrieving a access policy by a key
-func (s *DefaultMySQLStore) FetchPolicyByName(ctx context.Context, name TKey) (AccessPolicy, *Roster, error) {
+func (s *DefaultMySQLStore) FetchPolicyByName(ctx context.Context, name TKey) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `name` = ? LIMIT 1", name)
 }
 
 // PolicyByObjectTypeAndID retrieving a access policy by a kind and its respective id
-func (s *DefaultMySQLStore) FetchPolicyByObjectTypeAndID(ctx context.Context, id uint32, objectType TObjectType) (AccessPolicy, *Roster, error) {
+func (s *DefaultMySQLStore) FetchPolicyByObjectTypeAndID(ctx context.Context, id uint32, objectType TObjectType) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
-// DeletePolicy access policy
+// DeletePolicy deletes access policy and its corresponding roster
 func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error) {
-	// basic validations
 	if ap.ID == 0 {
-		return ErrZeroID
+		return ErrZeroPolicyID
 	}
 
 	tx, err := s.db.NewSession(nil).Begin()
@@ -274,15 +190,12 @@ func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap AccessPolicy) (
 	}
 	defer tx.RollbackUnlessCommitted()
 
-	//---------------------------------------------------------------------------
-	// deleting policy along with it's respective rights rosters
-	//---------------------------------------------------------------------------
 	// deleting access policy
 	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy WHERE id = ?", ap.ID); err != nil {
 		return errors.Wrapf(err, "failed to delete access policy: policy_id=%d", ap.ID)
 	}
 
-	// deleting rights rosters
+	// deleting roster
 	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy_roster WHERE policy_id = ?", ap.ID); err != nil {
 		return errors.Wrapf(err, "failed to delete rights rosters: policy_id=%d", ap.ID)
 	}
@@ -299,7 +212,7 @@ func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap AccessPolicy) (
 
 func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r *Roster) (err error) {
 	if policyID != 0 {
-		return ErrZeroID
+		return ErrZeroPolicyID
 	}
 
 	tx, err := s.db.NewSession(nil).Begin()
@@ -311,10 +224,10 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	//---------------------------------------------------------------------------
 	// preparing new rosters records
 	//---------------------------------------------------------------------------
-	rrs := make([]RightsRosterDatabaseRecord, 0)
+	rrs := make([]RosterDatabaseRecord, 0)
 
 	// for everyone
-	rrs = append(rrs, RightsRosterDatabaseRecord{
+	rrs = append(rrs, RosterDatabaseRecord{
 		PolicyID:        policyID,
 		SubjectKind:     SKEveryone,
 		AccessRight:     r.Everyone,
@@ -325,7 +238,7 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	for _, _r := range r.Registry {
 		switch _r.Kind {
 		case SKRoleGroup, SKGroup, SKUser:
-			rrs = append(rrs, RightsRosterDatabaseRecord{
+			rrs = append(rrs, RosterDatabaseRecord{
 				PolicyID:        policyID,
 				SubjectKind:     _r.Kind,
 				SubjectID:       _r.ID,
@@ -370,12 +283,124 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	return nil
 }
 
+// FetchRosterByID fetches access policy roster by policy ID
+func (s *DefaultMySQLStore) FetchRosterByID(ctx context.Context, policyID uint32) (r *Roster, err error) {
+	sess := s.db.NewSession(nil)
+
+	rrs := make([]RosterDatabaseRecord, 0)
+
+	count, err := sess.
+		SelectBySql("SELECT * FROM accesspolicy_roster WHERE policy_id = ?", policyID).
+		LoadContext(ctx, &rrs)
+
+	switch true {
+	case err != nil:
+		return r, err
+	case count == 0:
+		return r, ErrEmptyRoster
+	}
+
+	// initializing roster
+	r = NewRoster()
+
+	// transforming database records into the roster object
+	for _, _r := range rrs {
+		switch _r.SubjectKind {
+		case SKEveryone:
+			r.Everyone = _r.AccessRight
+		case SKRoleGroup, SKGroup, SKUser:
+			r.register(_r.SubjectKind, _r.SubjectID, _r.AccessRight)
+		default:
+			log.Printf(
+				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
+				_r.SubjectKind,
+				_r.SubjectID,
+				_r.AccessRight,
+			)
+		}
+	}
+
+	return r, nil
+}
+
 func (s *DefaultMySQLStore) UpdateRoster(ctx context.Context, policyID uint32, r *Roster) (err error) {
+	if policyID == 0 {
+		return ErrZeroPolicyID
+	}
+
+	tx, err := s.db.NewSession(nil).Begin()
+	if err != nil {
+		return errors.Wrap(err, "failed to begin a transaction")
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	// checking whether the rights rosters has any changes
+	// TODO: optimize by squashing inserts and deletes into single queries
+	for _, c := range r.changes {
+		switch c.action {
+		case RSet:
+			//---------------------------------------------------------------------------
+			// creating
+			//---------------------------------------------------------------------------
+			_, err = tx.Exec(
+				"INSERT INTO accesspolicy_roster (policy_id, subject_kind, subject_id, access, access_explained) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE access = ?",
+				policyID,
+				c.subjectKind,
+				c.subjectID,
+				c.accessRight,
+				c.accessRight.String(),
+				c.accessRight,
+			)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to upsert rights rosters record")
+			}
+		case RUnset:
+			//---------------------------------------------------------------------------
+			// deleting
+			//---------------------------------------------------------------------------
+			_, err = tx.Exec(
+				"DELETE FROM accesspolicy_roster WHERE policy_id = ? AND subject_kind = ? AND subject_id = ?",
+				policyID,
+				c.subjectKind,
+				c.subjectID,
+			)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to delete rights rosters record")
+			}
+		}
+	}
+
+	//---------------------------------------------------------------------------
+	// commiting transaction
+	//---------------------------------------------------------------------------
+	if err = tx.Commit(); err != nil {
+		return errors.Wrap(err, "failed to commit database transaction")
+	}
 
 	return nil
 }
 
 func (s *DefaultMySQLStore) DeleteRoster(ctx context.Context, policyID uint32) (err error) {
+	if policyID == 0 {
+		return ErrZeroPolicyID
+	}
+
+	tx, err := s.db.NewSession(nil).Begin()
+	if err != nil {
+		return errors.Wrap(err, "failed to begin database transaction")
+	}
+	defer tx.RollbackUnlessCommitted()
+
+	// deleting the roster
+	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy_roster WHERE policy_id = ?", policyID); err != nil {
+		return errors.Wrapf(err, "failed to delete access policy roster: %d", policyID)
+	}
+
+	if err := tx.Commit(); err != nil {
+		return errors.Wrap(err, "failed to commit database transaction")
+	}
 
 	return nil
 }

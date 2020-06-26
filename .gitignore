@@ -15,4 +15,3 @@ config/
 .vscode/
 .idea/
 bin/
-data/

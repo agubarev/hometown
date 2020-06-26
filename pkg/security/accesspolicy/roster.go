@@ -37,8 +37,8 @@ type Cell struct {
 }
 
 // NewRoster is a shorthand initializer function
-func NewRoster() Roster {
-	return Roster{
+func NewRoster() *Roster {
+	return &Roster{
 		Registry:        make([]Cell, 0),
 		calculatedCache: make(map[uint64]Right),
 		Everyone:        APNoAccess,
