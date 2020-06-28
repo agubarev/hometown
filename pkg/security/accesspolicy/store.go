@@ -55,7 +55,7 @@ func (s *DefaultMySQLStore) get(ctx context.Context, q string, args ...interface
 	// fetching policy itself
 	if err := sess.SelectBySql(q, args...).LoadOneContext(ctx, &ap); err != nil {
 		if err == dbr.ErrNotFound {
-			return ap, ErrAccessPolicyNotFound
+			return ap, ErrPolicyNotFound
 		}
 
 		return ap, err
@@ -70,7 +70,7 @@ func (s *DefaultMySQLStore) getMany(ctx context.Context, q string, args ...inter
 	case err != nil:
 		return nil, err
 	case count == 0:
-		return nil, ErrAccessPolicyNotFound
+		return nil, ErrPolicyNotFound
 	}
 
 	return aps, nil

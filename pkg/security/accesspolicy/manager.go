@@ -15,10 +15,10 @@ var (
 	ErrNonZeroID                    = errors.New("id is not zero")
 	ErrNilStore                     = errors.New("access policy store is nil")
 	ErrNilAccessPolicyManager       = errors.New("access policy container is nil")
-	ErrAccessPolicyNotFound         = errors.New("access policy not found")
+	ErrPolicyNotFound               = errors.New("access policy not found")
 	ErrAccessPolicyEmptyDesignators = errors.New("both key and kind with id are empty")
-	ErrAccessPolicyNameTaken        = errors.New("policy name is taken")
-	ErrAccessPolicyKindAndIDTaken   = errors.New("id of a kind is taken")
+	ErrPolicyNameTaken              = errors.New("policy name is taken")
+	ErrPolicyKindAndIDTaken         = errors.New("id of a kind is taken")
 	ErrEmptyKey                     = errors.New("key is empty")
 	ErrEmptyObjectType              = errors.New("object type is empty")
 	ErrNilRoster                    = errors.New("rights rosters is nil")
@@ -35,10 +35,12 @@ var (
 	ErrNoParent                     = errors.New("parent is nil")
 )
 
+
+
 // Manager is the access policy registry
 type Manager struct {
 	policies map[uint32]AccessPolicy
-	roster   map[uint32]Roster
+	roster   map[uint32]*Roster
 	keyMap   map[TKey]uint32
 	store    Store
 	sync.RWMutex
@@ -52,7 +54,7 @@ func NewManager(store Store) (*Manager, error) {
 
 	c := &Manager{
 		policies: make(map[uint32]AccessPolicy),
-		roster:   make(map[uint32]Roster),
+		roster:   make(map[uint32]*Roster),
 		keyMap:   make(map[TKey]uint32),
 		store:    store,
 	}
@@ -61,7 +63,7 @@ func NewManager(store Store) (*Manager, error) {
 }
 
 // UpsertGroup adds policy to container registry
-func (m *Manager) put(ap AccessPolicy, r Roster) error {
+func (m *Manager) put(ap AccessPolicy, r *Roster) error {
 	err := ap.Validate()
 	if err != nil {
 		return err
@@ -105,22 +107,22 @@ func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objec
 	if ap.Key[0] != 0 {
 		_, err := m.PolicyByName(ctx, ap.Key)
 		if err == nil {
-			return ap, ErrAccessPolicyNameTaken
+			return ap, ErrPolicyNameTaken
 		}
 
-		if err != ErrAccessPolicyNotFound {
+		if err != ErrPolicyNotFound {
 			return ap, err
 		}
 	}
 
 	// checking by an object type and ID
-	if ap.ObjectType != "" && ap.ObjectID != 0 {
-		_, err := m.PolicyByObjectTypeAndID(ctx, ap.ObjectType, objectID)
+	if ap.ObjectType[0] != 0 && ap.ObjectID != 0 {
+		_, err = m.PolicyByObjectTypeAndID(ctx, ap.ObjectType, objectID)
 		if err == nil {
-			return ap, ErrAccessPolicyKindAndIDTaken
+			return ap, ErrPolicyKindAndIDTaken
 		}
 
-		if err != ErrAccessPolicyNotFound {
+		if err != ErrPolicyNotFound {
 			return ap, err
 		}
 	}
@@ -193,12 +195,12 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, 
 	if ap.Key != "" {
 		existingPolicy, err := m.PolicyByName(ctx, ap.Key)
 		if err != nil {
-			if err != ErrAccessPolicyNotFound {
+			if err != ErrPolicyNotFound {
 				panic(err)
 			}
 		} else {
 			if existingPolicy.ID != ap.ID {
-				panic(ErrAccessPolicyNameTaken)
+				panic(ErrPolicyNameTaken)
 			}
 		}
 	}
@@ -208,12 +210,12 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, 
 	if ap.ObjectType != "" && ap.ObjectID != 0 {
 		existingPolicy, err := m.PolicyByObjectTypeAndID(ctx, ap.ObjectType, ap.ObjectID)
 		if err != nil {
-			if err != ErrAccessPolicyNotFound {
+			if err != ErrPolicyNotFound {
 				panic(err)
 			}
 		} else {
 			if existingPolicy.ID != ap.ID {
-				panic(ErrAccessPolicyKindAndIDTaken)
+				panic(ErrPolicyKindAndIDTaken)
 			}
 		}
 	}
@@ -238,7 +240,7 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, 
 }
 
 // PolicyByID returns an access policy by its ObjectID
-func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, r *Roster, err error) {
 	// checking cache first
 	m.RLock()
 	ap, ok := m.policies[id]
@@ -246,82 +248,85 @@ func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, e
 
 	// return if found in cache
 	if ok {
-		return ap, nil
+		return ap, m.roster[ap.ID], nil
 	}
 
 	// attempting to obtain policy from the store
 	ap, err = m.store.FetchPolicyByID(ctx, id)
 	if err != nil {
-		return ap, err
+		return ap, r, err
 	}
 
 	// adding policy to registry
-	if err = m.put(ctx, ap); err != nil {
-		return ap, err
-	}
-
-	return ap, nil
-}
-
-// PolicyByName returns an access policy by its key
-func (m *Manager) PolicyByName(ctx context.Context, name TKey) (ap AccessPolicy, err error) {
-	m.RLock()
-	ap, ok := m.policies[m.keyMap[name]]
-	m.RUnlock()
-
-	// return if found in cache
-	if ok {
-		return ap, nil
-	}
-
-	// attempting to obtain policy from the store
-	ap, err = m.store.FetchPolicyByName(ctx, name)
-	if err != nil {
-		return ap, err
-	}
-
-	// adding policy to registry
-	if err = m.put(ctx, ap); err != nil {
-		return ap, err
-	}
-
-	return ap, nil
-}
-
-// PolicyByObjectTypeAndID returns an access policy by its kind and id
-// TODO: add cache
-func (m *Manager) PolicyByObjectTypeAndID(ctx context.Context, objectType TObjectType, objectID uint32) (ap AccessPolicy, r Roster, err error) {
-	// attempting to obtain policy from the store
-	ap, r, err = m.store.FetchPolicyByObjectTypeAndID(ctx, objectID, objectType)
-	if err != nil {
-		return ap, err
-	}
-
-	// adding policy to registry
-	err = m.put(ap, r)
-	if err != nil {
+	if err = m.put(ap, r); err != nil {
 		return ap, r, err
 	}
 
 	return ap, r, nil
 }
 
+// PolicyByName returns an access policy by its key
+func (m *Manager) PolicyByName(ctx context.Context, name TKey) (ap AccessPolicy, r *Roster, err error) {
+	m.RLock()
+	ap, ok := m.policies[m.keyMap[name]]
+	m.RUnlock()
+
+	// return if found in cache
+	if ok {
+		return ap, m.roster[ap.ID], nil
+	}
+
+	// attempting to obtain policy from the store
+	ap, err = m.store.FetchPolicyByName(ctx, name)
+	if err != nil {
+		return ap, r, err
+	}
+
+	// adding policy to registry
+	if err = m.put(ap, r); err != nil {
+		return ap, r, err
+	}
+
+	return ap, r, nil
+}
+
+// PolicyByObjectTypeAndID returns an access policy by its kind and id
+func (m *Manager) PolicyByObjectTypeAndID(ctx context.Context, objectType TObjectType, objectID uint32) (ap AccessPolicy, r *Roster, err error) {
+	// attempting to obtain policy from the store
+	ap, err = m.store.FetchPolicyByObjectTypeAndID(ctx, objectID, objectType)
+	if err != nil {
+		return ap, r, err
+	}
+
+	// fetching rights roster
+	r, err = m.store.FetchRosterByID(ctx, ap.ID)
+	if err != nil {
+		return ap, r, err
+	}
+
+	// adding policy and roster to the registry
+	if err = m.put(ap, r); err != nil {
+		return ap, r, err
+	}
+
+	return ap,  r, nil
+}
+
 // DeletePolicy returns an access policy by its ObjectID
 func (m *Manager) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error) {
 	if err = ap.Validate(); err != nil {
-		return err
+		return errors.Wrap(err, "failed to delete access policy")
 	}
 
-	// deleting from the store
-	err = m.store.DeletePolicy(ctx, ap)
-	if err != nil {
+	// deleting policy from the store
+	// NOTE: also deletes roster
+	if err = m.store.DeletePolicy(ctx, ap); err != nil {
 		return err
 	}
 
 	// adding policy to registry
-	err = m.remove(ap)
-	if err != nil {
-		if err == ErrAccessPolicyNotFound {
+	if err = m.remove(ap); err != nil {
+		if err == ErrPolicyNotFound {
 			return nil
 		}
 
@@ -331,6 +336,7 @@ func (m *Manager) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error)
 	return nil
 }
 
+/*
 // HasRights checks whether a given subject entity has the inquired rights
 func (m *Manager) HasRights(ctx context.Context, ap *AccessPolicy, subject interface{}, rights Right) bool {
 	if subject == nil {
@@ -343,6 +349,26 @@ func (m *Manager) HasRights(ctx context.Context, ap *AccessPolicy, subject inter
 		return ap.HasRights(ctx, sub.ID, rights)
 	case Group:
 		return ap.HasGroupRights(ctx, sub.ID, rights)
+	}
+
+	return false
+}
+ */
+
+
+// HasRights checks whether a given subject entity has the inquired rights
+func (m *Manager) HasRights(ctx context.Context, policyID uint32, sk SubjectKind, subjectID uint32, rights Right) bool {
+	if policyID == 0 {
+		return false
+	}
+
+	switch sk {
+	case SKUser:
+		return m.HasUserRights(ctx, subjectID, rights)
+	case SKRoleGroup:
+		return m.HasRoleRights(ctx, subjectID, rights)
+	case SKGroup:
+		return m.HasGroupRights(ctx, subjectID, rights)
 	}
 
 	return false
@@ -727,14 +753,9 @@ func (ap *AccessPolicy) UnsetRights(ctx context.Context, assignorID uint32, assi
 	return nil
 }
 
-// Summarize summarizing the resulting access right flags
-func (r *Roster) Summarize(ctx context.Context, userID uint32) Right {
-	gm := ctx.Value(CKGroupManager).(*GroupManager)
-	if gm == nil {
-		panic(ErrNilGroupManager)
-	}
-
-	r := r.Everyone
+// Summarize summarizing the resulting access rights
+func (m *Manager) Summarize(ctx context.Context, userID uint32) (access Right) {
+	r = r.Everyone
 
 	// calculating standard and role group rights
 	// NOTE: if some group doesn't have explicitly set rights, then
