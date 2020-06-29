@@ -255,7 +255,7 @@ func (m *AccessPolicyManager) PolicyByID(ctx context.Context, id int64) (ap Acce
 	return ap, nil
 }
 
-// PolicyByName returns an access policy by its key
+// PolicyByKey returns an access policy by its key
 func (m *AccessPolicyManager) PolicyByName(ctx context.Context, name string) (ap AccessPolicy, err error) {
 	m.RLock()
 	ap, ok := m.policies[m.nameMap[name]]
@@ -280,7 +280,7 @@ func (m *AccessPolicyManager) PolicyByName(ctx context.Context, name string) (ap
 	return ap, nil
 }
 
-// PolicyByObjectTypeAndID returns an access policy by its kind and id
+// PolicyByObject returns an access policy by its kind and id
 // TODO: add cache
 func (m *AccessPolicyManager) PolicyByObjectTypeAndID(ctx context.Context, objectType string, objectID int64) (ap AccessPolicy, err error) {
 	// attempting to obtain policy from the store

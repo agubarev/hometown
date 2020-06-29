@@ -357,12 +357,12 @@ func (s *DefaultAccessPolicyStore) FetchPolicyByID(ctx context.Context, policyID
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
 }
 
-// PolicyByName retrieving a access policy by a key
+// PolicyByKey retrieving a access policy by a key
 func (s *DefaultAccessPolicyStore) FetchPolicyByName(ctx context.Context, name string) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `name` = ? LIMIT 1", name)
 }
 
-// PolicyByObjectTypeAndID retrieving a access policy by a kind and its respective id
+// PolicyByObject retrieving a access policy by a kind and its respective id
 func (s *DefaultAccessPolicyStore) FetchPolicyByObjectTypeAndID(ctx context.Context, objectType string, id int64) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }

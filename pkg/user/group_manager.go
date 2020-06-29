@@ -377,7 +377,7 @@ func (m *GroupManager) GroupByID(ctx context.Context, id int64) (g Group, err er
 	return g, nil
 }
 
-// PolicyByName returns a group by name
+// PolicyByKey returns a group by name
 func (m *GroupManager) GroupByKey(ctx context.Context, key string) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[m.keyMap[key]]

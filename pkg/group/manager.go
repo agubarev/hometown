@@ -409,7 +409,7 @@ func (m *Manager) GroupByID(ctx context.Context, id uint32) (g Group, err error)
 	return g, nil
 }
 
-// PolicyByName returns a group by name
+// PolicyByKey returns a group by name
 func (m *Manager) GroupByKey(ctx context.Context, key TKey) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[m.keyMap[key]]
@@ -456,8 +456,8 @@ func (m *Manager) DeleteGroup(ctx context.Context, groupID uint32) (err error) {
 	return nil
 }
 
-// GroupsBymemberID returns a slice of groups to which a given member belongs
-func (m *Manager) GroupsBymemberID(ctx context.Context, memberID uint32, mask Kind) (gs []Group) {
+// GroupsByMemberID returns a slice of groups to which a given member belongs
+func (m *Manager) GroupsByMemberID(ctx context.Context, mask Kind, memberID uint32) (gs []Group) {
 	if memberID == 0 {
 		return gs
 	}

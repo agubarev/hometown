@@ -169,13 +169,13 @@ func (r Right) String() string {
 // TODO: add caching mechanism to skip rights summarization
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
 type AccessPolicy struct {
-	Flags      uint8       `db:"flags" json:"flags"`
+	Key        TKey        `db:"key" json:"key"`
+	ObjectType TObjectType `db:"object_type" json:"object_type"`
 	ID         uint32      `db:"id" json:"id"`
 	ParentID   uint32      `db:"parent_id" json:"parent_id"`
 	OwnerID    uint32      `db:"owner_id" json:"owner_id"`
 	ObjectID   uint32      `db:"object_id" json:"object_id"`
-	ObjectType TObjectType `db:"object_type" json:"object_type"`
-	Key        TKey        `db:"key" json:"key"`
+	Flags      uint8       `db:"flags" json:"flags"`
 	_          struct{}
 }
 

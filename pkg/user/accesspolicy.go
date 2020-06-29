@@ -493,7 +493,7 @@ func (ap *AccessPolicy) Clone() (*AccessPolicy, error) {
 	return clone, nil
 }
 
-// CloneRightsRoster returns a snapshot copy of the access rights roster for this policy
+// createBackup returns a snapshot copy of the access rights roster for this policy
 func (ap *AccessPolicy) CloneRightsRoster() (*RightsRoster, error) {
 	if ap == nil {
 		return nil, ErrNilAccessPolicy
