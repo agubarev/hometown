@@ -125,7 +125,7 @@ func TestHandleRefreshToken(t *testing.T) {
 		// obtaining an owner of this token
 		u, err = am.UserFromToken(rtp.AccessToken)
 		a.Error(err)
-		a.Zero(u.ID)
+		a.Zero(u.SubjectID)
 	*/
 
 	// ====================================================================================

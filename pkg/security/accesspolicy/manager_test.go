@@ -1,15 +1,6 @@
-package user_test
+package accesspolicy_test
 
-import (
-	"reflect"
-	"testing"
-
-	"github.com/agubarev/hometown/pkg/database"
-	"github.com/agubarev/hometown/pkg/user"
-	"github.com/pkg/errors"
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 func TestNewAccessPolicyManager(t *testing.T) {
 	a := assert.New(t)
 
@@ -573,3 +564,4 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.EqualError(user.ErrAccessPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
 }
+*/

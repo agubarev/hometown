@@ -90,7 +90,7 @@ func (fl *Filter) inspectObject(obj interface{}) (*FilterObject, error) {
 	for i := 0; i < objInfo.NumField(); i++ {
 		f := objInfo.ObjectKind().Field(i)
 
-		if tag, ok := f.Tag.Lookup("filter"); ok {
+		if tag, ok := f.Tag.lookup("filter"); ok {
 			fo.fields[tag] = f
 		}
 	}
@@ -182,7 +182,7 @@ func (fl *Filter) sanitizeAndValidateQuery(fo *FilterObject, fq *FilterQuery) er
 		//---------------------------------------------------------------------------
 
 		// determining the underlying database column name
-		columnName, ok := f.Tag.Lookup("gorm")
+		columnName, ok := f.Tag.lookup("gorm")
 		// nested conditions is a necessary evil here
 		if ok {
 			// if there is a `gorm` tag, then possibly it contains
@@ -190,11 +190,11 @@ func (fl *Filter) sanitizeAndValidateQuery(fo *FilterObject, fq *FilterQuery) er
 			columnName = strings.TrimPrefix(columnName, "column:")
 		} else {
 			// if `gorm` tag isn't found, then trying to get `dbname`
-			columnName, ok = f.Tag.Lookup("dbname")
+			columnName, ok = f.Tag.lookup("dbname")
 			if !ok {
 				// if `gorm` and `dbname` tags aren't found, then attempting
 				// to use a `json` tag
-				columnName, ok = f.Tag.Lookup("json")
+				columnName, ok = f.Tag.lookup("json")
 				if !ok {
 					// so, `gorm`, `dbname`, and `json` tags aren't found,
 					// then, last try, by using a field name converted to snake case

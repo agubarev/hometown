@@ -1,4 +1,4 @@
-package user
+package accesspolicy
 
 import (
 	"context"
@@ -15,8 +15,8 @@ type Store interface {
 	CreatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) (AccessPolicy, *Roster, error)
 	UpdatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) error
 	FetchPolicyByID(ctx context.Context, id uint32) (AccessPolicy, error)
-	FetchPolicyByName(ctx context.Context, name TKey) (ap AccessPolicy, err error)
-	FetchPolicyByObjectTypeAndID(ctx context.Context, id uint32, objectType TObjectType) (ap AccessPolicy, err error)
+	FetchPolicyByKey(ctx context.Context, key TKey) (ap AccessPolicy, err error)
+	FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectType) (ap AccessPolicy, err error)
 	DeletePolicy(ctx context.Context, ap AccessPolicy) error
 	CreateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
 	FetchRosterByPolicyID(ctx context.Context, policyID uint32) (r *Roster, err error)
@@ -96,7 +96,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 			records = append(records, RosterDatabaseRecord{
 				PolicyID:        policyID,
 				SubjectKind:     _r.Kind,
-				SubjectID:       _r.ID,
+				SubjectID:       _r.SubjectID,
 				AccessRight:     _r.Rights,
 				AccessExplained: _r.Rights.String(),
 			})
@@ -104,7 +104,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 			log.Printf(
 				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
 				_r.Kind,
-				_r.ID,
+				_r.SubjectID,
 				_r.Rights,
 			)
 		}
@@ -123,7 +123,7 @@ func (s *DefaultMySQLStore) buildRoster(records []RosterDatabaseRecord) (r *Rost
 		case SKEveryone:
 			r.Everyone = _r.AccessRight
 		case SKRoleGroup, SKGroup, SKUser:
-			r.register(_r.SubjectKind, _r.SubjectID, _r.AccessRight)
+			r.put(_r.SubjectKind, _r.SubjectID, _r.AccessRight)
 		default:
 			log.Printf(
 				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
@@ -175,6 +175,8 @@ func (s *DefaultMySQLStore) applyRosterChanges(tx *dbr.Tx, policyID uint32, r *R
 			}
 		}
 	}
+
+	return nil
 }
 
 // Upsert creating access policy
@@ -192,8 +194,6 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap AccessPolicy, r
 	//---------------------------------------------------------------------------
 	// creating access policy
 	//---------------------------------------------------------------------------
-	// executing statement
-
 	result, err := tx.InsertInto("accesspolicy").
 		Columns(guard.DBColumnsFrom(&ap)...).
 		Record(&ap).
@@ -203,7 +203,7 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap AccessPolicy, r
 		return ap, r, errors.Wrap(err, "failed to insert access policy")
 	}
 
-	// obtaining newly generated ID
+	// obtaining newly generated SubjectID
 	id64, err := result.LastInsertId()
 	if err != nil {
 		return ap, r, err
@@ -260,7 +260,7 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 	updates := map[string]interface{}{
 		"parent_id":   ap.ParentID,
 		"owner_id":    ap.OwnerID,
-		"name":        ap.Key,
+		"key":         ap.Key,
 		"object_type": ap.ObjectType,
 		"object_id":   ap.ObjectID,
 		"flags":       ap.Flags,
@@ -287,18 +287,18 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 	return nil
 }
 
-// FetchPolicyByID fetches access policy by ID
+// FetchPolicyByID fetches access policy by SubjectID
 func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
 }
 
 // PolicyByKey retrieving a access policy by a key
-func (s *DefaultMySQLStore) FetchPolicyByName(ctx context.Context, name TKey) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `name` = ? LIMIT 1", name)
+func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (AccessPolicy, error) {
+	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `key` = ? LIMIT 1", key)
 }
 
 // PolicyByObject retrieving a access policy by a kind and its respective id
-func (s *DefaultMySQLStore) FetchPolicyByObjectTypeAndID(ctx context.Context, id uint32, objectType TObjectType) (AccessPolicy, error) {
+func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectType) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
@@ -365,7 +365,7 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	return nil
 }
 
-// FetchRosterByPolicyID fetches access policy roster by policy ID
+// FetchRosterByPolicyID fetches access policy roster by policy SubjectID
 func (s *DefaultMySQLStore) FetchRosterByPolicyID(ctx context.Context, policyID uint32) (_ *Roster, err error) {
 	records := make([]RosterDatabaseRecord, 0)
 

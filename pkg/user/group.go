@@ -294,7 +294,7 @@ func (g *Group) AddMember(ctx context.Context, userID int64) (err error) {
 				return err
 			}
 		} else {
-			logger.Info("removing user ID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
+			logger.Info("removing user SubjectID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID), zap.Error(err))
 		}
 	}
 
@@ -322,7 +322,7 @@ func (g *Group) RemoveMember(ctx context.Context, userID int64) (err error) {
 			return err
 		}
 	} else {
-		l.Info("removing user ID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
+		l.Info("removing user SubjectID from group while store is not set", zap.Int64("gid", g.ID), zap.Int64("uid", userID))
 	}
 
 	return nil

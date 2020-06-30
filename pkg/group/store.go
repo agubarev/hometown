@@ -101,10 +101,10 @@ func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 		return g, err
 	}
 
-	// obtaining new record ID
+	// obtaining new record SubjectID
 	newID, err := res.LastInsertId()
 	if err != nil {
-		return g, errors.Wrap(err, "failed to obtain new group ID")
+		return g, errors.Wrap(err, "failed to obtain new group SubjectID")
 	}
 
 	g.ID = uint32(newID)

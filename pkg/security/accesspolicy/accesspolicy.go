@@ -1,4 +1,4 @@
-package user
+package accesspolicy
 
 import (
 	"bytes"
@@ -11,8 +11,8 @@ import (
 
 // policy flags
 const (
-	FInherited uint8 = 1 << (iota - uint8(1))
-	FExtended
+	FInherit uint8 = 1 << iota
+	FExtend
 )
 
 type (
@@ -127,7 +127,7 @@ func (r Right) Translate() string {
 }
 
 // PropertyDictionary returns a map of property flag values to their respective names
-func AccessPolicyDictionary() map[uint32]string {
+func Dictionary() map[uint32]string {
 	dict := make(map[uint32]string)
 
 	for bit := Right(1 << 31); bit > 0; bit >>= 1 {
@@ -242,7 +242,7 @@ func (ap *AccessPolicy) Validate() error {
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object type empty")
 	}
 
-	// making sure that both the object type and ID are set,
+	// making sure that both the object type and SubjectID are set,
 	// if either one of them is provided
 	if ap.ObjectType[0] == 0 && ap.ObjectID != 0 {
 		return errors.New("empty object type with a non-zero object id")
@@ -268,11 +268,11 @@ func (ap *AccessPolicy) Validate() error {
 }
 
 func (ap AccessPolicy) IsInherited() bool {
-	return (ap.Flags & FInherited) == FInherited
+	return (ap.Flags & FInherit) == FInherit
 }
 
 func (ap AccessPolicy) IsExtended() bool {
-	return (ap.Flags & FExtended) == FExtended
+	return (ap.Flags & FExtend) == FExtend
 }
 
 // SetKey sets a key name to the group

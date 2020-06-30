@@ -576,7 +576,7 @@ func (ap *AccessPolicy) UserAccess(ctx context.Context, userID int64) (rights Ac
 		return APFullAccess
 	}
 
-	// calculating parents access if parent ID is set
+	// calculating parents access if parent SubjectID is set
 	if ap.ParentID != 0 {
 		apm := ctx.Value(CKAccessPolicyManager).(*AccessPolicyManager)
 		if apm == nil {
@@ -734,7 +734,7 @@ func (ap *AccessPolicy) IsOwner(ctx context.Context, userID int64) bool {
 	return false
 }
 
-// HasRights checks whether the user has specific rights
+// hasRights checks whether the user has specific rights
 // NOTE: returns true only if the user has every of specified rights permitted
 // TODO: maybe add some sort of a calculated cache with a short livespan, like 10ms or something
 func (ap *AccessPolicy) HasRights(ctx context.Context, userID int64, rights AccessRight) bool {

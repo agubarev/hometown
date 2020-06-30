@@ -77,7 +77,7 @@ func ForTesting() (conn *dbr.Connection, err error) {
 		"group",
 		"group_users",
 		"accesspolicy",
-		"accesspolicy_rights_roster",
+		"accesspolicy_roster",
 	}
 
 	// truncating tables

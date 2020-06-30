@@ -1,71 +1,147 @@
-package user_test
+package accesspolicy_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/database"
-	"github.com/agubarev/hometown/pkg/user"
+	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestNewAccessPolicy(t *testing.T) {
 	a := assert.New(t)
 
+	// test context
+	ctx := context.Background()
+
+	// database instance
 	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, ctx, err := ManagerForTesting(db)
+	// policy store
+	s, err := accesspolicy.NewDefaultMySQLStore(db)
 	a.NoError(err)
-	a.NotNil(um)
-	a.NotNil(ctx)
+	a.NotNil(s)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
-	a.NotNil(apm)
+	// group store
+	gs, err := group.NewStore(db)
+	a.NoError(err)
+	a.NotNil(gs)
 
-	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	// group manager
+	gm, err := group.NewManager(ctx, gs)
+	a.NoError(err)
 	a.NotNil(gm)
 
-	p, err := apm.Create(ctx, 0, 0, "", "test_type", 1, false, false)
+	// policy manager
+	m, err := accesspolicy.NewManager(s, gm)
+	a.NoError(err)
+	a.NotNil(m)
+
+	p, err := m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key"), // key
+		0,                               // owner ID
+		0,                               // parent ID
+		0,                               // object ID
+		accesspolicy.TObjectType{},      // object type
+		0,                               // flags
+	)
 	a.NoError(err)
 	a.NotNil(p)
+	a.Equal(accesspolicy.NewKey("test_key"), p.Key)
 	a.Zero(p.OwnerID)
 	a.Zero(p.ParentID)
-	a.False(p.IsInherited)
-	a.False(p.IsExtended)
+	a.Zero(p.ObjectID)
+	a.False(p.IsInherited())
+	a.False(p.IsExtended())
 
-	p, err = apm.Create(ctx, 1, 0, "test_name", "", 0, false, false)
+	p, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key2"), // key
+		1,                                // owner ID
+		0,                                // parent ID
+		0,                                // object ID
+		accesspolicy.TObjectType{},       // object type
+		0,                                // flags
+	)
 	a.NoError(err)
 	a.NotNil(p)
+	a.Equal(accesspolicy.NewKey("test_key2"), p.Key)
 	a.Equal(uint32(1), p.OwnerID)
 	a.Zero(p.ParentID)
-	a.False(p.IsInherited)
-	a.False(p.IsExtended)
+	a.Zero(p.ObjectID)
+	a.False(p.IsInherited())
+	a.False(p.IsExtended())
 
 	// with parent
-	p, err = apm.Create(ctx, 0, 1, "test policy with a parent id", "some object", 1, false, false)
+	p, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key"), // key
+		1,                               // owner ID
+		1,                               // parent ID
+		0,                               // object ID
+		accesspolicy.TObjectType{},      // object type
+		0,                               // flags
+	)
 	a.NoError(err)
 	a.NotNil(p)
+	a.Equal(accesspolicy.NewKey("test_key3"), p.Key)
 	a.Zero(p.OwnerID)
 	a.Equal(uint32(1), p.ParentID)
-	a.False(p.IsInherited)
-	a.False(p.IsExtended)
+	a.False(p.IsInherited())
+	a.False(p.IsExtended())
 
 	// with inheritance (without a parent)
-	p, err = apm.Create(ctx, 0, 0, "test policy without a parent but with inheritance", "another object", 1, true, false)
+	p, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key4"), // key
+		1,                                // owner ID
+		0,                                // parent ID
+		1,                                // object ID
+		accesspolicy.TObjectType{},       // object type
+		accesspolicy.FInherit,            // flags
+	)
 	a.Error(err)
 
 	// with extension (without a parent)
-	p, err = apm.Create(ctx, 0, 0, "test policy without a parent but with extension", "and another one", 1, false, true)
+	p, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key5"), // key
+		1,                                // owner ID
+		0,                                // parent ID
+		1,                                // object ID
+		accesspolicy.TObjectType{},       // object type
+		accesspolicy.FExtend,             // flags
+	)
 	a.Error(err)
 
 	// with inheritance (with a parent)
-	p, err = apm.Create(ctx, 0, 1, "test policy with inheritance", "another object", 1, true, false)
+	p, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key6"), // key
+		1,                                // owner ID
+		1,                                // parent ID
+		1,                                // object ID
+		accesspolicy.TObjectType{},       // object type
+		accesspolicy.FInherit,            // flags
+	)
 	a.NoError(err)
 	a.NotNil(p)
 
 	// with extension (with a parent)
-	p, err = apm.Create(ctx, 0, 1, "test policy with extension", "and another one", 1, false, true)
+	p, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key6"), // key
+		1,                                // owner ID
+		1,                                // parent ID
+		1,                                // object ID
+		accesspolicy.TObjectType{},       // object type
+		accesspolicy.FExtend,             // flags
+	)
 	a.NoError(err)
 	a.NotNil(p)
 }
@@ -73,71 +149,154 @@ func TestNewAccessPolicy(t *testing.T) {
 func TestSetPublicRights(t *testing.T) {
 	a := assert.New(t)
 
+	//---------------------------------------------------------------------------
+	// initializing dependencies
+	//---------------------------------------------------------------------------
+	// test context
+	ctx := context.Background()
+
+	// database instance
 	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, ctx, err := ManagerForTesting(db)
+	// policy store
+	s, err := accesspolicy.NewDefaultMySQLStore(db)
 	a.NoError(err)
-	a.NotNil(um)
-	a.NotNil(ctx)
+	a.NotNil(s)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
-	a.NotNil(apm)
+	// group store
+	gs, err := group.NewStore(db)
+	a.NoError(err)
+	a.NotNil(gs)
 
-	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	// group manager
+	gm, err := group.NewManager(ctx, gs)
+	a.NoError(err)
 	a.NotNil(gm)
 
-	wantedRights := user.APView | user.APChange
+	// policy manager
+	m, err := accesspolicy.NewManager(s, gm)
+	a.NoError(err)
+	a.NotNil(m)
 
+	wantedRights := accesspolicy.APView | accesspolicy.APChange
+
+	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
-	p, err := apm.Create(ctx, 1, 0, "test_name", "test_type", 1, false, false)
+	//---------------------------------------------------------------------------
+	p, err := m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key"), // key
+		1,                               // owner ID
+		0,                               // parent ID
+		0,                               // object ID
+		accesspolicy.TObjectType{},      // object type
+		0,                               // flags
+	)
 	a.NoError(err)
 
-	err = p.SetPublicRights(ctx, 1, wantedRights)
+	// obtaining corresponding policy roster
+	roster, err := m.RosterByPolicyID(ctx, p.ID)
 	a.NoError(err)
-	a.Equal(wantedRights, p.RightsRoster.Everyone)
-	a.True(p.HasRights(ctx, 2, wantedRights))
+	a.NotNil(roster)
 
-	// with parent, using legacy only
-	pWithInheritance, err := apm.Create(ctx, 1, 1, "another name", "some object", 1, true, false)
+	a.NoError(m.SetPublicRights(ctx, p.ID, 1, wantedRights))
+	a.Equal(wantedRights, roster.Everyone)
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, p.ID, 1, wantedRights))
+
+	//---------------------------------------------------------------------------
+	// with parent and inheritance only
+	//---------------------------------------------------------------------------
+	pWithInheritance, err := m.Create(
+		ctx,
+		accesspolicy.NewKey("test_key_w_inheritance"), // key
+		1,                          // owner ID
+		p.ID,                       // parent ID
+		0,                          // object ID
+		accesspolicy.TObjectType{}, // object type
+		accesspolicy.FInherit,      // flags
+	)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
 
-	parent, err := pWithInheritance.Parent(ctx)
+	// obtaining corresponding policy roster
+	parentRoster, err := m.RosterByPolicyID(ctx, pWithInheritance.ID)
 	a.NoError(err)
-	a.Equal(wantedRights, parent.RightsRoster.Everyone)
-	a.True(pWithInheritance.HasRights(ctx, 2, wantedRights))
+	a.NotNil(parentRoster)
 
-	// with parent, legacy false, extend true; using parent's rights
-	// no own rights
-	pExtendedNoOwn, err := apm.Create(ctx, 1, 1, "different name", "another object", 1, false, true)
+	parent, err := m.PolicyByID(ctx, pWithInheritance.ParentID)
+	a.NoError(err)
+	a.Equal(wantedRights, parentRoster.Everyone)
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, pWithInheritance.ID, 1, wantedRights))
+
+	//---------------------------------------------------------------------------
+	// with parent, inheritance false, extend true; using parent's rights no own rights
+	//---------------------------------------------------------------------------
+	pExtendedNoOwn, err := m.Create(
+		ctx,
+		accesspolicy.TKey{}, // key
+		0,                   // owner ID
+		1,                   // parent ID
+		1,                   // object ID
+		accesspolicy.NewObjectType("some object"), // object type
+		accesspolicy.FExtend,                      // flags
+	)
 	a.NoError(err)
 
-	parent, err = pExtendedNoOwn.Parent(ctx)
+	// obtaining corresponding policy roster
+	parentRoster, err = m.RosterByPolicyID(ctx, pExtendedNoOwn.ParentID)
+	a.NoError(err)
+	a.NotNil(parentRoster)
+
+	parent, err = m.PolicyByID(ctx, pExtendedNoOwn.ParentID)
+	a.NoError(err)
+	a.Equal(wantedRights, parentRoster.Everyone)
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, parent.ID, 1, wantedRights))
+
+	parent, err = m.PolicyByID(ctx, pExtendedNoOwn.ParentID)
 	a.NoError(err)
 
-	a.Equal(wantedRights, parent.RightsRoster.Everyone)
-	a.Equal(user.APNoAccess, pExtendedNoOwn.RightsRoster.Everyone)
-	a.True(pExtendedNoOwn.HasRights(ctx, 2, wantedRights))
+	a.Equal(wantedRights, parentRoster.Everyone)
+	a.Equal(accesspolicy.APNoAccess, parentRoster.Everyone)
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, pExtendedNoOwn.ID, 1, wantedRights))
 
-	// with parent, legacy false, extend true; using parent's rights with it's own
+	//---------------------------------------------------------------------------
+	// with parent, inherit false, extend true; using parent's rights with it's own
 	// adding one more right to itself
 	// NOTE: added core.APMove to own rights
-	pExtendedWithOwn, err := apm.Create(ctx, 1, 1, "not a previous name", "test object", 1, false, true)
+	//---------------------------------------------------------------------------
+	pExtendedWithOwn, err := m.Create(
+		ctx,
+		accesspolicy.TKey{}, // key
+		0,                   // owner ID
+		parent.ID,           // parent ID
+		1,                   // object ID
+		accesspolicy.NewObjectType("and another object"), // object type
+		accesspolicy.FExtend,                             // flags
+	)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetPublicRights(ctx, 1, user.APMove)
+	a.Error(m.SetPublicRights(ctx, pExtendedWithOwn.ID, 1, accesspolicy.APMove))
 	a.NoError(err)
 
-	parent, err = pExtendedWithOwn.Parent(ctx)
+	parent, err = m.PolicyByID(ctx, pExtendedWithOwn.ParentID)
 	a.NoError(err)
 
-	a.Equal(wantedRights, parent.RightsRoster.Everyone)
-	a.Equal(user.APMove, pExtendedWithOwn.RightsRoster.Everyone)
-	a.True(pExtendedWithOwn.HasRights(ctx, 2, wantedRights|user.APMove))
+	roster, err = m.RosterByPolicyID(ctx, pExtendedWithOwn.ID)
+	a.NoError(err)
+	a.NotNil(roster)
+
+	parentRoster, err = m.RosterByPolicyID(ctx, parent.ID)
+	a.NoError(err)
+	a.NotNil(parentRoster)
+
+	a.Equal(wantedRights, parentRoster.Everyone)
+	a.Equal(accesspolicy.APMove, roster.Everyone)
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, pExtendedWithOwn.ID, 1, wantedRights|accesspolicy.APMove))
 }
 
+/*
 func TestSetGroupRights(t *testing.T) {
 	a := assert.New(t)
 
@@ -150,7 +309,7 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -167,16 +326,16 @@ func TestSetGroupRights(t *testing.T) {
 	group1, err := gm.Create(ctx, GKGroup, 0, "test_group_1", "test group 1")
 	a.NoError(err)
 
-	err = group1.AddMember(ctx, testuser.ID)
+	err = group1.AddMember(ctx, testaccesspolicy.ID)
 	a.NoError(err)
 
 	group2, err := gm.Create(ctx, GKGroup, 0, "test_group_2", "test group 2")
 	a.NoError(err)
 
-	err = group2.AddMember(ctx, testuser.ID)
+	err = group2.AddMember(ctx, testaccesspolicy.ID)
 	a.NoError(err)
 
-	wantedRights := user.APView | user.APChange
+	wantedRights := accesspolicy.APView | accesspolicy.APChange
 
 	// no parent, not inheriting and not extending
 	// WARNING: "p" will be reused and inherited below in this function
@@ -186,7 +345,7 @@ func TestSetGroupRights(t *testing.T) {
 	err = p.SetGroupRights(ctx, assignor.ID, group1.ID, wantedRights)
 	a.NoError(err)
 	a.Equal(wantedRights, p.RightsRoster.Group[group1.ID])
-	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
+	a.True(p.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance, err := apm.Create(ctx, assignor.ID, 1, "the name", "the type", 1, true, false)
@@ -197,7 +356,7 @@ func TestSetGroupRights(t *testing.T) {
 	a.NoError(err)
 
 	a.Equal(wantedRights, parent.RightsRoster.Group[group1.ID])
-	a.True(pWithInheritance.HasRights(ctx, testuser.ID, wantedRights))
+	a.True(pWithInheritance.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
@@ -208,8 +367,8 @@ func TestSetGroupRights(t *testing.T) {
 	a.NoError(err)
 
 	a.Equal(wantedRights, parent.RightsRoster.Group[group1.ID])
-	a.Equal(user.APNoAccess, pExtendedNoOwn.RightsRoster.Group[group1.ID])
-	a.True(pExtendedNoOwn.HasRights(ctx, testuser.ID, wantedRights))
+	a.Equal(accesspolicy.APNoAccess, pExtendedNoOwn.RightsRoster.Group[group1.ID])
+	a.True(pExtendedNoOwn.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, inheritance false, extend true; using parent's rights with it's own
 	// adding one more right to itself
@@ -217,15 +376,15 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, 1, "some name", "non-conflicting object type name etc", 1, false, true)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetGroupRights(ctx, assignor.ID, group1.ID, user.APMove)
+	err = pExtendedWithOwn.SetGroupRights(ctx, assignor.ID, group1.ID, accesspolicy.APMove)
 	a.NoError(err)
 
 	parent, err = pExtendedWithOwn.Parent(ctx)
 	a.NoError(err)
 
 	a.Equal(wantedRights, parent.RightsRoster.Group[group1.ID])
-	a.Equal(user.APMove, pExtendedWithOwn.RightsRoster.Group[group1.ID])
-	a.True(pExtendedWithOwn.HasRights(ctx, testuser.ID, wantedRights|user.APMove))
+	a.Equal(accesspolicy.APMove, pExtendedWithOwn.RightsRoster.Group[group1.ID])
+	a.True(pExtendedWithOwn.HasRights(ctx, testaccesspolicy.ID, wantedRights|accesspolicy.APMove))
 }
 
 func TestSetRoleRights(t *testing.T) {
@@ -240,7 +399,7 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -257,18 +416,18 @@ func TestSetRoleRights(t *testing.T) {
 	role1, err := gm.Create(ctx, GKRole, 0, "test_role_1", "test role 1")
 	a.NoError(err)
 
-	err = role1.AddMember(ctx, testuser.ID)
+	err = role1.AddMember(ctx, testaccesspolicy.ID)
 	a.NoError(err)
-	a.True(role1.IsMember(ctx, testuser.ID))
+	a.True(role1.IsMember(ctx, testaccesspolicy.ID))
 
 	role2, err := gm.Create(ctx, GKRole, 0, "test_role_2", "test role 2")
 	a.NoError(err)
 
-	err = role2.AddMember(ctx, testuser.ID)
+	err = role2.AddMember(ctx, testaccesspolicy.ID)
 	a.NoError(err)
-	a.True(role2.IsMember(ctx, testuser.ID))
+	a.True(role2.IsMember(ctx, testaccesspolicy.ID))
 
-	wantedRights := user.APView | user.APChange
+	wantedRights := accesspolicy.APView | accesspolicy.APChange
 
 	// no parent, not inheriting and not extending
 	// NOTE: "p" will be reused and inherited below in this function
@@ -278,7 +437,7 @@ func TestSetRoleRights(t *testing.T) {
 	err = p.SetRoleRights(ctx, assignor.ID, role1.ID, wantedRights)
 	a.NoError(err)
 	a.Equal(wantedRights, p.RightsRoster.Role[role1.ID])
-	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
+	a.True(p.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance, err := apm.Create(ctx, assignor.ID, p.ID, "another name", "another type name", 1, true, false)
@@ -288,7 +447,7 @@ func TestSetRoleRights(t *testing.T) {
 	parent, err := pWithInheritance.Parent(ctx)
 	a.NoError(err)
 	a.Equal(wantedRights, parent.RightsRoster.Role[role1.ID])
-	a.True(pWithInheritance.HasRights(ctx, testuser.ID, wantedRights))
+	a.True(pWithInheritance.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
@@ -298,8 +457,8 @@ func TestSetRoleRights(t *testing.T) {
 	parent, err = pExtendedNoOwn.Parent(ctx)
 	a.NoError(err)
 	a.Equal(wantedRights, parent.RightsRoster.Role[role1.ID])
-	a.Equal(user.APNoAccess, pExtendedNoOwn.RightsRoster.Role[role1.ID])
-	a.True(pExtendedNoOwn.HasRights(ctx, testuser.ID, wantedRights))
+	a.Equal(accesspolicy.APNoAccess, pExtendedNoOwn.RightsRoster.Role[role1.ID])
+	a.True(pExtendedNoOwn.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights with it's own
 	// adding one more right to itself
@@ -307,14 +466,14 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "other name", "other type name", 1, false, true)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetRoleRights(ctx, assignor.ID, role1.ID, user.APMove)
+	err = pExtendedWithOwn.SetRoleRights(ctx, assignor.ID, role1.ID, accesspolicy.APMove)
 	a.NoError(err)
 
 	parent, err = pExtendedWithOwn.Parent(ctx)
 	a.NoError(err)
 	a.Equal(wantedRights, parent.RightsRoster.Role[role1.ID])
-	a.Equal(user.APMove, pExtendedWithOwn.RightsRoster.Role[role1.ID])
-	a.True(pExtendedWithOwn.HasRights(ctx, testuser.ID, wantedRights|user.APMove))
+	a.Equal(accesspolicy.APMove, pExtendedWithOwn.RightsRoster.Role[role1.ID])
+	a.True(pExtendedWithOwn.HasRights(ctx, testaccesspolicy.ID, wantedRights|accesspolicy.APMove))
 }
 
 func TestSetUserRights(t *testing.T) {
@@ -329,7 +488,7 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -342,15 +501,15 @@ func TestSetUserRights(t *testing.T) {
 	testuser, err := CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
 	a.NoError(err)
 
-	wantedRights := user.APView | user.APChange
+	wantedRights := accesspolicy.APView | accesspolicy.APChange
 
 	// no parent, not inheriting and not extending
 	// WARNING: [p] will be reused and inherited below in this function
 	p, err := apm.Create(ctx, assignor.ID, 0, "test_name", "test_type", 1, false, false)
-	err = p.SetUserRights(ctx, assignor.ID, testuser.ID, wantedRights)
+	err = p.SetUserRights(ctx, assignor.ID, testaccesspolicy.ID, wantedRights)
 	a.NoError(err)
-	a.Equal(wantedRights, p.RightsRoster.User[testuser.ID])
-	a.True(p.HasRights(ctx, testuser.ID, wantedRights))
+	a.Equal(wantedRights, p.RightsRoster.User[testaccesspolicy.ID])
+	a.True(p.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, using legacy only
 	pWithInheritance, err := apm.Create(ctx, assignor.ID, p.ID, "another name", "another type", 1, true, false)
@@ -359,8 +518,8 @@ func TestSetUserRights(t *testing.T) {
 
 	parent, err := pWithInheritance.Parent(ctx)
 	a.NoError(err)
-	a.Equal(wantedRights, parent.RightsRoster.User[testuser.ID])
-	a.True(pWithInheritance.HasRights(ctx, testuser.ID, wantedRights))
+	a.Equal(wantedRights, parent.RightsRoster.User[testaccesspolicy.ID])
+	a.True(pWithInheritance.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights
 	// no own rights
@@ -369,9 +528,9 @@ func TestSetUserRights(t *testing.T) {
 
 	parent, err = pExtendedNoOwn.Parent(ctx)
 	a.NoError(err)
-	a.Equal(wantedRights, parent.RightsRoster.User[testuser.ID])
-	a.Equal(user.APNoAccess, pExtendedNoOwn.RightsRoster.User[testuser.ID])
-	a.True(pExtendedNoOwn.HasRights(ctx, testuser.ID, wantedRights))
+	a.Equal(wantedRights, parent.RightsRoster.User[testaccesspolicy.ID])
+	a.Equal(accesspolicy.APNoAccess, pExtendedNoOwn.RightsRoster.User[testaccesspolicy.ID])
+	a.True(pExtendedNoOwn.HasRights(ctx, testaccesspolicy.ID, wantedRights))
 
 	// with parent, legacy false, extend true; using parent's rights with it's own
 	// adding one more right to itself
@@ -379,14 +538,14 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedWithOwn, err := apm.Create(ctx, assignor.ID, p.ID, "yet another name", "and type", 1, false, true)
 	a.NoError(err)
 
-	err = pExtendedWithOwn.SetUserRights(ctx, assignor.ID, testuser.ID, user.APMove)
+	err = pExtendedWithOwn.SetUserRights(ctx, assignor.ID, testaccesspolicy.ID, accesspolicy.APMove)
 	a.NoError(err)
 
 	parent, err = pExtendedWithOwn.Parent(ctx)
 	a.NoError(err)
-	a.Equal(wantedRights, parent.RightsRoster.User[testuser.ID])
-	a.Equal(user.APMove, pExtendedWithOwn.RightsRoster.User[testuser.ID])
-	a.True(pExtendedWithOwn.HasRights(ctx, testuser.ID, wantedRights|user.APMove))
+	a.Equal(wantedRights, parent.RightsRoster.User[testaccesspolicy.ID])
+	a.Equal(accesspolicy.APMove, pExtendedWithOwn.RightsRoster.User[testaccesspolicy.ID])
+	a.True(pExtendedWithOwn.HasRights(ctx, testaccesspolicy.ID, wantedRights|accesspolicy.APMove))
 }
 
 func TestIsOwner(t *testing.T) {
@@ -401,7 +560,7 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -418,16 +577,16 @@ func TestIsOwner(t *testing.T) {
 	a.NoError(err)
 
 	// testing owner and testuser rights
-	a.NoError(ap.SetUserRights(ctx, testuser1.ID, testuser2.ID, user.APView))
+	a.NoError(ap.SetUserRights(ctx, testuser1.ID, testuser2.ID, accesspolicy.APView))
 	a.Empty(ap.RightsRoster.User[testuser1.ID])
-	a.Equal(user.APView, ap.RightsRoster.User[testuser2.ID])
-	a.NotEqual(user.APNoAccess, ap.RightsRoster.User[testuser2.ID])
-	a.True(ap.HasRights(ctx, testuser1.ID, user.APView))
-	a.True(ap.HasRights(ctx, testuser1.ID, user.APChange))
-	a.True(ap.HasRights(ctx, testuser1.ID, user.APDelete))
-	a.True(ap.HasRights(ctx, testuser1.ID, user.APFullAccess))
-	a.True(ap.HasRights(ctx, testuser2.ID, user.APView))
-	a.False(ap.HasRights(ctx, testuser2.ID, user.APFullAccess))
+	a.Equal(accesspolicy.APView, ap.RightsRoster.User[testuser2.ID])
+	a.NotEqual(accesspolicy.APNoAccess, ap.RightsRoster.User[testuser2.ID])
+	a.True(ap.HasRights(ctx, testuser1.ID, accesspolicy.APView))
+	a.True(ap.HasRights(ctx, testuser1.ID, accesspolicy.APChange))
+	a.True(ap.HasRights(ctx, testuser1.ID, accesspolicy.APDelete))
+	a.True(ap.HasRights(ctx, testuser1.ID, accesspolicy.APFullAccess))
+	a.True(ap.HasRights(ctx, testuser2.ID, accesspolicy.APView))
+	a.False(ap.HasRights(ctx, testuser2.ID, accesspolicy.APFullAccess))
 	a.True(ap.IsOwner(ctx, testuser1.ID))
 	a.False(ap.IsOwner(ctx, testuser2.ID))
 }
@@ -444,7 +603,7 @@ func TestAccessPolicyClone(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -460,18 +619,18 @@ func TestAccessPolicyClone(t *testing.T) {
 	a.NoError(err)
 
 	// testing owner and testuser rights
-	a.NoError(ap.SetUserRights(ctx, owner.ID, testuser.ID, user.APView))
+	a.NoError(ap.SetUserRights(ctx, owner.ID, testaccesspolicy.ID, accesspolicy.APView))
 	a.Empty(ap.RightsRoster.User[owner.ID])
-	a.Equal(user.APView, ap.RightsRoster.User[testuser.ID])
-	a.NotEqual(user.APNoAccess, ap.RightsRoster.User[testuser.ID])
-	a.True(ap.HasRights(ctx, owner.ID, user.APView))
-	a.True(ap.HasRights(ctx, owner.ID, user.APChange))
-	a.True(ap.HasRights(ctx, owner.ID, user.APDelete))
-	a.True(ap.HasRights(ctx, owner.ID, user.APFullAccess))
-	a.True(ap.HasRights(ctx, testuser.ID, user.APView))
-	a.False(ap.HasRights(ctx, testuser.ID, user.APFullAccess))
+	a.Equal(accesspolicy.APView, ap.RightsRoster.User[testaccesspolicy.ID])
+	a.NotEqual(accesspolicy.APNoAccess, ap.RightsRoster.User[testaccesspolicy.ID])
+	a.True(ap.HasRights(ctx, owner.ID, accesspolicy.APView))
+	a.True(ap.HasRights(ctx, owner.ID, accesspolicy.APChange))
+	a.True(ap.HasRights(ctx, owner.ID, accesspolicy.APDelete))
+	a.True(ap.HasRights(ctx, owner.ID, accesspolicy.APFullAccess))
+	a.True(ap.HasRights(ctx, testaccesspolicy.ID, accesspolicy.APView))
+	a.False(ap.HasRights(ctx, testaccesspolicy.ID, accesspolicy.APFullAccess))
 	a.True(ap.IsOwner(ctx, owner.ID))
-	a.False(ap.IsOwner(ctx, testuser.ID))
+	a.False(ap.IsOwner(ctx, testaccesspolicy.ID))
 
 	// cloning
 	clone, err := ap.Clone()
@@ -488,16 +647,16 @@ func TestAccessPolicyClone(t *testing.T) {
 
 	// testing whether access rights were also successfully cloned
 	a.Empty(clone.RightsRoster.User[owner.ID])
-	a.Equal(user.APView, clone.RightsRoster.User[testuser.ID])
-	a.NotEqual(user.APNoAccess, clone.RightsRoster.User[testuser.ID])
-	a.True(clone.HasRights(ctx, owner.ID, user.APView))
-	a.True(clone.HasRights(ctx, owner.ID, user.APChange))
-	a.True(clone.HasRights(ctx, owner.ID, user.APDelete))
-	a.True(clone.HasRights(ctx, owner.ID, user.APFullAccess))
-	a.True(clone.HasRights(ctx, testuser.ID, user.APView))
-	a.False(clone.HasRights(ctx, testuser.ID, user.APFullAccess))
+	a.Equal(accesspolicy.APView, clone.RightsRoster.User[testaccesspolicy.ID])
+	a.NotEqual(accesspolicy.APNoAccess, clone.RightsRoster.User[testaccesspolicy.ID])
+	a.True(clone.HasRights(ctx, owner.ID, accesspolicy.APView))
+	a.True(clone.HasRights(ctx, owner.ID, accesspolicy.APChange))
+	a.True(clone.HasRights(ctx, owner.ID, accesspolicy.APDelete))
+	a.True(clone.HasRights(ctx, owner.ID, accesspolicy.APFullAccess))
+	a.True(clone.HasRights(ctx, testaccesspolicy.ID, accesspolicy.APView))
+	a.False(clone.HasRights(ctx, testaccesspolicy.ID, accesspolicy.APFullAccess))
 	a.True(clone.IsOwner(ctx, owner.ID))
-	a.False(clone.IsOwner(ctx, testuser.ID))
+	a.False(clone.IsOwner(ctx, testaccesspolicy.ID))
 }
 
 func TestAccessPolicyUnsetRights(t *testing.T) {
@@ -512,7 +671,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -530,7 +689,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	group, err := gm.Create(ctx, GKGroup, 0, "test_group", "Test Group")
 	a.NoError(err)
 
-	wantedRights := user.APView | user.APChange | user.APCopy | user.APDelete
+	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APCopy | accesspolicy.APDelete
 
 	//---------------------------------------------------------------------------
 	// user rights
@@ -586,7 +745,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(um)
 	a.NotNil(ctx)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
+	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
 	a.NotNil(apm)
 
 	gm := ctx.Value(CKGroupManager).(*GroupManager)
@@ -614,7 +773,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(ap)
 
-	wantedRights := user.APCreate | user.APView
+	wantedRights := accesspolicy.APCreate | accesspolicy.APView
 
 	// setting rights for group 1
 	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1.ID, wantedRights))
@@ -630,7 +789,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(ap)
 
-	wantedRights = user.APCreate | user.APView
+	wantedRights = accesspolicy.APCreate | accesspolicy.APView
 
 	// setting rights for group 2
 	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2.ID, wantedRights))
@@ -646,7 +805,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(ap)
 
-	wantedRights = user.APCreate | user.APView
+	wantedRights = accesspolicy.APCreate | accesspolicy.APView
 
 	// setting rights for group 2
 	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group3.ID, wantedRights))
@@ -662,8 +821,8 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(ap)
 
-	group1Rights := user.APView | user.APCreate
-	wantedRights = user.APDelete | user.APCopy
+	group1Rights := accesspolicy.APView | accesspolicy.APCreate
+	wantedRights = accesspolicy.APDelete | accesspolicy.APCopy
 
 	// setting rights for group 1 & 2
 	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1.ID, group1Rights))
@@ -685,10 +844,11 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(ap)
 
-	wantedRights = user.APCreate | user.APView
+	wantedRights = accesspolicy.APCreate | accesspolicy.APView
 
 	// setting rights for group 2
 	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
 	a.False(ap.HasGroupRights(ctx, group2.ID, wantedRights))
 	a.False(ap.HasGroupRights(ctx, group3.ID, wantedRights))
 }
+*/

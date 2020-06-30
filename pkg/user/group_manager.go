@@ -187,7 +187,7 @@ func (m *GroupManager) DistributeMembers(ctx context.Context, members []int64) e
 	return nil
 }
 
-// GroupStore returns store if set
+// Store returns store if set
 func (m *GroupManager) Store() (GroupStore, error) {
 	if m.store == nil {
 		return nil, ErrNilGroupStore
@@ -306,7 +306,7 @@ func (m *GroupManager) Put(ctx context.Context, g Group) error {
 	return g.Init()
 }
 
-// Lookup looks up in cache and returns a group if found
+// lookup looks up in cache and returns a group if found
 func (m *GroupManager) Lookup(ctx context.Context, groupID int64) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[groupID]
@@ -357,7 +357,7 @@ func (m *GroupManager) List(kind GroupKind) (gs []Group) {
 	return gs
 }
 
-// GroupByID returns a group by ID
+// GroupByID returns a group by SubjectID
 func (m *GroupManager) GroupByID(ctx context.Context, id int64) (g Group, err error) {
 	if g, err = m.Lookup(ctx, id); err != ErrGroupNotFound {
 		return g, nil

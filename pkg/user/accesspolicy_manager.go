@@ -105,7 +105,7 @@ func (m *AccessPolicyManager) Create(ctx context.Context, ownerID, parentID int6
 		}
 	}
 
-	// checking by an object type and ID
+	// checking by an object type and SubjectID
 	if ap.ObjectType != "" && ap.ObjectID != 0 {
 		_, err := m.PolicyByObjectTypeAndID(ctx, ap.ObjectType, objectID)
 		if err == nil {
@@ -323,7 +323,7 @@ func (m *AccessPolicyManager) DeletePolicy(ctx context.Context, ap AccessPolicy)
 	return nil
 }
 
-// HasRights checks whether a given subject entity has the inquired rights
+// hasRights checks whether a given subject entity has the inquired rights
 func (m *AccessPolicyManager) HasRights(ctx context.Context, ap *AccessPolicy, subject interface{}, rights AccessRight) bool {
 	if subject == nil {
 		return false

@@ -57,7 +57,7 @@ type Manager struct {
 	// group id -> group
 	groups map[uint32]Group
 
-	// group key -> group ID
+	// group key -> group SubjectID
 	keyMap map[TKey]uint32
 
 	// default group ids
@@ -67,8 +67,8 @@ type Manager struct {
 	defaultIDs []uint32
 
 	// relationships
-	memberGroups map[uint32][]uint32 // member ID -> slice of group IDs
-	groupMembers map[uint32][]uint32 // group ID -> slice of member IDs
+	memberGroups map[uint32][]uint32 // member SubjectID -> slice of group IDs
+	groupMembers map[uint32][]uint32 // group SubjectID -> slice of member IDs
 
 	store  Store
 	logger *zap.Logger
@@ -309,7 +309,7 @@ func (m *Manager) Put(ctx context.Context, g Group) error {
 		m.groups[g.ID] = g
 		m.keyMap[g.Key] = g.ID
 
-		// adding group ID to a slice of defaults if it's marked as default
+		// adding group SubjectID to a slice of defaults if it's marked as default
 		if g.IsDefault {
 			m.defaultIDs = append(m.defaultIDs, g.ID)
 		}
@@ -320,7 +320,7 @@ func (m *Manager) Put(ctx context.Context, g Group) error {
 	return nil
 }
 
-// Lookup looks up in cache and returns a group if found
+// lookup looks up in cache and returns a group if found
 func (m *Manager) Lookup(ctx context.Context, groupID uint32) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[groupID]
@@ -353,7 +353,7 @@ func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
 	//---------------------------------------------------------------------------
 	// discarding group membership cache
 	//---------------------------------------------------------------------------
-	// first, clearing out group ID from every related member
+	// first, clearing out group SubjectID from every related member
 	for _, memberID := range m.groupMembers[groupID] {
 		for i, id := range m.memberGroups[memberID] {
 			if id == groupID {
@@ -384,7 +384,7 @@ func (m *Manager) List(kind Kind) (gs []Group) {
 	return gs
 }
 
-// GroupByID returns a group by ID
+// GroupByID returns a group by SubjectID
 func (m *Manager) GroupByID(ctx context.Context, id uint32) (g Group, err error) {
 	if id == 0 {
 		return g, ErrZeroGroupID
@@ -579,7 +579,7 @@ func (m *Manager) IsCircuited(ctx context.Context, groupID uint32) (bool, error)
 	return false, ErrCircuitCheckTimeout
 }
 
-// SetParent assigns a new parent ID
+// SetParent assigns a new parent SubjectID
 func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (err error) {
 	g, err := m.GroupByID(ctx, groupID)
 	if err != nil {
@@ -617,7 +617,7 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (e
 		}
 	}
 
-	// previous checks have passed, thus assingning a new parent ID
+	// previous checks have passed, thus assingning a new parent SubjectID
 	// NOTE: ParentID is used to rebuild parent-child connections after
 	// loading groups from the store
 	g.ParentID = newParent.ID
@@ -687,7 +687,7 @@ func (m *Manager) CreateRelation(ctx context.Context, groupID, memberID uint32) 
 		l.Info("creating group member relationship while store is not set", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID), zap.Error(err))
 	}
 
-	// adding member ID to group members
+	// adding member SubjectID to group members
 	if err = m.LinkMember(ctx, groupID, memberID); err != nil {
 		return err
 	}
@@ -750,14 +750,14 @@ func (m *Manager) LinkMember(ctx context.Context, groupID, memberID uint32) (err
 
 	m.Lock()
 
-	// group ID -> member IDs
+	// group SubjectID -> member IDs
 	if m.groupMembers[groupID] == nil {
 		m.groupMembers[groupID] = []uint32{memberID}
 	} else {
 		m.groupMembers[groupID] = append(m.groupMembers[groupID], memberID)
 	}
 
-	// member ID -> group IDs
+	// member SubjectID -> group IDs
 	if m.memberGroups[memberID] == nil {
 		m.memberGroups[memberID] = []uint32{groupID}
 	} else {
