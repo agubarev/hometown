@@ -166,6 +166,11 @@ func (k *Kind) Scan(src interface{}) error {
 }
 
 func (key TKey) Value() (driver.Value, error) {
+	// a little hack to store an empty string instead of zeroes
+	if key[0] == 0 {
+		return "", nil
+	}
+
 	return key[0:bytes.IndexByte(key[:], byte(0))], nil
 }
 
@@ -175,6 +180,11 @@ func (key *TKey) Scan(v interface{}) error {
 }
 
 func (name TName) Value() (driver.Value, error) {
+	// a little hack to store an empty string instead of zeroes
+	if name[0] == 0 {
+		return "", nil
+	}
+
 	return name[0:bytes.IndexByte(name[:], byte(0))], nil
 }
 

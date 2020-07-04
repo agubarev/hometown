@@ -186,21 +186,37 @@ func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TO
 	// because this allows to create independent policies in the middle of a chain and still
 	// benefit from using parent's rights as default with it's own corrections/exclusions
 	ap = AccessPolicy{
-		OwnerID:  ownerID,
-		ParentID: parentID,
-		ObjectID: objectID,
-		Flags:    flags,
+		OwnerID:    ownerID,
+		ParentID:   parentID,
+		Key:        key,
+		ObjectID:   objectID,
+		ObjectType: objectType,
+		Flags:      flags,
 	}
 
-	if err = ap.SetKey(key); err != nil {
-		return ap, errors.Wrap(err, "failed to set initial key")
+	// NOTE: key may be optional
+	if key[0] != 0 {
+		if err = ap.SetKey(key); err != nil {
+			return ap, errors.Wrap(err, "failed to set initial key")
+		}
 	}
 
 	if err = ap.SetObjectType(objectType); err != nil {
 		return ap, errors.Wrap(err, "failed to set initial object type")
 	}
 
-	return ap, ap.Validate()
+	if err = ap.Validate(); err != nil {
+		return ap, errors.Wrap(err, "validation failed")
+	}
+
+	return ap, nil
+}
+
+// IsOwner checks whether a given user is the owner of this policy
+// NOTE: owner of the policy (meaning: the main entity) has full rights on it
+// NOTE: *** DO NOT remove owner zero check, to reduce the risk of abuse or mistake ***
+func (ap AccessPolicy) IsOwner(userID uint32) bool {
+	return ap.OwnerID != 0 && (ap.OwnerID == userID)
 }
 
 // ApplyChangelog applies changes described by a diff.Diff()'s changelog
@@ -232,11 +248,7 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 }
 
 // SanitizeAndValidate validates access policy by performing basic self-check
-func (ap *AccessPolicy) Validate() error {
-	if ap == nil {
-		return ErrNilAccessPolicy
-	}
-
+func (ap AccessPolicy) Validate() error {
 	// policy must have some designators
 	if ap.Key[0] == 0 && ap.ObjectType[0] == 0 {
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object type empty")
@@ -338,6 +350,10 @@ func (ap *AccessPolicy) SetObjectType(objectType interface{}) error {
 //---------------------------------------------------------------------------
 
 func (key TKey) Value() (driver.Value, error) {
+	if key[0] == 0 {
+		return "", nil
+	}
+
 	return key[0:bytes.IndexByte(key[:], byte(0))], nil
 }
 
@@ -347,6 +363,11 @@ func (key *TKey) Scan(v interface{}) error {
 }
 
 func (typ TObjectType) Value() (driver.Value, error) {
+	// a little hack to store an empty string instead of zeroes
+	if typ[0] == 0 {
+		return "", nil
+	}
+
 	return typ[0:bytes.IndexByte(typ[:], byte(0))], nil
 }
 

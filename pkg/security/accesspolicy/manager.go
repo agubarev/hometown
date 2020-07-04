@@ -68,9 +68,8 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	return c, nil
 }
 
-func (m *Manager) putPolicy(ap AccessPolicy, r *Roster) error {
-	err := ap.Validate()
-	if err != nil {
+func (m *Manager) putPolicy(ap AccessPolicy, r *Roster) (err error) {
+	if err = ap.Validate(); err != nil {
 		return err
 	}
 
@@ -175,11 +174,10 @@ func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objec
 	return ap, nil
 }
 
-// UpdatePolicy updates existing access policy
-func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, err error) {
-	// validating before creation
+// Update updates given access policy
+func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (err error) {
 	if err = ap.Validate(); err != nil {
-		return ap, errors.Wrap(err, "failed to validate updated access policy")
+		return errors.Wrap(err, "failed to validate access policy before updating")
 	}
 
 	// checking whether name is available, and if it already
@@ -189,11 +187,11 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, 
 		existingPolicy, err := m.PolicyByKey(ctx, ap.Key)
 		if err != nil {
 			if err != ErrPolicyNotFound {
-				return ap, errors.Wrapf(err, "failed to obtain policy by key: %s", ap.Key)
+				return errors.Wrapf(err, "failed to obtain policy by key: %s", ap.Key)
 			}
 		} else {
 			if existingPolicy.ID != ap.ID {
-				return ap, ErrPolicyKeyTaken
+				return ErrPolicyKeyTaken
 			}
 		}
 	}
@@ -204,26 +202,29 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (_ AccessPolicy, 
 		existingPolicy, err := m.PolicyByObject(ctx, ap.ObjectType, ap.ObjectID)
 		if err != nil {
 			if err != ErrPolicyNotFound {
-				return ap, errors.Wrapf(err, "failed to obtain policy by object: type=%s, id=%d", ap.ObjectType, ap.ObjectID)
+				return errors.Wrapf(err, "failed to obtain policy by object: type=%s, id=%d", ap.ObjectType, ap.ObjectID)
 			}
 		} else {
 			if existingPolicy.ID != ap.ID {
-				return ap, ErrPolicyObjectConflict
+				return ErrPolicyObjectConflict
 			}
 		}
 	}
 
 	r, err := m.RosterByPolicyID(ctx, ap.ID)
 	if err != nil {
-		return ap, errors.Wrap(err, "failed to obtain policy roster")
+		return errors.Wrap(err, "failed to obtain policy roster")
 	}
 
 	// making changes to the store backend
 	if err = m.store.UpdatePolicy(ctx, ap, r); err != nil {
-		return ap, errors.Wrap(err, "failed to save updated access policy")
+		return errors.Wrap(err, "failed to save updated access policy")
 	}
 
-	return ap, m.putPolicy(ap, r)
+	// clearing roster changes and backup because the policy update was successful
+	r.clearChanges()
+
+	return m.putPolicy(ap, r)
 }
 
 // PolicyByID returns an access policy by its ObjectID
@@ -340,6 +341,16 @@ func (m *Manager) RosterByPolicyID(ctx context.Context, policyID uint32) (r *Ros
 		return nil, ErrZeroPolicyID
 	}
 
+	// checking internal cache
+	m.rosterLock.RLock()
+	r, ok := m.roster[policyID]
+	m.rosterLock.RUnlock()
+
+	// returning if cache was found
+	if ok {
+		return r, nil
+	}
+
 	// attempting to obtain policy from the store
 	ap, err := m.store.FetchPolicyByID(ctx, policyID)
 	if err != nil {
@@ -349,10 +360,11 @@ func (m *Manager) RosterByPolicyID(ctx context.Context, policyID uint32) (r *Ros
 	// fetching rights roster
 	r, err = m.store.FetchRosterByPolicyID(ctx, ap.ID)
 	if err != nil {
-		// if no roster records are found, then initializing
-		// new roster object
+		// if no roster records are found, then initializing new roster object
 		if err == ErrEmptyRoster {
-			m.roster[0] = NewRoster(0)
+			m.rosterLock.Lock()
+			m.roster[ap.ID] = NewRoster(0)
+			m.rosterLock.Unlock()
 		}
 
 		return r, errors.Wrapf(err, "failed to fetch rights roster: policy_id=%d", ap.ID)
@@ -367,12 +379,14 @@ func (m *Manager) RosterByPolicyID(ctx context.Context, policyID uint32) (r *Ros
 }
 
 // hasRights checks whether a given subject entity has the inquired rights
-func (m *Manager) HasRights(ctx context.Context, sk SubjectKind, policyID, subjectID uint32, rights Right) bool {
+func (m *Manager) HasRights(ctx context.Context, kind SubjectKind, policyID, subjectID uint32, rights Right) bool {
 	if policyID == 0 {
 		return false
 	}
 
-	switch sk {
+	switch kind {
+	case SKEveryone:
+		return m.HasPublicRights(ctx, policyID, rights)
 	case SKUser:
 		return m.HasUserRights(ctx, policyID, subjectID, rights)
 	case SKRoleGroup:
@@ -427,24 +441,35 @@ func (m *Manager) SetRights(ctx context.Context, kind SubjectKind, policyID, ass
 // that this policy protects
 // NOTE: if you wish to completely deny somebody an access through
 // this policy, then set exclusive rights explicitly (i.e. APNoAccess, 0)
-func (m *Manager) UnsetRights(ctx context.Context, kind SubjectKind, policyID, subjectID uint32) (err error) {
-	if subjectID == 0 {
-		return ErrZeroAssignorID
-	}
+func (m *Manager) UnsetRights(ctx context.Context, kind SubjectKind, policyID, assignorID, assigneeID uint32) (err error) {
+	// safety fuse
+	restoreBackup := true
 
 	ap, err := m.PolicyByID(ctx, policyID)
 	if err != nil {
-		return errors.Wrapf(err, "failed to obtain access policy: %d", policyID)
+		return errors.Wrapf(err, "failed to obtain access policy: policy_id=%d", policyID)
 	}
 
-	r, err := m.RosterByPolicyID(ctx, ap.ID)
+	r, err := m.RosterByPolicyID(ctx, policyID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", ap.ID)
 	}
 
-	// the subjectID must have a right to set rights (APManageRights) and have all the
+	// will restore backup unless successfully cancelled
+	defer func() {
+		if restoreBackup {
+			r.restoreBackup()
+		}
+	}()
+
+	if assignorID == 0 {
+		return ErrZeroAssignorID
+	}
+
+	// the assignorID must have a right to set rights (APManageRights) and have all the
 	// rights himself that he's attempting to assign to others
-	if !m.HasRights(ctx, kind, policyID, subjectID, APManageRights) {
+	// TODO: consider weighting the rights of who strips whose rights
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights) {
 		return ErrAccessDenied
 	}
 
@@ -453,12 +478,15 @@ func (m *Manager) UnsetRights(ctx context.Context, kind SubjectKind, policyID, s
 	case SKEveryone:
 		r.change(RSet, SKEveryone, 0, APNoAccess)
 	case SKUser:
-		r.change(RUnset, SKUser, subjectID, 0)
+		r.change(RUnset, SKUser, assigneeID, APNoAccess)
 	case SKRoleGroup:
-		r.change(RUnset, SKRoleGroup, subjectID, 0)
+		r.change(RUnset, SKRoleGroup, assigneeID, APNoAccess)
 	case SKGroup:
-		r.change(RUnset, SKGroup, subjectID, 0)
+		r.change(RUnset, SKGroup, assigneeID, APNoAccess)
 	}
+
+	// all is good, cancelling restoration
+	restoreBackup = false
 
 	return nil
 }
@@ -488,16 +516,16 @@ func (m *Manager) UserAccess(ctx context.Context, policyID, userID uint32) (acce
 		return APNoAccess
 	}
 
-	// if this user is the owner, then returning maximum possible value for Right type
-	if m.IsOwner(ctx, policyID, userID) {
-		return APFullAccess
-	}
-
 	// obtaining policy
 	ap, err := m.PolicyByID(ctx, policyID)
 	if err != nil {
 		log.Printf("UserAccess(policy_id=%d, user_id=%d): %s\n", policyID, userID, err)
 		return APNoAccess
+	}
+
+	// if this user is the owner, then returning maximum possible value for Right type
+	if ap.IsOwner(userID) {
+		return APFullAccess
 	}
 
 	// calculating parents access if parent SubjectID is set
@@ -529,39 +557,62 @@ func (m *Manager) UserAccess(ctx context.Context, policyID, userID uint32) (acce
 
 // SetPublicRights setting rights for everyone
 func (m *Manager) SetPublicRights(ctx context.Context, policyID, assignorID uint32, rights Right) error {
-	if assignorID == 0 {
-		return ErrZeroAssignorID
-	}
-
-	// checking whether the assignorID has at least the assigned rights
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, rights) {
-		return ErrExcessOfRights
-	}
+	// safety fuse
+	restoreBackup := true
 
 	r, err := m.RosterByPolicyID(ctx, policyID)
 	if err != nil {
 		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
 	}
 
+	// will restore backup unless successfully cancelled
+	defer func() {
+		if restoreBackup {
+			r.restoreBackup()
+		}
+	}()
+
+	if assignorID == 0 {
+		return ErrZeroAssignorID
+	}
+
+	// checking whether the assignorID has at least the assigned rights
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
+		return ErrExcessOfRights
+	}
+
 	// deferred instruction for change
 	r.change(RSet, SKEveryone, 0, rights)
+
+	// all is good, cancelling restoration
+	restoreBackup = false
 
 	return nil
 }
 
 // SetRoleRights setting rights for the role
 func (m *Manager) SetRoleRights(ctx context.Context, policyID, assignorID, roleID uint32, rights Right) error {
+	// safety fuse
+	restoreBackup := true
+
+	r, err := m.RosterByPolicyID(ctx, policyID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
+	}
+
+	// will restore backup unless successfully cancelled
+	defer func() {
+		if restoreBackup {
+			r.restoreBackup()
+		}
+	}()
+
 	if assignorID == 0 {
 		return ErrZeroAssignorID
 	}
 
 	if roleID == 0 {
 		return ErrZeroRoleID
-	}
-
-	r, err := m.RosterByPolicyID(ctx, policyID)
-	if err != nil {
-		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
 	}
 
 	g, err := m.groups.GroupByID(ctx, roleID)
@@ -580,29 +631,42 @@ func (m *Manager) SetRoleRights(ctx context.Context, policyID, assignorID, roleI
 
 	// checking whether assignor has the right to manage,
 	// and has at least the assigned rights itself
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights&rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
 		return ErrExcessOfRights
 	}
 
 	// deferred instruction for change
 	r.change(RSet, SKRoleGroup, roleID, rights)
 
+	// all is good, cancelling restoration
+	restoreBackup = false
+
 	return nil
 }
 
 // SetGroupRights setting group rights for specific user
 func (m *Manager) SetGroupRights(ctx context.Context, policyID, assignorID, groupID uint32, rights Right) (err error) {
+	// safety fuse
+	restoreBackup := true
+
+	r, err := m.RosterByPolicyID(ctx, policyID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
+	}
+
+	// will restore backup unless successfully cancelled
+	defer func() {
+		if restoreBackup {
+			r.restoreBackup()
+		}
+	}()
+
 	if assignorID == 0 {
 		return ErrZeroAssignorID
 	}
 
 	if groupID == 0 {
 		return ErrZeroGroupID
-	}
-
-	r, err := m.RosterByPolicyID(ctx, policyID)
-	if err != nil {
-		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
 	}
 
 	g, err := m.groups.GroupByID(ctx, groupID)
@@ -614,26 +678,44 @@ func (m *Manager) SetGroupRights(ctx context.Context, policyID, assignorID, grou
 	if g.Kind != group.GKGroup {
 		return errors.Wrapf(
 			err,
-			"SetRoleRights(policy_id=%d, assignor_id=%d, role_id=%d, rights=%d): expecting %s, got %s",
+			"SetGroupRights(policy_id=%d, assignor_id=%d, role_id=%d, rights=%d): expecting %s, got %s",
 			policyID, assignorID, groupID, rights, group.GKGroup, g.Kind,
 		)
 	}
 
 	// checking whether assignor has the right to manage,
 	// and has at least the assigned rights itself
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights&rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
 		return ErrExcessOfRights
 	}
 
 	// deferred instruction for change
 	r.change(RSet, SKGroup, groupID, rights)
 
+	// all is good, cancelling restoration
+	restoreBackup = false
+
 	return nil
 }
 
 // SetUserRights setting rights for specific user
 // TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each access policy instance
-func (m *Manager) SetUserRights(ctx context.Context, policyID, assignorID, assigneeID uint32, rights Right) error {
+func (m *Manager) SetUserRights(ctx context.Context, policyID, assignorID, assigneeID uint32, rights Right) (err error) {
+	// safety fuse
+	restoreBackup := true
+
+	r, err := m.RosterByPolicyID(ctx, policyID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
+	}
+
+	// will restore backup unless successfully cancelled
+	defer func() {
+		if restoreBackup {
+			r.restoreBackup()
+		}
+	}()
+
 	if assignorID == 0 {
 		return ErrZeroAssignorID
 	}
@@ -642,49 +724,36 @@ func (m *Manager) SetUserRights(ctx context.Context, policyID, assignorID, assig
 		return ErrZeroAssigneeID
 	}
 
-	r, err := m.RosterByPolicyID(ctx, policyID)
-	if err != nil {
-		return errors.Wrapf(err, "failed to obtain rights roster: policy_id=%d", policyID)
-	}
-
 	// checking whether assignor has the right to manage,
 	// and has at least the assigned rights itself
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights&rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
 		return ErrExcessOfRights
 	}
 
 	// deferred instruction for change
 	r.change(RSet, SKUser, assigneeID, rights)
 
+	// all is good, cancelling restoration
+	restoreBackup = false
+
 	return nil
-}
-
-// IsOwner checks whether a given user is the owner of this policy
-// NOTE: owner of the policy (meaning: the main entity) has full rights on it
-func (m *Manager) IsOwner(ctx context.Context, policyID, userID uint32) bool {
-	ap, err := m.PolicyByID(ctx, policyID)
-	if err != nil {
-		return false
-	}
-
-	return ap.OwnerID != 0 && (ap.OwnerID == userID)
 }
 
 // hasRights checks whether the user has specific rights
 // NOTE: returns true only if the user has every of specified rights permitted
 // TODO: maybe add some sort of a calculated cache with a short lifespan, like 10ms or something
-func (m *Manager) HasUserRights(ctx context.Context, policyID, subjectID uint32, rights Right) bool {
+func (m *Manager) HasUserRights(ctx context.Context, policyID, userID uint32, rights Right) bool {
+	if userID == 0 {
+		return false
+	}
+
 	ap, err := m.PolicyByID(ctx, policyID)
 	if err != nil {
 		return false
 	}
 
-	if subjectID == 0 {
-		return false
-	}
-
 	// allow if this user is an owner
-	if m.IsOwner(ctx, ap.ID, subjectID) {
+	if ap.IsOwner(userID) {
 		return true
 	}
 
@@ -696,18 +765,30 @@ func (m *Manager) HasUserRights(ctx context.Context, policyID, subjectID uint32,
 		// if the current policy is flagged as inherited, then
 		// using its parent as the primary source of rights
 		if ap.IsInherited() {
-			return m.HasUserRights(ctx, ap.ParentID, subjectID, rights)
+			return m.HasUserRights(ctx, ap.ParentID, userID, rights)
 		}
 
 		if ap.IsExtended() {
-			cr = m.Summarize(ctx, ap.ParentID, subjectID)
+			cr = m.Summarize(ctx, ap.ParentID, userID)
 		}
 	}
 
 	// merging with the actual policy's rights rosters rights
-	cr |= m.Summarize(ctx, policyID, subjectID)
+	// TODO: consider overriding the extended rights with own
+	cr |= m.Summarize(ctx, policyID, userID)
 
 	return (cr & rights) == rights
+}
+
+// HasPublicRights checks whether a given policy has specific public rights
+// NOTE: despite it's narrow purpose, it may still be useful to check public rights alone
+func (m *Manager) HasPublicRights(ctx context.Context, policyID uint32, rights Right) bool {
+	r, err := m.RosterByPolicyID(ctx, policyID)
+	if err != nil {
+		return false
+	}
+
+	return (r.Everyone & rights) == rights
 }
 
 // HasGroupRights checks whether a group has the rights
@@ -722,6 +803,11 @@ func (m *Manager) HasRoleRights(ctx context.Context, policyID, groupID uint32, r
 
 // Summarize summarizing the resulting access rights
 func (m *Manager) Summarize(ctx context.Context, policyID, userID uint32) (access Right) {
+	ap, err := m.PolicyByID(ctx, policyID)
+	if err != nil {
+		return APNoAccess
+	}
+
 	r, err := m.RosterByPolicyID(ctx, policyID)
 	if err != nil {
 		return APNoAccess
@@ -740,6 +826,14 @@ func (m *Manager) Summarize(ctx context.Context, policyID, userID uint32) (acces
 		for _, g := range m.groups.GroupsByMemberID(ctx, group.GKRole|group.GKGroup, userID) {
 			access |= m.GroupRights(ctx, policyID, g.ID)
 		}
+	}
+
+	// WARNING: USING USER'S OWNERSHIP TO OVERRIDE ITS ACCESS
+	// THIS MEANS THAT OWNERS OF THE PARENT POLICIES WILL HAVE
+	// FULL ACCESS TO ITS CHILDREN
+	// TODO: CONSIDER THIS VERY STRONGLY
+	if ap.IsOwner(userID) {
+		access = APFullAccess
 	}
 
 	// user-specific rights

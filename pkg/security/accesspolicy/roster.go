@@ -152,6 +152,7 @@ func (r *Roster) deleteCache(k SubjectKind, id uint32) {
 
 // change adds a single deferred action for change and further storing
 func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, rights Right) {
+	// the roster must have a backup before any unsaved changes to be made
 	r.createBackup()
 
 	// initializing new change
@@ -165,19 +166,26 @@ func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, righ
 	//---------------------------------------------------------------------------
 	// applying the actual change
 	//---------------------------------------------------------------------------
-	r.registryLock.Lock()
 	switch action {
 	case RSet:
-		r.put(kind, subjectID, rights)
+		// if kind is Everyone(public), then there's no need update registry
+		if kind == SKEveryone {
+			r.Everyone = rights
+		} else {
+			r.put(kind, subjectID, rights)
+		}
 	case RUnset:
-		r.delete(kind, subjectID)
+		if kind == SKEveryone {
+			r.Everyone = APNoAccess
+		} else {
+			r.delete(kind, subjectID)
+		}
 	default:
 		panic(errors.Wrapf(
 			ErrUnrecognizedRosterAction,
 			"action=%d, kind=%s, subject_id=%d, rights=%d", action, kind, subjectID, rights,
 		))
 	}
-	r.registryLock.Unlock()
 
 	//---------------------------------------------------------------------------
 	// adding a deferred action to store changes
@@ -194,6 +202,7 @@ func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, righ
 func (r *Roster) clearChanges() {
 	r.changeLock.Lock()
 	r.changes = nil
+	r.backup = nil
 	r.changeLock.Unlock()
 }
 
@@ -226,17 +235,18 @@ func (r *Roster) createBackup() {
 		backup.calculatedCache[k] = r.calculatedCache[k]
 	}
 
+	// storing backup inside the roster itself
+	r.backup = backup
+
 	// removing both locks
 	r.cacheLock.RUnlock()
 	r.registryLock.RUnlock()
 }
 
-func (r *Roster) restoreBackup() error {
-	// returning with an error if backup isn't found
-	// NOTE: doing this explicitly for consistency, because
-	// it's important whenever restoration is requested
+func (r *Roster) restoreBackup() {
+	// nothing to restore if there's no backup
 	if r.backup == nil {
-		return ErrNoBackup
+		return
 	}
 
 	// double-locking registry and cache to freeze
@@ -248,7 +258,7 @@ func (r *Roster) restoreBackup() error {
 	r.Registry = make([]Cell, len(r.backup.Registry))
 	r.calculatedCache = make(map[uint64]Right, len(r.backup.calculatedCache))
 
-	// copying public rights
+	// restoring public rights
 	r.Everyone = r.backup.Everyone
 
 	// access registry
@@ -261,15 +271,12 @@ func (r *Roster) restoreBackup() error {
 		r.backup.calculatedCache[k] = r.calculatedCache[k]
 	}
 
-	// backup is no longer needed at this point, clearing backup
+	// backup is no longer needed at this point,
+	// clearing backup and all changes
 	r.backup = nil
+	r.changes = nil
 
 	// removing both locks
 	r.cacheLock.RUnlock()
 	r.registryLock.RUnlock()
-
-	// clearing changelist
-	r.clearChanges()
-
-	return nil
 }

@@ -659,7 +659,7 @@ func (m *Manager) IsMember(ctx context.Context, groupID, memberID uint32) bool {
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
 func (m *Manager) CreateRelation(ctx context.Context, groupID, memberID uint32) (err error) {
-	_, err = m.GroupByID(ctx, groupID)
+	groupOrRole, err := m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
@@ -676,15 +676,30 @@ func (m *Manager) CreateRelation(ctx context.Context, groupID, memberID uint32) 
 	l := m.Logger()
 
 	if s != nil {
-		l.Info("creating group member relationship", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID))
+		l.Info("creating member relationship",
+			zap.Uint32("group_id", groupID),
+			zap.Uint32("member_id", memberID),
+			zap.String("kind", groupOrRole.Kind.String()),
+		)
 
 		// persisting relation in the store
 		if err = s.CreateRelation(ctx, groupID, memberID); err != nil {
-			l.Info("failed to store group to member relation", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID), zap.Error(err))
+			l.Info("failed to store member relation",
+				zap.Uint32("group_id", groupID),
+				zap.Uint32("member_id", memberID),
+				zap.String("kind", groupOrRole.Kind.String()),
+				zap.Error(err),
+			)
+
 			return err
 		}
 	} else {
-		l.Info("creating group member relationship while store is not set", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID), zap.Error(err))
+		l.Info("creating member relationship while store is not set",
+			zap.Uint32("group_id", groupID),
+			zap.Uint32("member_id", memberID),
+			zap.String("kind", groupOrRole.Kind.String()),
+			zap.Error(err),
+		)
 	}
 
 	// adding member SubjectID to group members
