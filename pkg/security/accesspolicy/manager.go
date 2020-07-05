@@ -38,6 +38,9 @@ var (
 	ErrZeroGroupID                  = errors.New("role group id is zero")
 	ErrZeroRoleID                   = errors.New("role id is zero")
 	ErrUnrecognizedRosterAction     = errors.New("unrecognized roster action")
+	ErrKeyTooLong                   = errors.New("key is too long")
+	ErrObjectNameTooLong            = errors.New("object name is too long")
+	ErrForbiddenChange              = errors.New("access policy key, object name or id is not allowed to change")
 )
 
 // Manager is the access policy registry
@@ -141,8 +144,8 @@ func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objec
 	}
 
 	// checking by an object type and SubjectID
-	if ap.ObjectType[0] != 0 && ap.ObjectID != 0 {
-		_, err = m.PolicyByObject(ctx, ap.ObjectType, objectID)
+	if ap.ObjectName[0] != 0 && ap.ObjectID != 0 {
+		_, err = m.PolicyByObject(ctx, ap.ObjectName, objectID)
 		if err == nil {
 			return ap, ErrPolicyObjectConflict
 		}
@@ -154,8 +157,8 @@ func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objec
 
 	// initializing or re-using rights rosters, depending
 	// on whether this policy has a parent from which it inherits
-	if parentID != 0 && ap.IsInherited() {
-		if _, err = m.lookupPolicy(ap.ParentID); err != nil {
+	if parentID != 0 {
+		if _, err = m.PolicyByID(ctx, ap.ParentID); err != nil {
 			return ap, errors.Wrapf(err, "failed to obtain parent policy despite having parent id")
 		}
 	}
@@ -180,6 +183,28 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (err error) {
 		return errors.Wrap(err, "failed to validate access policy before updating")
 	}
 
+	currentPolicy, err := m.PolicyByID(ctx, ap.ID)
+	if err != nil {
+		return errors.Wrap(err, "failed to obtain current policy")
+	}
+
+	//---------------------------------------------------------------------------
+	// WARNING: KEY, OBJECT NAME AND ID ARE NOT ALLOWED TO BE REGULARLY CHANGED
+	// BECAUSE CURRENT VALUES ARE/COULD BE RELIED UPON ELSEWHERE AND MUST REMAIN
+	// THE SAME
+	//---------------------------------------------------------------------------
+	if ap.Key != currentPolicy.Key {
+		return ErrForbiddenChange
+	}
+
+	if ap.ObjectID != currentPolicy.ObjectID {
+		return ErrForbiddenChange
+	}
+
+	if ap.ObjectName != currentPolicy.ObjectName {
+		return ErrForbiddenChange
+	}
+
 	// checking whether name is available, and if it already
 	// exists and doesn't belong to this access policy, then
 	// returning an error
@@ -198,11 +223,11 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (err error) {
 
 	// checking by an object, just in case kind and id changes,
 	// and new kind and object is already attached to a different access policy
-	if ap.ObjectType[0] != 0 && ap.ObjectID != 0 {
-		existingPolicy, err := m.PolicyByObject(ctx, ap.ObjectType, ap.ObjectID)
+	if ap.ObjectName[0] != 0 && ap.ObjectID != 0 {
+		existingPolicy, err := m.PolicyByObject(ctx, ap.ObjectName, ap.ObjectID)
 		if err != nil {
 			if err != ErrPolicyNotFound {
-				return errors.Wrapf(err, "failed to obtain policy by object: type=%s, id=%d", ap.ObjectType, ap.ObjectID)
+				return errors.Wrapf(err, "failed to obtain policy by object: type=%s, id=%d", ap.ObjectName, ap.ObjectID)
 			}
 		} else {
 			if existingPolicy.ID != ap.ID {
@@ -493,19 +518,45 @@ func (m *Manager) UnsetRights(ctx context.Context, kind SubjectKind, policyID, a
 
 // SetParentID setting a new parent policy
 func (m *Manager) SetParent(ctx context.Context, policyID, parentID uint32) (err error) {
-	ap, err := m.lookupPolicy(policyID)
+	ap, err := m.PolicyByID(ctx, policyID)
 	if err != nil {
-		return err
+		return errors.Wrapf(err, "policy_id=%d, new_parent_id=%d", policyID, parentID)
 	}
 
-	// disabling inheritance to avoid unexpected behaviour
-	// TODO: think it through, is it really obvious to disable inheritance if parent is nil'ed?
+	// disabling inheritance and extension to avoid unexpected behaviour
 	if parentID == 0 {
-		ap.Flags &^= FInherit
+		// since parent ID is zero, thus disabling inheritance and extension
+		ap.Flags &^= FInherit | FExtend
 		ap.ParentID = 0
 	} else {
+		// checking parent policy existence
+		if _, err = m.PolicyByID(ctx, parentID); err != nil {
+			return errors.Wrapf(err, "failed to obtain new parent policy: policy_id=%d, new_parent_id=%d", policyID, parentID)
+		}
+
 		ap.ParentID = parentID
 	}
+
+	// obtaining roster
+	r, err := m.RosterByPolicyID(ctx, ap.ID)
+	if err != nil {
+		return errors.Wrapf(err, "failed to obtain policy roster before setting new parent: policy_id=%d, new_parent_id=%d", policyID, parentID)
+	}
+
+	// persisting changes
+	if err = m.Update(ctx, ap); err != nil {
+		return errors.Wrapf(err, "failed to update policy after setting new parent: policy_id=%d, new_parent_id=%d", policyID, parentID)
+	}
+
+	// updating cached policy
+	m.Lock()
+	m.policies[ap.ID] = ap
+	m.Unlock()
+
+	// clearing calculated cache in a roster
+	r.cacheLock.Lock()
+	r.calculatedCache = make(map[uint64]Right, 0)
+	r.cacheLock.Unlock()
 
 	return nil
 }

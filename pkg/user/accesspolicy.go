@@ -398,7 +398,7 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 			ap.OwnerID = change.To.(int64)
 		case "Key":
 			ap.Name = change.To.(string)
-		case "ObjectType":
+		case "ObjectName":
 			ap.ObjectType = change.To.(string)
 		case "ObjectID":
 			ap.ObjectID = change.To.(int64)

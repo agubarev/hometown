@@ -89,7 +89,7 @@ func (g *Group) Validate() (err error) {
 }
 
 // SetKey assigns a key name to the group
-func (g *Group) SetKey(key interface{}) error {
+func (g *Group) SetKey(key interface{}, maxLen int) error {
 	switch v := key.(type) {
 	case string:
 		v = strings.ToLower(strings.TrimSpace(v))
@@ -106,7 +106,7 @@ func (g *Group) SetKey(key interface{}) error {
 
 		copy(g.Key[:], v)
 	case TKey:
-		newKey := v[0:bytes.IndexByte(v[:], byte(0))]
+		newKey := v[0:bytes.IndexByte(v[0:maxLen], byte(0))]
 		if len(newKey) == 0 {
 			return ErrEmptyKey
 		}
@@ -118,7 +118,7 @@ func (g *Group) SetKey(key interface{}) error {
 }
 
 // SetName assigns a new name to the group
-func (g *Group) SetName(name interface{}) error {
+func (g *Group) SetName(name interface{}, maxLen int) error {
 	switch v := name.(type) {
 	case string:
 		v = strings.TrimSpace(v)
@@ -135,7 +135,7 @@ func (g *Group) SetName(name interface{}) error {
 
 		copy(g.Name[:], v)
 	case TKey:
-		newName := v[0:bytes.IndexByte(v[:], byte(0))]
+		newName := v[0:maxLen]
 		if len(newName) == 0 {
 			return ErrEmptyGroupName
 		}
@@ -171,7 +171,12 @@ func (key TKey) Value() (driver.Value, error) {
 		return "", nil
 	}
 
-	return key[0:bytes.IndexByte(key[:], byte(0))], nil
+	zeroPos := bytes.IndexByte(key[:], byte(0))
+	if zeroPos == -1 {
+		return key[:], nil
+	}
+
+	return key[0:zeroPos], nil
 }
 
 func (key *TKey) Scan(v interface{}) error {
@@ -185,7 +190,12 @@ func (name TName) Value() (driver.Value, error) {
 		return "", nil
 	}
 
-	return name[0:bytes.IndexByte(name[:], byte(0))], nil
+	zeroPos := bytes.IndexByte(name[:], byte(0))
+	if zeroPos == -1 {
+		return name[:], nil
+	}
+
+	return name[0:zeroPos], nil
 }
 
 func (name *TName) Scan(v interface{}) error {

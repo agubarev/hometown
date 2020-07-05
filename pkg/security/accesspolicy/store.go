@@ -261,7 +261,7 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 		"parent_id":   ap.ParentID,
 		"owner_id":    ap.OwnerID,
 		"key":         ap.Key,
-		"object_type": ap.ObjectType,
+		"object_type": ap.ObjectName,
 		"object_id":   ap.ObjectID,
 		"flags":       ap.Flags,
 	}

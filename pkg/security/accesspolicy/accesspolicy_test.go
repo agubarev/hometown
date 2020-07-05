@@ -102,7 +102,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		1,                                // owner ID
 		0,                                // parent ID
 		1,                                // object ID
-		accesspolicy.NewObjectType("test object"), // object type
+		accesspolicy.NewObjectName("test object"), // object type
 		accesspolicy.FInherit,                     // flags
 	)
 	a.Error(err)
@@ -114,7 +114,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		1,                                // owner ID
 		0,                                // parent ID
 		1,                                // object ID
-		accesspolicy.NewObjectType("test object"), // object type
+		accesspolicy.NewObjectName("test object"), // object type
 		accesspolicy.FExtend,                      // flags
 	)
 	a.Error(err)
@@ -126,7 +126,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		1,                                // owner ID
 		p.ID,                             // parent ID
 		1,                                // object ID
-		accesspolicy.NewObjectType("test object"), // object type
+		accesspolicy.NewObjectName("test object"), // object type
 		accesspolicy.FInherit,                     // flags
 	)
 	a.NoError(err)
@@ -139,7 +139,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		1,                                // owner ID
 		p.ID,                             // parent ID
 		1,                                // object ID
-		accesspolicy.NewObjectType("another test object"), // object type
+		accesspolicy.NewObjectName("another test object"), // object type
 		accesspolicy.FExtend,                              // flags
 	)
 	a.NoError(err)
@@ -239,7 +239,7 @@ func TestSetPublicRights(t *testing.T) {
 		0,                   // owner ID
 		parent.ID,           // parent ID
 		1,                   // object ID
-		accesspolicy.NewObjectType("some object"), // object type
+		accesspolicy.NewObjectName("some object"), // object type
 		accesspolicy.FExtend,                      // flags
 	)
 	a.NoError(err)
@@ -265,7 +265,7 @@ func TestSetPublicRights(t *testing.T) {
 		1,                   // owner ID
 		parent.ID,           // parent ID
 		1,                   // object ID
-		accesspolicy.NewObjectType("and another object"), // object type
+		accesspolicy.NewObjectName("and another object"), // object type
 		accesspolicy.FExtend,                             // flags
 	)
 	a.NoError(err)

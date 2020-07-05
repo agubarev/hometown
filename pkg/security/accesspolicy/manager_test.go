@@ -1,218 +1,546 @@
 package accesspolicy_test
 
-/*
+import (
+	"context"
+	"testing"
+
+	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
+	"github.com/stretchr/testify/assert"
+)
+
 func TestNewAccessPolicyManager(t *testing.T) {
 	a := assert.New(t)
 
-	conn, err := database.ForTesting()
-	a.NoError(err)
-	a.NotNil(conn)
+	// test context
+	ctx := context.Background()
 
-	s, err := NewMySQLStore(conn)
+	// database instance
+	db, err := database.ForTesting()
+	a.NoError(err)
+	a.NotNil(db)
+
+	// policy store
+	s, err := accesspolicy.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
-	aps, err := user.NewDefaultAccessPolicyStore(conn)
+	// group store
+	gs, err := group.NewStore(db)
 	a.NoError(err)
-	a.NotNil(aps)
+	a.NotNil(gs)
 
-	c, err := user.NewAccessPolicyManager(aps)
+	// group manager
+	gm, err := group.NewManager(ctx, gs)
 	a.NoError(err)
-	a.NotNil(c)
+	a.NotNil(gm)
+
+	// policy manager
+	m, err := accesspolicy.NewManager(s, gm)
+	a.NoError(err)
+	a.NotNil(m)
 }
 
 func TestAccessPolicyManagerCreate(t *testing.T) {
 	a := assert.New(t)
 
 	//---------------------------------------------------------------------------
-	// preparing testdata
+	// initializing dependencies
 	//---------------------------------------------------------------------------
+	// test context
+	ctx := context.Background()
+
+	// database instance
 	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	accessPolicyStore, err := user.NewDefaultAccessPolicyStore(db)
+	// policy store
+	s, err := accesspolicy.NewDefaultMySQLStore(db)
 	a.NoError(err)
-	a.NotNil(accessPolicyStore)
+	a.NotNil(s)
 
-	um, ctx, err := ManagerForTesting(db)
+	// group store
+	gs, err := group.NewStore(db)
 	a.NoError(err)
-	a.NotNil(um)
+	a.NotNil(gs)
 
-	apm := um.AccessPolicyManager()
-	a.NotNil(apm)
-
-	u, err := CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", nil)
+	// group manager
+	gm, err := group.NewManager(ctx, gs)
 	a.NoError(err)
-	a.NotNil(u)
+	a.NotNil(gm)
+
+	// policy manager
+	m, err := accesspolicy.NewManager(s, gm)
+	a.NoError(err)
+	a.NotNil(m)
 
 	//---------------------------------------------------------------------------
 	// proceeding with the test
+	// creating a normal policy with type name and ID set, no key
 	//---------------------------------------------------------------------------
-	// creating policy with just an object type name
-	ap, err := apm.Create(ctx, 0, 0, "test policy name", "", 0, false, false)
+	key := accesspolicy.TKey{}
+	typeName := accesspolicy.NewObjectName("with type and id, no key")
+	objectID := uint32(1)
+
+	ap, err := m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.NoError(err)
+	a.NotZero(ap.ID)
+	a.Zero(ap.ParentID)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.False(ap.IsInherited())
+	a.False(ap.IsExtended())
+
+	// checking rights roster
+	roster, err := m.RosterByPolicyID(ctx, ap.ID)
+	a.NoError(err)
+	a.NotNil(roster)
+	a.Equal(accesspolicy.APNoAccess, roster.Everyone)
+
+	//---------------------------------------------------------------------------
+	// policy without an owner
+	//---------------------------------------------------------------------------
+	key = accesspolicy.TKey{}
+	typeName = accesspolicy.NewObjectName("policy without an owner")
+	objectID = uint32(1)
+
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		0,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.NoError(err)
+	a.NotZero(ap.ID)
+	a.Zero(ap.ParentID)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.False(ap.IsInherited())
+	a.False(ap.IsExtended())
+
+	// checking rights roster
+	roster, err = m.RosterByPolicyID(ctx, ap.ID)
+	a.NoError(err)
+	a.NotNil(roster)
+	a.Equal(accesspolicy.APNoAccess, roster.Everyone)
+
+	//---------------------------------------------------------------------------
+	// creating a policy with a key, object type and ID set
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("test key")
+	typeName = accesspolicy.NewObjectName("with type, id and key")
+	objectID = uint32(1)
+
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
 	a.NoError(err)
 	a.NotNil(ap)
 	a.Zero(ap.ParentID)
-	a.False(ap.IsInherited)
-	a.False(ap.IsExtended)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.False(ap.IsInherited())
+	a.False(ap.IsExtended())
 
-	// creating a policy with only its object type set, without object id
-	ap, err = apm.Create(ctx, 0, 0, "", "test type name", 0, false, false)
-	a.Error(err)
-
-	// creating policy with object type and id
-	ap, err = apm.Create(ctx, 0, 0, "test name", "test_object_type", 1, false, false)
-	a.NoError(err)
-
+	//---------------------------------------------------------------------------
 	// creating the same policy with the same object type and id
-	ap, err = apm.Create(ctx, 0, 0, "test name", "test_object_type", 1, false, false)
-	a.Error(err)
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("test key (to attempt duplication)")
+	typeName = accesspolicy.NewObjectName("with type and id (to attempt duplication)")
+	objectID = uint32(1)
 
-	// creating the same policy with the same name
-	ap, err = apm.Create(ctx, 0, 0, "test name", "", 0, false, false)
-	a.Error(err)
-	a.EqualError(user.ErrAccessPolicyNameTaken, err.Error())
-
-	// creating a policy without a name and object type and id
-	ap, err = apm.Create(ctx, 0, 0, "", "", 0, false, false)
-	a.EqualError(user.ErrAccessPolicyEmptyDesignators, errors.Cause(err).Error())
-
-	// with owner
-	ap, err = apm.Create(ctx, u.ID, 0, "test name 2", "", 0, false, false)
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
 	a.NoError(err)
 	a.NotNil(ap)
-	a.Equal(u.ID, ap.OwnerID)
 	a.Zero(ap.ParentID)
-	a.False(ap.IsInherited)
-	a.False(ap.IsExtended)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.False(ap.IsInherited())
+	a.False(ap.IsExtended())
+
+	// attempting to create a policy with a duplicate key
+	// NOTE: must fail
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.Error(err)
+	a.EqualError(accesspolicy.ErrPolicyKeyTaken, err.Error())
+
+	// checking rights roster
+	roster, err = m.RosterByPolicyID(ctx, ap.ID)
+	a.Error(err)
+	a.Nil(roster)
 
 	//---------------------------------------------------------------------------
-	// with parent
+	// attempting to create a policy with an object name without object ID
 	//---------------------------------------------------------------------------
-	// initializing a parent
-	parent, err := apm.Create(ctx, 0, 0, "parent name", "", 0, false, false)
-	a.NoError(err)
-	a.NotNil(parent)
+	key = accesspolicy.NewKey("with name but without id")
+	typeName = accesspolicy.NewObjectName("test object")
+	objectID = uint32(0)
 
-	// creating normally
-	ap, err = apm.Create(ctx, 0, parent.ID, "test with parent name", "", 0, false, false)
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.Error(err)
+
+	// checking rights roster
+	roster, err = m.RosterByPolicyID(ctx, ap.ID)
+	a.Error(err)
+	a.Nil(roster)
+
+	//---------------------------------------------------------------------------
+	// attempting to create a policy without an object name but with object ID set
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("without name but with id")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(1)
+
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.Error(err)
+
+	// checking rights roster
+	roster, err = m.RosterByPolicyID(ctx, ap.ID)
+	a.Error(err)
+
+	//---------------------------------------------------------------------------
+	// creating a re-usable parent policy
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("re-usable parent policy")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	basePolicy, err := m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.NoError(err)
+	a.NotNil(basePolicy)
+	a.Zero(basePolicy.ParentID)
+	a.Equal(key, basePolicy.Key)
+	a.Equal(typeName, basePolicy.ObjectName)
+	a.Equal(objectID, basePolicy.ObjectID)
+	a.False(basePolicy.IsInherited())
+	a.False(basePolicy.IsExtended())
+
+	//---------------------------------------------------------------------------
+	// attempting to create a proper policy but with a non-existing parent
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("policy with non-existing parent")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	ap, err = m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		123321,   // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.Error(err)
+
+	//---------------------------------------------------------------------------
+	// inheritance without a parent
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("policy inherits with no parent")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	ap, err = m.Create(
+		ctx,
+		key,                   // key
+		1,                     // owner ID
+		123321,                // parent ID
+		objectID,              // object ID
+		typeName,              // object type
+		accesspolicy.FInherit, // flags
+	)
+	a.Error(err)
+
+	//---------------------------------------------------------------------------
+	// extension without a parent
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("policy extends with no parent")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	ap, err = m.Create(
+		ctx,
+		key,                  // key
+		1,                    // owner ID
+		123321,               // parent ID
+		objectID,             // object ID
+		typeName,             // object type
+		accesspolicy.FExtend, // flags
+	)
+	a.Error(err)
+
+	//---------------------------------------------------------------------------
+	// proper but inherits and extends at the same time
+	// NOTE: must fail
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("policy inherits and extends (must not be created)")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	ap, err = m.Create(
+		ctx,
+		key,           // key
+		1,             // owner ID
+		basePolicy.ID, // parent ID
+		objectID,      // object ID
+		typeName,      // object type
+		accesspolicy.FInherit|accesspolicy.FExtend, // flags
+	)
+	a.Error(err)
+
+	//---------------------------------------------------------------------------
+	// proper creation with inheritance only
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("proper policy with inheritance")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	ap, err = m.Create(
+		ctx,
+		key,                   // key
+		1,                     // owner ID
+		basePolicy.ID,         // parent ID
+		objectID,              // object ID
+		typeName,              // object type
+		accesspolicy.FInherit, // flags
+	)
 	a.NoError(err)
 	a.NotNil(ap)
-	a.Zero(ap.OwnerID)
-	a.Equal(parent.ID, ap.ParentID)
-	a.False(ap.IsInherited)
-	a.False(ap.IsExtended)
-
-	// inheritance without a parent set
-	ap, err = apm.Create(ctx, 0, 0, "inheritance without a parent set", "", 0, true, false)
-	a.Error(err)
-
-	// extension without a parent set
-	ap, err = apm.Create(ctx, 0, 0, "extension without a parent set", "", 0, false, true)
-	a.Error(err)
-
-	// extension and inheritance without a parent set
-	ap, err = apm.Create(ctx, 0, 0, "extension and inheritance without a parent set", "", 0, true, true)
-	a.Error(err)
-
-	// proper creation with inheritance
-	ap, err = apm.Create(ctx, 0, parent.ID, "proper creation with inheritance", "", 0, true, false)
-	a.NoError(err)
-	a.NotNil(ap)
-	a.Zero(ap.OwnerID)
 	a.NotZero(ap.ParentID)
-	a.Equal(parent.ID, ap.ParentID)
-	a.True(ap.IsInherited)
-	a.False(ap.IsExtended)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.True(ap.IsInherited())
+	a.False(ap.IsExtended())
 
-	// proper creation with extension
-	ap, err = apm.Create(ctx, 0, parent.ID, "proper creation with extension", "", 0, false, true)
+	//---------------------------------------------------------------------------
+	// proper creation with extension only
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("proper policy with extension")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	ap, err = m.Create(
+		ctx,
+		key,                  // key
+		1,                    // owner ID
+		basePolicy.ID,        // parent ID
+		objectID,             // object ID
+		typeName,             // object type
+		accesspolicy.FExtend, // flags
+	)
 	a.NoError(err)
 	a.NotNil(ap)
-	a.Zero(ap.OwnerID)
 	a.NotZero(ap.ParentID)
-	a.Equal(parent.ID, ap.ParentID)
-	a.False(ap.IsInherited)
-	a.True(ap.IsExtended)
-
-	// attempting to create with inheritance and extension
-	ap, err = apm.Create(ctx, 0, parent.ID, "test name with inheritance and extension", "", 0, true, true)
-	a.Error(err)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.False(ap.IsInherited())
+	a.True(ap.IsExtended())
 }
 
 func TestAccessPolicyManagerUpdate(t *testing.T) {
 	a := assert.New(t)
 
 	//---------------------------------------------------------------------------
-	// preparing testdata
+	// initializing dependencies
 	//---------------------------------------------------------------------------
+	// test context
+	ctx := context.Background()
+
+	// database instance
 	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, ctx, err := ManagerForTesting(db)
+	// policy store
+	s, err := accesspolicy.NewDefaultMySQLStore(db)
 	a.NoError(err)
-	a.NotNil(um)
-	a.NotNil(ctx)
+	a.NotNil(s)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*user.AccessPolicyManager)
-	a.NotNil(apm)
-
-	assignor, err := CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
+	// group store
+	gs, err := group.NewStore(db)
 	a.NoError(err)
-	a.NotNil(assignor)
+	a.NotNil(gs)
 
-	assignee, err := CreateTestUser(ctx, um, "assignee", "assignee@hometown.local", nil)
+	// group manager
+	gm, err := group.NewManager(ctx, gs)
 	a.NoError(err)
-	a.NotNil(assignee)
+	a.NotNil(gm)
+
+	// policy manager
+	m, err := accesspolicy.NewManager(s, gm)
+	a.NoError(err)
+	a.NotNil(m)
 
 	//---------------------------------------------------------------------------
-	// proceeding with the test
+	// test policy
 	//---------------------------------------------------------------------------
-	// creating new policy
-	ap, err := apm.Create(ctx, assignor.ID, 0, "test name", "test_object_type", 1, false, false)
+	key := accesspolicy.NewKey("test policy")
+	typeName := accesspolicy.TObjectType{}
+	objectID := uint32(0)
+
+	ap, err := m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
 	a.NoError(err)
-	a.NotNil(ap)
-	a.Equal(assignor.ID, ap.OwnerID)
+	a.NotZero(ap.ID)
 	a.Zero(ap.ParentID)
-	a.False(ap.IsInherited)
-	a.False(ap.IsExtended)
+	a.Equal(key, ap.Key)
+	a.Equal(typeName, ap.ObjectName)
+	a.Equal(objectID, ap.ObjectID)
+	a.False(ap.IsInherited())
+	a.False(ap.IsExtended())
 
-	// creating parent policy
-	parent, err := apm.Create(ctx, 0, 0, "parent policy", "", 0, false, false)
+	// checking rights roster
+	roster, err := m.RosterByPolicyID(ctx, ap.ID)
 	a.NoError(err)
-	a.NotNil(parent)
-	a.Zero(parent.OwnerID)
-	a.Zero(parent.ParentID)
-	a.False(parent.IsInherited)
-	a.False(parent.IsExtended)
+	a.NotNil(roster)
+	a.Equal(accesspolicy.APNoAccess, roster.Everyone)
+
+	//---------------------------------------------------------------------------
+	// creating base policy (to be used as a parent)
+	//---------------------------------------------------------------------------
+	key = accesspolicy.NewKey("base policy")
+	typeName = accesspolicy.TObjectType{}
+	objectID = uint32(0)
+
+	basePolicy, err := m.Create(
+		ctx,
+		key,      // key
+		1,        // owner ID
+		0,        // parent ID
+		objectID, // object ID
+		typeName, // object type
+		0,        // flags
+	)
+	a.NoError(err)
+	a.NotZero(basePolicy.ID)
+	a.Zero(basePolicy.ParentID)
+	a.Equal(key, basePolicy.Key)
+	a.Equal(typeName, basePolicy.ObjectName)
+	a.Equal(objectID, basePolicy.ObjectID)
+	a.False(basePolicy.IsInherited())
+	a.False(basePolicy.IsExtended())
 
 	// setting parent
-	a.NoError(ap.SetParentID(parent.ID))
-	a.Equal(parent.ID, ap.ParentID)
-	a.Equal(parent.ID, ap.ParentID)
+	a.NoError(m.SetParent(ctx, ap.ID, basePolicy.ID))
+
+	// re-obtaining updated policy
+	ap, err = m.PolicyByID(ctx, ap.ID)
+	a.NoError(err)
+	a.Equal(basePolicy.ID, ap.ParentID)
+
+	// re-obtaining updated policy
+	// NOTE: parent must be set
+	ap, err = m.PolicyByID(ctx, ap.ID)
+	a.NoError(err)
+	a.Equal(basePolicy.ID, ap.ParentID)
+	a.Equal(ap.ParentID, basePolicy.ID)
 
 	// unsetting parent
-	a.NoError(ap.SetParentID(0))
-	a.Zero(ap.ParentID)
-	a.Equal(ap.ParentID, uint32(0))
+	a.NoError(m.SetParent(ctx, ap.ID, 0))
 
-	// changing policy name
-	newName := "updated name"
-	ap.Name = newName
-
-	// saving policy
-	ap, err = apm.Update(ctx, ap)
+	// re-obtaining updated policy
+	// NOTE: parent must be cleared
+	ap, err = m.PolicyByID(ctx, ap.ID)
 	a.NoError(err)
-	a.Equal(newName, ap.Name)
+	a.Equal(uint32(0), ap.ParentID)
+	a.Zero(ap.ParentID)
+
+	// key, object name and id must not be changeable
+	a.Error(ap.SetKey(accesspolicy.NewKey("new key"), 32))
+	a.Error(ap.SetObjectType(accesspolicy.NewObjectName("new object name"), 32))
+
+	// attempting to change object id and save
+	ap.ObjectName = accesspolicy.NewObjectName("doesn't matter")
+	ap.ObjectID = ap.ObjectID + 1
+	a.EqualError(accesspolicy.ErrForbiddenChange, m.Update(ctx, ap).Error())
+
+	// re-obtaining policy
+	ap, err = m.PolicyByID(ctx, ap.ID)
+	a.NoError(err)
 
 	// set assignor rights
-	a.NoError(apm.SetRights(ctx, &ap, assignor.ID, assignee.ID, user.APView))
-	ap, err = apm.Update(ctx, ap)
-	a.NoError(err)
+	a.NoError(m.SetRights(ctx, accesspolicy.SKUser, ap.ID, 1, 2, accesspolicy.APView))
+	a.NoError(m.Update(ctx, ap))
+	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APMove))
+	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APDelete))
+	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APCreate))
 }
 
+/*
 func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a := assert.New(t)
 
@@ -396,7 +724,7 @@ func TestAccessPolicyManagerBackupAndRestore(t *testing.T) {
 	a.EqualError(ErrNoPolicyBackup, err.Error())
 	a.Zero(backup.ID)
 	a.Empty(backup.Name)
-	a.Empty(backup.ObjectType)
+	a.Empty(backup.ObjectName)
 	a.Empty(backup.ObjectID)
 
 	// checking rights before making more policy changes
@@ -536,7 +864,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NotNil(fetchedPolicy)
 	a.True(reflect.DeepEqual(ap, fetchedPolicy))
 
-	fetchedPolicy, err = apm.PolicyByObjectTypeAndID(ctx, ap.ObjectType, ap.ObjectID)
+	fetchedPolicy, err = apm.PolicyByObjectTypeAndID(ctx, ap.ObjectName, ap.ObjectID)
 	a.NoError(err)
 	a.NotNil(fetchedPolicy)
 	a.True(reflect.DeepEqual(ap, fetchedPolicy))
@@ -559,7 +887,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.EqualError(user.ErrAccessPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
 
-	fetchedPolicy, err = apm.PolicyByObjectTypeAndID(ctx, ap.ObjectType, ap.ObjectID)
+	fetchedPolicy, err = apm.PolicyByObjectTypeAndID(ctx, ap.ObjectName, ap.ObjectID)
 	a.Error(err)
 	a.EqualError(user.ErrAccessPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
