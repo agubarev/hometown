@@ -912,12 +912,26 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// public access
 	//---------------------------------------------------------------------------
-	// TODO: set/unset public access
+	// setting
+	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APChange))
+	a.NoError(m.SetPublicRights(ctx, ap.ID, 1, wantedRights))
+	a.NoError(m.Update(ctx, ap))
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APView))
+	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APChange))
+
+	// unsetting
+	a.NoError(m.UnsetRights(ctx, accesspolicy.SKEveryone, ap.ID, 1, 2))
+	a.NoError(m.Update(ctx, ap))
+	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APChange))
 
 	//---------------------------------------------------------------------------
 	// user rights
 	//---------------------------------------------------------------------------
 	// setting
+	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
 	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, wantedRights))
 	a.NoError(m.Update(ctx, ap))
 	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
@@ -933,6 +947,8 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// role rights
 	//---------------------------------------------------------------------------
 	// setting
+	a.False(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APView))
+	a.False(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APChange))
 	a.NoError(m.SetRoleRights(ctx, ap.ID, 1, r.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
 	a.True(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APView))
@@ -948,6 +964,8 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// group rights
 	//---------------------------------------------------------------------------
 	// setting
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APView))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APChange))
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
 	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APView))
@@ -960,123 +978,176 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APChange))
 }
 
-/*
 func TestHasGroupRights(t *testing.T) {
 	a := assert.New(t)
 
+	//---------------------------------------------------------------------------
+	// initializing dependencies
+	//---------------------------------------------------------------------------
+	// test context
+	ctx := context.Background()
+
+	// database instance
 	db, err := database.ForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
-	um, ctx, err := ManagerForTesting(db)
+	// ap store
+	s, err := accesspolicy.NewDefaultMySQLStore(db)
 	a.NoError(err)
-	a.NotNil(um)
-	a.NotNil(ctx)
+	a.NotNil(s)
 
-	apm := ctx.Value(CKAccessPolicyManager).(*accesspolicy.AccessPolicyManager)
-	a.NotNil(apm)
+	// group store
+	gs, err := group.NewStore(db)
+	a.NoError(err)
+	a.NotNil(gs)
 
-	gm := ctx.Value(CKGroupManager).(*GroupManager)
+	// group manager
+	gm, err := group.NewManager(ctx, gs)
+	a.NoError(err)
 	a.NotNil(gm)
 
-	// creating test users via manager
-	assignor, err := CreateTestUser(ctx, um, "assignor", "assignor@hometown.local", nil)
+	// policy manager
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
+	a.NotNil(m)
 
+	//---------------------------------------------------------------------------
 	// adding the user to 2 groups but setting rights to only one
-	group1, err := gm.Create(ctx, GKGroup, 0, "test_group_1", "test group 1")
-	a.NoError(err)
-
-	group2, err := gm.Create(ctx, GKGroup, group1.ID, "test_group_2", "test group 2")
-	a.NoError(err)
-
-	group3, err := gm.Create(ctx, GKGroup, group2.ID, "test_group_3", "test group 3")
-	a.NoError(err)
-
 	//---------------------------------------------------------------------------
-	// setting rights only for the first group, thus group3 must inherit its
-	// rights only from group 1
-	//---------------------------------------------------------------------------
-	ap, err := apm.Create(ctx, assignor.ID, 0, "test_name", "test_type", 1, false, false)
+	g1, err := gm.Create(ctx, group.GKGroup, 0, "test group 1", "test group 1", false)
 	a.NoError(err)
-	a.NotNil(ap)
+	a.NoError(gm.CreateRelation(ctx, g1.ID, 2))
 
+	g2, err := gm.Create(ctx, group.GKGroup, g1.ID, "test group 2", "test group 2", false)
+	a.NoError(err)
+	a.NoError(gm.CreateRelation(ctx, g2.ID, 2))
+
+	g3, err := gm.Create(ctx, group.GKGroup, g2.ID, "test group 3", "test group 3", false)
+	a.NoError(err)
+	a.NoError(gm.CreateRelation(ctx, g3.ID, 2))
+
+	// expected rights
 	wantedRights := accesspolicy.APCreate | accesspolicy.APView
 
+	//---------------------------------------------------------------------------
+	// setting rights only for the g1, thus g3 must inherit its
+	// rights only from g1
+	//---------------------------------------------------------------------------
+	ap, err := m.Create(
+		ctx,
+		accesspolicy.NewKey("test policy"), // key
+		1,                                  // owner ID
+		0,                                  // parent ID
+		0,                                  // object ID
+		accesspolicy.TObjectType{},         // object type
+		0,                                  // flags
+	)
+	a.NoError(err)
+
 	// setting rights for group 1
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1.ID, wantedRights))
-	a.True(ap.HasGroupRights(ctx, group1.ID, wantedRights))
-	a.True(ap.HasGroupRights(ctx, group2.ID, wantedRights))
-	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
+	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g1.ID, wantedRights))
+	a.NoError(m.Update(ctx, ap))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
-	// setting rights only for the second group, thus group3 must inherit its
+	// setting rights only for the second group, thus g3 must inherit its
 	// rights only from group 2, and group 1 must not have the rights of group 2
 	//---------------------------------------------------------------------------
-	ap, err = apm.Create(ctx, assignor.ID, 0, "test_name 2", "test_type 2", 1, false, false)
+	ap, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test policy 2"), // key
+		1,                                    // owner ID
+		0,                                    // parent ID
+		0,                                    // object ID
+		accesspolicy.TObjectType{},           // object type
+		0,                                    // flags
+	)
 	a.NoError(err)
-	a.NotNil(ap)
-
-	wantedRights = accesspolicy.APCreate | accesspolicy.APView
 
 	// setting rights for group 2
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
-	a.True(ap.HasGroupRights(ctx, group2.ID, wantedRights))
-	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
+	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g2.ID, wantedRights))
+	a.NoError(m.Update(ctx, ap))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// setting rights only for the third group, group 1 and group 2 must not have
 	// these rights
 	//---------------------------------------------------------------------------
-	ap, err = apm.Create(ctx, assignor.ID, 0, "test_name 3", "test_type 3", 1, false, false)
+	ap, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test policy 3"), // key
+		1,                                    // owner ID
+		0,                                    // parent ID
+		0,                                    // object ID
+		accesspolicy.TObjectType{},           // object type
+		0,                                    // flags
+	)
 	a.NoError(err)
-	a.NotNil(ap)
 
-	wantedRights = accesspolicy.APCreate | accesspolicy.APView
-
-	// setting rights for group 2
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group3.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group2.ID, wantedRights))
-	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
+	// setting rights for group 3
+	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g3.ID, wantedRights))
+	a.NoError(m.Update(ctx, ap))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// setting rights only for group 1 & 2, group 3 must inherit the rights
 	// from its direct ancestor that has its own rights (group 2)
 	//---------------------------------------------------------------------------
-	ap, err = apm.Create(ctx, assignor.ID, 0, "test_name 4", "test_type 4", 1, false, false)
+	ap, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test policy 4"), // key
+		1,                                    // owner ID
+		0,                                    // parent ID
+		0,                                    // object ID
+		accesspolicy.TObjectType{},           // object type
+		0,                                    // flags
+	)
 	a.NoError(err)
-	a.NotNil(ap)
 
+	// rights to be used
 	group1Rights := accesspolicy.APView | accesspolicy.APCreate
 	wantedRights = accesspolicy.APDelete | accesspolicy.APCopy
 
-	// setting rights for group 1 & 2
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group1.ID, group1Rights))
-	a.NoError(ap.SetGroupRights(ctx, assignor.ID, group2.ID, wantedRights))
+	// setting rights for group 1 and 2
+	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g1.ID, group1Rights))
+	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g2.ID, wantedRights))
+	a.NoError(m.Update(ctx, ap))
 
-	a.True(ap.HasGroupRights(ctx, group1.ID, group1Rights))
-	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, group1Rights))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
 
-	a.True(ap.HasGroupRights(ctx, group2.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group2.ID, group1Rights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, group1Rights))
 
-	a.True(ap.HasGroupRights(ctx, group3.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group3.ID, group1Rights))
+	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, group1Rights))
 
 	//---------------------------------------------------------------------------
 	// not setting any rights, only checking
 	//---------------------------------------------------------------------------
-	ap, err = apm.Create(ctx, assignor.ID, 0, "test_name 5", "test_type 5", 1, false, false)
+	ap, err = m.Create(
+		ctx,
+		accesspolicy.NewKey("test policy 5"), // key
+		1,                                    // owner ID
+		0,                                    // parent ID
+		0,                                    // object ID
+		accesspolicy.TObjectType{},           // object type
+		0,                                    // flags
+	)
 	a.NoError(err)
-	a.NotNil(ap)
 
+	// test rights
 	wantedRights = accesspolicy.APCreate | accesspolicy.APView
 
-	// setting rights for group 2
-	a.False(ap.HasGroupRights(ctx, group1.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group2.ID, wantedRights))
-	a.False(ap.HasGroupRights(ctx, group3.ID, wantedRights))
+	// all check results must be false
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
 }
-*/
