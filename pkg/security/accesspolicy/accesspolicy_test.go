@@ -47,7 +47,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		0,                               // owner ID
 		0,                               // parent ID
 		0,                               // object ID
-		accesspolicy.TObjectType{},      // object type
+		accesspolicy.TObjectName{},      // object type
 		0,                               // flags
 	)
 	a.NoError(err)
@@ -65,7 +65,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		1,                                // owner ID
 		0,                                // parent ID
 		0,                                // object ID
-		accesspolicy.TObjectType{},       // object type
+		accesspolicy.TObjectName{},       // object type
 		0,                                // flags
 	)
 	a.NoError(err)
@@ -84,7 +84,7 @@ func TestNewAccessPolicy(t *testing.T) {
 		1,                                // owner ID
 		p.ID,                             // parent ID
 		0,                                // object ID
-		accesspolicy.TObjectType{},       // object type
+		accesspolicy.TObjectName{},       // object type
 		0,                                // flags
 	)
 	a.NoError(err)
@@ -191,7 +191,7 @@ func TestSetPublicRights(t *testing.T) {
 		1,                               // owner ID
 		0,                               // parent ID
 		0,                               // object ID
-		accesspolicy.TObjectType{},      // object type
+		accesspolicy.TObjectName{},      // object type
 		0,                               // flags
 	)
 	a.NoError(err)
@@ -215,7 +215,7 @@ func TestSetPublicRights(t *testing.T) {
 		1,                          // owner ID
 		p.ID,                       // parent ID
 		0,                          // object ID
-		accesspolicy.TObjectType{}, // object type
+		accesspolicy.TObjectName{}, // object type
 		accesspolicy.FInherit,      // flags
 	)
 	// not setting it's own rights as it must inherit them from a parent
@@ -333,7 +333,7 @@ func TestSetGroupRights(t *testing.T) {
 		1,                             // owner ID
 		0,                             // parent ID
 		0,                             // object ID
-		accesspolicy.TObjectType{},    // object type
+		accesspolicy.TObjectName{},    // object type
 		0,                             // flags
 	)
 	a.NoError(err)
@@ -368,7 +368,7 @@ func TestSetGroupRights(t *testing.T) {
 		0,                                   // owner ID
 		basePolicy.ID,                       // parent ID
 		0,                                   // object ID
-		accesspolicy.TObjectType{},          // object type
+		accesspolicy.TObjectName{},          // object type
 		accesspolicy.FInherit,               // flags
 	)
 	a.NoError(err)
@@ -389,7 +389,7 @@ func TestSetGroupRights(t *testing.T) {
 		0,                          // owner ID
 		basePolicy.ID,              // parent ID
 		0,                          // object ID
-		accesspolicy.TObjectType{}, // object type
+		accesspolicy.TObjectName{}, // object type
 		accesspolicy.FExtend,       // flags
 	)
 	a.NoError(err)
@@ -409,7 +409,7 @@ func TestSetGroupRights(t *testing.T) {
 		0,                          // owner ID
 		basePolicy.ID,              // parent ID
 		0,                          // object ID
-		accesspolicy.TObjectType{}, // object type
+		accesspolicy.TObjectName{}, // object type
 		accesspolicy.FExtend,       // flags
 	)
 	a.NoError(err)
@@ -469,7 +469,7 @@ func TestSetRoleRights(t *testing.T) {
 		1,                             // owner ID
 		0,                             // parent ID
 		0,                             // object ID
-		accesspolicy.TObjectType{},    // object type
+		accesspolicy.TObjectName{},    // object type
 		0,                             // flags
 	)
 	a.NoError(err)
@@ -504,7 +504,7 @@ func TestSetRoleRights(t *testing.T) {
 		1,                                   // owner ID
 		basePolicy.ID,                       // parent ID
 		0,                                   // object ID
-		accesspolicy.TObjectType{},          // object type
+		accesspolicy.TObjectName{},          // object type
 		accesspolicy.FInherit,               // flags
 	)
 	a.NoError(err)
@@ -525,7 +525,7 @@ func TestSetRoleRights(t *testing.T) {
 		1,                          // owner ID
 		basePolicy.ID,              // parent ID
 		0,                          // object ID
-		accesspolicy.TObjectType{}, // object type
+		accesspolicy.TObjectName{}, // object type
 		accesspolicy.FExtend,       // flags
 	)
 	a.NoError(err)
@@ -545,7 +545,7 @@ func TestSetRoleRights(t *testing.T) {
 		1,                          // owner ID
 		basePolicy.ID,              // parent ID
 		0,                          // object ID
-		accesspolicy.TObjectType{}, // object type
+		accesspolicy.TObjectName{}, // object type
 		accesspolicy.FExtend,       // flags
 	)
 	a.NoError(err)
@@ -605,7 +605,7 @@ func TestSetUserRights(t *testing.T) {
 		1,                                  // owner ID
 		0,                                  // parent ID
 		0,                                  // object ID
-		accesspolicy.TObjectType{},         // object type
+		accesspolicy.TObjectName{},         // object type
 		0,                                  // flags
 	)
 	a.NoError(err)
@@ -624,7 +624,7 @@ func TestSetUserRights(t *testing.T) {
 		0,                                       // owner ID
 		basePolicy.ID,                           // parent ID
 		0,                                       // object ID
-		accesspolicy.TObjectType{},              // object type
+		accesspolicy.TObjectName{},              // object type
 		accesspolicy.FInherit,                   // flags
 	)
 	a.NoError(err)
@@ -642,7 +642,7 @@ func TestSetUserRights(t *testing.T) {
 		0,                                     // owner ID
 		basePolicy.ID,                         // parent ID
 		0,                                     // object ID
-		accesspolicy.TObjectType{},            // object type
+		accesspolicy.TObjectName{},            // object type
 		accesspolicy.FExtend,                  // flags
 	)
 	a.NoError(err)
@@ -661,7 +661,7 @@ func TestSetUserRights(t *testing.T) {
 		0,                          // owner ID
 		basePolicy.ID,              // parent ID
 		0,                          // object ID
-		accesspolicy.TObjectType{}, // object type
+		accesspolicy.TObjectName{}, // object type
 		accesspolicy.FExtend,       // flags
 	)
 	a.NoError(err)
@@ -716,7 +716,7 @@ func TestIsOwner(t *testing.T) {
 		1,                                  // owner ID
 		0,                                  // parent ID
 		0,                                  // object ID
-		accesspolicy.TObjectType{},         // object type
+		accesspolicy.TObjectName{},         // object type
 		0,                                  // flags
 	)
 	a.NoError(err)
@@ -784,7 +784,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 		1,                                  // owner ID
 		0,                                  // parent ID
 		0,                                  // object ID
-		accesspolicy.TObjectType{},         // object type
+		accesspolicy.TObjectName{},         // object type
 		0,                                  // flags
 	)
 	a.NoError(err)
@@ -904,7 +904,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 		1,                                  // owner ID
 		0,                                  // parent ID
 		0,                                  // object ID
-		accesspolicy.TObjectType{},         // object type
+		accesspolicy.TObjectName{},         // object type
 		0,                                  // flags
 	)
 	a.NoError(err)
@@ -1040,7 +1040,7 @@ func TestHasGroupRights(t *testing.T) {
 		1,                                  // owner ID
 		0,                                  // parent ID
 		0,                                  // object ID
-		accesspolicy.TObjectType{},         // object type
+		accesspolicy.TObjectName{},         // object type
 		0,                                  // flags
 	)
 	a.NoError(err)
@@ -1062,7 +1062,7 @@ func TestHasGroupRights(t *testing.T) {
 		1,                                    // owner ID
 		0,                                    // parent ID
 		0,                                    // object ID
-		accesspolicy.TObjectType{},           // object type
+		accesspolicy.TObjectName{},           // object type
 		0,                                    // flags
 	)
 	a.NoError(err)
@@ -1084,7 +1084,7 @@ func TestHasGroupRights(t *testing.T) {
 		1,                                    // owner ID
 		0,                                    // parent ID
 		0,                                    // object ID
-		accesspolicy.TObjectType{},           // object type
+		accesspolicy.TObjectName{},           // object type
 		0,                                    // flags
 	)
 	a.NoError(err)
@@ -1106,7 +1106,7 @@ func TestHasGroupRights(t *testing.T) {
 		1,                                    // owner ID
 		0,                                    // parent ID
 		0,                                    // object ID
-		accesspolicy.TObjectType{},           // object type
+		accesspolicy.TObjectName{},           // object type
 		0,                                    // flags
 	)
 	a.NoError(err)
@@ -1138,7 +1138,7 @@ func TestHasGroupRights(t *testing.T) {
 		1,                                    // owner ID
 		0,                                    // parent ID
 		0,                                    // object ID
-		accesspolicy.TObjectType{},           // object type
+		accesspolicy.TObjectName{},           // object type
 		0,                                    // flags
 	)
 	a.NoError(err)

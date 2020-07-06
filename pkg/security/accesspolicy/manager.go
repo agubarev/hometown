@@ -120,7 +120,7 @@ func (m *Manager) removePolicy(policyID uint32) (err error) {
 }
 
 // Upsert creates a new access policy
-func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objectID uint32, objectType TObjectType, flags uint8) (ap AccessPolicy, err error) {
+func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap AccessPolicy, err error) {
 	ap, err = NewAccessPolicy(key, ownerID, parentID, objectID, objectType, flags)
 	if err != nil {
 		return ap, errors.Wrap(err, "failed to initialize new access policy")
@@ -315,9 +315,9 @@ func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (ap AccessPolicy, 
 }
 
 // PolicyByObject returns an access policy by its kind and id
-func (m *Manager) PolicyByObject(ctx context.Context, objectType TObjectType, objectID uint32) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByObject(ctx context.Context, name TObjectName, objectID uint32) (ap AccessPolicy, err error) {
 	// attempting to obtain policy from the store
-	ap, err = m.store.FetchPolicyByObject(ctx, objectID, objectType)
+	ap, err = m.store.FetchPolicyByObject(ctx, objectID, name)
 	if err != nil {
 		return ap, err
 	}

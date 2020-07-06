@@ -17,7 +17,7 @@ const (
 
 type (
 	TKey        [32]byte
-	TObjectType [32]byte
+	TObjectName [32]byte
 )
 
 func NewKey(s string) (v TKey) {
@@ -25,7 +25,7 @@ func NewKey(s string) (v TKey) {
 	return v
 }
 
-func NewObjectName(s string) (v TObjectType) {
+func NewObjectName(s string) (v TObjectName) {
 	copy(v[:], strings.TrimSpace(s))
 	return v
 }
@@ -170,7 +170,7 @@ func (r Right) String() string {
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
 type AccessPolicy struct {
 	Key        TKey        `db:"key" json:"key"`
-	ObjectName TObjectType `db:"object_type" json:"object_type"`
+	ObjectName TObjectName `db:"object_type" json:"object_type"`
 	ID         uint32      `db:"id" json:"id"`
 	ParentID   uint32      `db:"parent_id" json:"parent_id"`
 	OwnerID    uint32      `db:"owner_id" json:"owner_id"`
@@ -180,7 +180,7 @@ type AccessPolicy struct {
 }
 
 // NewAccessPolicy create a new AccessPolicy object
-func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TObjectType, flags uint8) (ap AccessPolicy, err error) {
+func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap AccessPolicy, err error) {
 	// initializing new policy
 	// NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 	// because this allows to create independent policies in the middle of a chain and still
@@ -201,7 +201,7 @@ func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TO
 		}
 	}
 
-	if err = ap.SetObjectType(objectType, 32); err != nil {
+	if err = ap.SetObjectName(objectType, 32); err != nil {
 		return ap, errors.Wrap(err, "failed to set initial object type")
 	}
 
@@ -236,7 +236,7 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "Key":
 			ap.Key = change.To.(TKey)
 		case "ObjectName":
-			ap.ObjectName = change.To.(TObjectType)
+			ap.ObjectName = change.To.(TObjectName)
 		case "ObjectID":
 			ap.ObjectID = change.To.(uint32)
 		case "Flags":
@@ -320,8 +320,8 @@ func (ap *AccessPolicy) SetKey(key interface{}, maxLen int) error {
 	return nil
 }
 
-// SetObjectType sets an object type name
-func (ap *AccessPolicy) SetObjectType(objectType interface{}, maxLen int) error {
+// SetObjectName sets an object type name
+func (ap *AccessPolicy) SetObjectName(objectType interface{}, maxLen int) error {
 	if ap.ID != 0 {
 		return ErrForbiddenChange
 	}
@@ -375,7 +375,7 @@ func (key *TKey) Scan(v interface{}) error {
 	return nil
 }
 
-func (typ TObjectType) Value() (driver.Value, error) {
+func (typ TObjectName) Value() (driver.Value, error) {
 	// a little hack to store an empty string instead of zeroes
 	if typ[0] == 0 {
 		return "", nil
@@ -389,7 +389,7 @@ func (typ TObjectType) Value() (driver.Value, error) {
 	return typ[0:zeroPos], nil
 }
 
-func (typ *TObjectType) Scan(v interface{}) error {
+func (typ *TObjectName) Scan(v interface{}) error {
 	copy(typ[:], v.([]byte))
 	return nil
 }

@@ -16,7 +16,7 @@ type Store interface {
 	UpdatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) error
 	FetchPolicyByID(ctx context.Context, id uint32) (AccessPolicy, error)
 	FetchPolicyByKey(ctx context.Context, key TKey) (ap AccessPolicy, err error)
-	FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectType) (ap AccessPolicy, err error)
+	FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (ap AccessPolicy, err error)
 	DeletePolicy(ctx context.Context, ap AccessPolicy) error
 	CreateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
 	FetchRosterByPolicyID(ctx context.Context, policyID uint32) (r *Roster, err error)
@@ -298,7 +298,7 @@ func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (Acc
 }
 
 // PolicyByObject retrieving a access policy by a kind and its respective id
-func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectType) (AccessPolicy, error) {
+func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (AccessPolicy, error) {
 	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
