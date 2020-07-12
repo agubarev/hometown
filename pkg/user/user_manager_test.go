@@ -14,7 +14,7 @@ import (
 func TestUserManagerNew(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -34,7 +34,7 @@ func TestUserManagerNew(t *testing.T) {
 func TestUserManagerCreate(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 

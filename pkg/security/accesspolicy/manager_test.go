@@ -19,7 +19,7 @@ func TestNewAccessPolicyManager(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -54,7 +54,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -414,7 +414,7 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -552,7 +552,7 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -635,7 +635,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 

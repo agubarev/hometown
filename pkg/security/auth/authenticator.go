@@ -23,6 +23,31 @@ import (
 	"go.uber.org/zap"
 )
 
+// Context holds metadata which describes authenticated session
+type Context struct {
+	UserID uint32
+	Domain
+}
+
+// Domain represents an access domain
+type Domain uint8
+
+const (
+	DGeneric Domain = 0
+	DAdmin   Domain = 1 << (iota - Domain(1))
+)
+
+func (d Domain) String() string {
+	switch d {
+	case DGeneric:
+		return "generic domain"
+	case DAdmin:
+		return "administrative domain"
+	default:
+		return "unrecognized domain"
+	}
+}
+
 // ContextKey is a named context key type for this package
 type ContextKey uint8
 

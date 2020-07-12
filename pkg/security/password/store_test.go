@@ -13,7 +13,7 @@ import (
 func TestPasswordStorePut(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -32,7 +32,7 @@ func TestPasswordStorePut(t *testing.T) {
 func TestPasswordStoreGet(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -59,7 +59,7 @@ func TestPasswordStoreGet(t *testing.T) {
 func TestPasswordStoreDelete(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 

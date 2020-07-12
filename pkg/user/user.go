@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
+	"net"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
@@ -33,16 +34,16 @@ type Metadata struct {
 
 	// timestamps
 	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
-	CreatedByID int64        `db:"created_by_id" json:"created_by_id"`
+	CreatedByID uint32       `db:"created_by_id" json:"created_by_id"`
 	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
-	UpdatedByID int64        `db:"updated_by_id" json:"updated_by_id"`
+	UpdatedByID uint32       `db:"updated_by_id" json:"updated_by_id"`
 	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
 	DeletedAt   dbr.NullTime `db:"deleted_at" json:"deleted_at"`
-	DeletedByID int64        `db:"deleted_by_id" json:"deleted_by_id"`
+	DeletedByID uint32       `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
 	LastLoginAt       dbr.NullTime `db:"last_login_at" json:"last_login_at"`
-	LastLoginIP       string       `db:"last_login_ip" json:"last_login_ip"`
+	LastLoginIP       net.IP       `db:"last_login_ip" json:"last_login_ip"`
 	LastLoginFailedAt dbr.NullTime `db:"last_login_failed_at" json:"last_login_failed_at"`
 	LastLoginFailedIP string       `db:"last_login_failed_ip" json:"last_login_failed_ip"`
 	LastLoginAttempts uint8        `db:"last_login_attempts" json:"last_login_attempts"`
@@ -57,7 +58,7 @@ type Metadata struct {
 // User represents certain users which are custom
 // and are handled by the customer
 type User struct {
-	ID   int64     `db:"id" json:"id"`
+	ID   uint32    `db:"id" json:"id"`
 	ULID ulid.ULID `db:"ulid" json:"ulid" diff:"-"`
 
 	Essential
@@ -104,7 +105,7 @@ func (u *User) hashKey() {
 	key.WriteString(u.Username)
 
 	// adding ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, int64(u.ID)); err != nil {
+	if err := binary.Write(key, binary.LittleEndian, u.ID); err != nil {
 		panic(errors.Wrap(err, "failed to hash user key"))
 	}
 

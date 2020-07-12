@@ -13,12 +13,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-var connection *dbr.Connection
+var mysqlConn *dbr.Connection
 
-// Connection returns database singleton instance
-func Connection() *dbr.Connection {
+// MySQLConnection returns database singleton instance
+func MySQLConnection() *dbr.Connection {
 	// using a package global variable
-	if connection == nil {
+	if mysqlConn == nil {
 		// checking whether it's called during `go test`
 		testMode := flag.Lookup("test.v") != nil
 
@@ -32,14 +32,14 @@ func Connection() *dbr.Connection {
 			log.Fatalf("failed to connect to database: %s", err)
 		}
 
-		connection = conn
+		mysqlConn = conn
 	}
 
-	return connection
+	return mysqlConn
 }
 
-// ForTesting simply returns a database connection
-func ForTesting() (conn *dbr.Connection, err error) {
+// MySQLForTesting simply returns a database mysqlConn
+func MySQLForTesting() (conn *dbr.Connection, err error) {
 	if !util.IsTestMode() {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
 		return nil, nil

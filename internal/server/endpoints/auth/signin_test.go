@@ -1,4 +1,4 @@
-package endpoints_test
+package auth_test
 
 import (
 	"bytes"
@@ -9,9 +9,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	auth2 "github.com/agubarev/hometown/internal/server/endpoints/auth"
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/security/auth"
-	"github.com/agubarev/hometown/pkg/security/auth/endpoints"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"
@@ -26,7 +26,7 @@ func TestSignin(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -103,7 +103,7 @@ func TestSignin(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	// triggering the handler
-	endpoints.HandleSignin(rr, req)
+	auth2.HandleSignin(rr, req)
 
 	resp := rr.Result()
 	a.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -126,7 +126,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	endpoints.HandleSignin(rr, req)
+	auth2.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusBadRequest, resp.StatusCode)
@@ -149,7 +149,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	endpoints.HandleSignin(rr, req)
+	auth2.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusBadRequest, resp.StatusCode)
@@ -172,7 +172,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	endpoints.HandleSignin(rr, req)
+	auth2.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -195,7 +195,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	endpoints.HandleSignin(rr, req)
+	auth2.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusOK, resp.StatusCode)

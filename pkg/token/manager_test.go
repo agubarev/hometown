@@ -16,7 +16,7 @@ import (
 func TestTokenContainerNewContainer(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -45,7 +45,7 @@ func TestTokenContainerNewToken(t *testing.T) {
 func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -92,7 +92,7 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 func TestTokenContainerCheckin(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -226,7 +226,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 func TestTokenContainerAddCallback(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -280,7 +280,7 @@ func TestTokenContainerAddCallback(t *testing.T) {
 func TestTokenContainerRemoveCallback(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -332,7 +332,7 @@ func TestTokenContainerRemoveCallback(t *testing.T) {
 func TestTokenContainerCleanup(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 

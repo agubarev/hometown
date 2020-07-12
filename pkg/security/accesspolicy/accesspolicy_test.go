@@ -17,7 +17,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -156,7 +156,7 @@ func TestSetPublicRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -297,7 +297,7 @@ func TestSetGroupRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -433,7 +433,7 @@ func TestSetRoleRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -569,7 +569,7 @@ func TestSetUserRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -683,7 +683,7 @@ func TestIsOwner(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -751,7 +751,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -856,7 +856,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -988,7 +988,7 @@ func TestHasGroupRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 

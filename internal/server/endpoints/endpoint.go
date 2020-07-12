@@ -1,13 +1,15 @@
 package endpoints
 
 import (
+	"bytes"
 	"context"
+	"database/sql/driver"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/agubarev/hometown/internal/core"
-	"github.com/agubarev/hometown/pkg/user"
 	"github.com/davecgh/go-spew/spew"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
@@ -15,62 +17,77 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-type contextKey int
+type TName [32]byte
+
+func NewName(s string) (name TName) {
+	copy(name[:], strings.ToLower(strings.TrimSpace(s)))
+	return name
+}
+
+func (name *TName) Scan(v interface{}) error {
+	copy(name[:], v.([]byte))
+	return nil
+}
+
+func (name TName) Value() (driver.Value, error) {
+	if name[0] == 0 {
+		return "", nil
+	}
+
+	// finding position of zero
+	zeroPos := bytes.IndexByte(name[:], byte(0))
+	if zeroPos == -1 {
+		return name[:], nil
+	}
+
+	return name[0:zeroPos], nil
+}
+
+type ContextKey int
 
 // context keys
 const (
-	keyUserID contextKey = iota
+	CKUserID ContextKey = iota
 )
 
 type Endpoint struct {
-	ctx         context.Context
-	ap          *user.AccessPolicy
-	isProtected bool
-	core        *core.Core
-	name        string
-	handler     Handler
+	name    TName
+	core    *core.Core
+	ctx     context.Context
+	handler Handler
 }
 
 // Handler represents a custom handler
 type Handler func(ctx context.Context, c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error)
 
+// Response is the main response wrapper
 type Response struct {
 	Error         error         `json:"error"`
 	Result        interface{}   `json:"result,omitempty"`
 	ExecutionTime time.Duration `json:"execution_time"`
 }
 
-func NewEndpoint(ctx context.Context, c *core.Core, isProtected bool, h Handler, name string) (e Endpoint) {
+func NewEndpoint(ctx context.Context, c *core.Core, h Handler, name TName) Endpoint {
 	if c == nil {
 		panic(core.ErrNilCore)
 	}
 
-	e = Endpoint{
-		ctx:         ctx,
-		isProtected: isProtected,
-		core:        c,
-		name:        name,
-		handler:     h,
+	return Endpoint{
+		ctx:     ctx,
+		core:    c,
+		name:    name,
+		handler: h,
 	}
-
-	return e
 }
 
 func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	u, err := e.core.UserManager().UserByID(
 		r.Context(),
-		r.Context().Value(keyUserID).(int64),
+		r.Context().Value(CKUserID).(int64),
 	)
 
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
-		return
-	}
-
-	// if access policy is set, then checking whether
-	// this client has access to this endpoint
-	if e.ap != nil {
-		http.Error(w, "this endpoint is protected by access policy", http.StatusForbidden)
 		return
 	}
 
@@ -79,7 +96,7 @@ func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	// executing handler
-	result, code, err := e.handler(e.ctx, e.core, w, r)
+	result, code, err := e.handler(e.ctx, e.core, ac, w, r)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return

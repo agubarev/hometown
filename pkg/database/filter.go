@@ -396,7 +396,7 @@ func (fl *Filter) FilterQueryFromRequest(obj interface{}, r *http.Request) (*Fil
 	return fq, nil
 }
 
-func (fl *Filter) FilterInto(connection *gorm.DB, obj interface{}, fq *FilterQuery, dest interface{}) (*FilterResult, error) {
+func (fl *Filter) FilterInto(mysqlConn *gorm.DB, obj interface{}, fq *FilterQuery, dest interface{}) (*FilterResult, error) {
 	fo, err := fl.inspectObject(obj)
 	if err != nil {
 		return nil, err
@@ -419,8 +419,8 @@ func (fl *Filter) FilterInto(connection *gorm.DB, obj interface{}, fq *FilterQue
 	var total, count int64
 
 	// if no custom database instance given, then using default
-	if connection == nil {
-		connection = Connection()
+	if mysqlConn == nil {
+		mysqlConn = MySQLConnection()
 	}
 
 	for column, val := range fq.RealWhere {
@@ -431,15 +431,15 @@ func (fl *Filter) FilterInto(connection *gorm.DB, obj interface{}, fq *FilterQue
 			for i := range terms {
 				switch t := terms[i]; true {
 				case strings.HasPrefix(t, ">="):
-					connection = connection.Where(fmt.Sprintf("%s >= ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[2:]))
+					mysqlConn = mysqlConn.Where(fmt.Sprintf("%s >= ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[2:]))
 				case strings.HasPrefix(t, ">"):
-					connection = connection.Where(fmt.Sprintf("%s > ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[1:]))
+					mysqlConn = mysqlConn.Where(fmt.Sprintf("%s > ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[1:]))
 				case strings.HasPrefix(t, "<="):
-					connection = connection.Where(fmt.Sprintf("%s <= ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[2:]))
+					mysqlConn = mysqlConn.Where(fmt.Sprintf("%s <= ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[2:]))
 				case strings.HasPrefix(t, "<"):
-					connection = connection.Where(fmt.Sprintf("%s < ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[1:]))
+					mysqlConn = mysqlConn.Where(fmt.Sprintf("%s < ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t[1:]))
 				default:
-					connection = connection.Where(fmt.Sprintf("%s = ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t))
+					mysqlConn = mysqlConn.Where(fmt.Sprintf("%s = ?", fl.sanitizeColumnName(column)), strings.TrimSpace(t))
 				}
 			}
 		default:
@@ -458,31 +458,31 @@ func (fl *Filter) FilterInto(connection *gorm.DB, obj interface{}, fq *FilterQue
 						exact = append(exact, t)
 					} else {
 						// partial match; `*` asterisk is simply replaced by `%` percentage
-						connection = connection.Where(fmt.Sprintf("%s LIKE ?", fl.sanitizeColumnName(column)), strings.ReplaceAll(t, "*", "%"))
+						mysqlConn = mysqlConn.Where(fmt.Sprintf("%s LIKE ?", fl.sanitizeColumnName(column)), strings.ReplaceAll(t, "*", "%"))
 					}
 				}
 
 				if len(exact) > 0 {
-					connection = connection.Where(fmt.Sprintf("%s IN (?)", fl.sanitizeColumnName(column)), exact)
+					mysqlConn = mysqlConn.Where(fmt.Sprintf("%s IN (?)", fl.sanitizeColumnName(column)), exact)
 				}
 			} else {
 				//---------------------------------------------------------------------------
 				// this is anything but the strings
 				//---------------------------------------------------------------------------
-				connection = connection.Where(fmt.Sprintf("%s IN (?)", fl.sanitizeColumnName(column)), val)
+				mysqlConn = mysqlConn.Where(fmt.Sprintf("%s IN (?)", fl.sanitizeColumnName(column)), val)
 			}
 		}
 	}
 
 	// obtaining the total count of the unbound query
 	// TODO: do something about total counting, it's needlessly expensive
-	err = connection.Model(dest).Count(&total).Error
+	err = mysqlConn.Model(dest).Count(&total).Error
 	if err != nil {
 		return nil, fmt.Errorf("failed to obtain total count: %s", err)
 	}
 
 	// running the query
-	q := connection.
+	q := mysqlConn.
 		Model(dest).
 		Select(strings.Join(fq.Fields, ",")).
 		Limit(fq.Limit[0]).

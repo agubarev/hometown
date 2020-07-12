@@ -18,7 +18,7 @@ func TestAuthenticate(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -72,7 +72,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -126,7 +126,7 @@ func TestDestroySession(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.ForTesting()
+	db, err := database.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
