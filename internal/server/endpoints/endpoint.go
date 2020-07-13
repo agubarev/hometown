@@ -53,12 +53,11 @@ const (
 type Endpoint struct {
 	name    TName
 	core    *core.Core
-	ctx     context.Context
 	handler Handler
 }
 
 // Handler represents a custom handler
-type Handler func(ctx context.Context, c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error)
+type Handler func(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error)
 
 // Response is the main response wrapper
 type Response struct {
@@ -67,13 +66,12 @@ type Response struct {
 	ExecutionTime time.Duration `json:"execution_time"`
 }
 
-func NewEndpoint(ctx context.Context, c *core.Core, h Handler, name TName) Endpoint {
+func NewEndpoint(name TName, c *core.Core, h Handler) Endpoint {
 	if c == nil {
 		panic(core.ErrNilCore)
 	}
 
 	return Endpoint{
-		ctx:     ctx,
 		core:    c,
 		name:    name,
 		handler: h,

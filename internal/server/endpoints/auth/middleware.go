@@ -1,15 +1,43 @@
 package auth
 
 import (
+	"context"
 	"net/http"
 	"strings"
 
+	"github.com/agubarev/hometown/internal/core"
+	"github.com/agubarev/hometown/internal/server"
+	"github.com/agubarev/hometown/internal/server/endpoints"
+	"github.com/agubarev/hometown/pkg/user"
 	"github.com/davecgh/go-spew/spew"
 )
+
+func Post(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error) {
+	c := ctx.Value(server.CKCore)
+
+	newUser := user.NewUserObject{
+		Essential:        user.Essential{},
+		ProfileEssential: user.ProfileEssential{},
+		EmailAddr:        "",
+		PhoneNumber:      "",
+		Password:         nil,
+	}
+
+	/*
+		if err != nil {
+			return nil, http.StatusInternalServerError, err
+		}
+	*/
+
+	return newUser, http.StatusOK, nil
+}
 
 // MiddlewareAuth validates the authorization header and adds
 // a corresponding user to the context
 func MiddlewareAuth(next http.Handler) http.Handler {
+	return func(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error) {
+
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
 		if len(parts) != 2 {
