@@ -6,6 +6,7 @@ import (
 
 	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/internal/server/endpoints"
+	epauth "github.com/agubarev/hometown/internal/server/endpoints/auth"
 	epgroup "github.com/agubarev/hometown/internal/server/endpoints/group"
 	"github.com/agubarev/hometown/internal/server/endpoints/user"
 	"github.com/go-chi/chi"
@@ -28,10 +29,10 @@ func Run(ctx context.Context, c *core.Core, addr string) (err error) {
 	// API ROUTING (V1)
 	//---------------------------------------------------------------------------
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(epauth.AuthMiddleware)
+		r.Use(MiddlewareBase(ctx))
+		r.Use(epauth.MiddlewareAuth)
 
 		r.Route("/group", func(r chi.Router) {
-			r.Use(midd)
 			r.Method(http.MethodPost, "/", endpoints.NewEndpoint(ctx, c, epgroup.Post, endpoints.NewName("post_group")))
 			r.Method(http.MethodGet, "/{id}", endpoints.NewEndpoint(ctx, c, epgroup.Get, endpoints.NewName("get_group")))
 			r.Method(http.MethodPatch, "/{id}", endpoints.NewEndpoint(ctx, c, epgroup.Patch, endpoints.NewName("patch_group")))

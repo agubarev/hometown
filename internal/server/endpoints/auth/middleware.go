@@ -29,8 +29,8 @@ func MiddlewareAuth(next http.Handler) http.Handler {
 		// obtaining user from the manager
 
 		// extending request context
-		// ctx := context.WithValue(r.Context(), contextKeyUser, user)
+		//ctx := context.WithValue(r.Context(), endpoints.CKUserID, userID)
 
-		// next.ServeHTTP(w, r.WithContext(ctx))
+		//next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
