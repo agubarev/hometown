@@ -672,11 +672,11 @@ func (m *Manager) SetRoleRights(ctx context.Context, policyID, assignorID, roleI
 	}
 
 	// making sure it is a role group
-	if g.Kind != group.GKRole {
+	if g.Flags != group.FRole {
 		return errors.Wrapf(
 			err,
 			"SetRoleRights(policy_id=%d, assignor_id=%d, role_id=%d, rights=%d): expecting %s, got %s",
-			policyID, assignorID, roleID, rights, group.GKRole, g.Kind,
+			policyID, assignorID, roleID, rights, group.FRole, g.Flags,
 		)
 	}
 
@@ -726,11 +726,11 @@ func (m *Manager) SetGroupRights(ctx context.Context, policyID, assignorID, grou
 	}
 
 	// making sure it is a standard group
-	if g.Kind != group.GKGroup {
+	if g.Flags != group.FGroup {
 		return errors.Wrapf(
 			err,
 			"SetGroupRights(policy_id=%d, assignor_id=%d, role_id=%d, rights=%d): expecting %s, got %s",
-			policyID, assignorID, groupID, rights, group.GKGroup, g.Kind,
+			policyID, assignorID, groupID, rights, group.FGroup, g.Flags,
 		)
 	}
 
@@ -874,7 +874,7 @@ func (m *Manager) Summarize(ctx context.Context, policyID, userID uint32) (acces
 		// NOTE: if some group doesn't have explicitly set rights, then
 		// attempting to obtain the rights of a first ancestor group,
 		// that has specific rights set
-		for _, g := range m.groups.GroupsByMemberID(ctx, group.GKRole|group.GKGroup, userID) {
+		for _, g := range m.groups.GroupsByAssetID(ctx, group.FRole|group.FGroup, userID) {
 			access |= m.GroupRights(ctx, policyID, g.ID)
 		}
 	}
@@ -918,10 +918,10 @@ func (m *Manager) GroupRights(ctx context.Context, policyID, groupID uint32) (ac
 		return APNoAccess
 	}
 
-	switch g.Kind {
-	case group.GKGroup:
+	switch g.Flags {
+	case group.FGroup:
 		access = r.lookup(SKGroup, g.ID)
-	case group.GKRole:
+	case group.FRole:
 		access = r.lookup(SKRoleGroup, g.ID)
 	}
 

@@ -9,16 +9,16 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGroupStorePut(t *testing.T) {
+func TestPostgreSQLStore_UpsertGroup(t *testing.T) {
 	a := assert.New(t)
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -35,16 +35,16 @@ func TestGroupStorePut(t *testing.T) {
 	a.NotNil(g)
 }
 
-func TestGroupStoreGet(t *testing.T) {
+func TestPostgreSQLStore_FetchGroupByID(t *testing.T) {
 	a := assert.New(t)
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -69,16 +69,16 @@ func TestGroupStoreGet(t *testing.T) {
 	a.Equal(g.DisplayName, fg.DisplayName)
 }
 
-func TestGroupStoreGetAll(t *testing.T) {
+func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 	a := assert.New(t)
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -135,16 +135,16 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.Equal(g3.DisplayName, gs[2].DisplayName)
 }
 
-func TestGroupStoreDelete(t *testing.T) {
+func TestPostgreSQLStore_DeleteByID(t *testing.T) {
 	a := assert.New(t)
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -171,16 +171,16 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.EqualError(group.ErrGroupNotFound, err.Error())
 }
 
-func TestGroupStoreRelations(t *testing.T) {
+func TestPostgreSQLStore_DeleteRelation(t *testing.T) {
 	a := assert.New(t)
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 

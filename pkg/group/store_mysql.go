@@ -17,8 +17,8 @@ type MySQLStore struct {
 	db *dbr.Connection
 }
 
-// NewStore returns a group store with mysql used as a backend
-func NewStore(db *dbr.Connection) (Store, error) {
+// NewMySQLStore returns a group store with mysql used as a backend
+func NewMySQLStore(db *dbr.Connection) (Store, error) {
 	if db == nil {
 		return nil, ErrNilDatabase
 	}
@@ -104,7 +104,7 @@ func (s *MySQLStore) Update(ctx context.Context, g Group) (Group, error) {
 
 	updates := map[string]interface{}{
 		"key":  g.Key,
-		"name": g.Name,
+		"name": g.DisplayName,
 	}
 
 	// just executing query but not refetching the updated version

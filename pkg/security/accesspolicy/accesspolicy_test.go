@@ -27,7 +27,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -166,7 +166,7 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -307,7 +307,7 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -342,13 +342,13 @@ func TestSetGroupRights(t *testing.T) {
 	// adding the user to 2 groups but setting rights to only one
 	//---------------------------------------------------------------------------
 	// group 1
-	g1, err := gm.Create(ctx, group.GKGroup, 0, "test_group_1", "test group 1", false)
+	g1, err := gm.Create(ctx, group.FGroup, 0, "test_group_1", "test group 1")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g1.ID, 1))
 	a.NoError(gm.CreateRelation(ctx, g1.ID, 2))
 
 	// group 2
-	g2, err := gm.Create(ctx, group.GKGroup, 0, "test_group_2", "test group 2", false)
+	g2, err := gm.Create(ctx, group.FGroup, 0, "test_group_2", "test group 2")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g2.ID, 1))
 
@@ -443,7 +443,7 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -478,13 +478,13 @@ func TestSetRoleRights(t *testing.T) {
 	// adding the user to 2 groups but setting rights to only one
 	//---------------------------------------------------------------------------
 	// role 1
-	r1, err := gm.Create(ctx, group.GKRole, 0, "test_group_1", "test group 1", false)
+	r1, err := gm.Create(ctx, group.FRole, 0, "test_group_1", "test group 1")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, r1.ID, 1))
 	a.NoError(gm.CreateRelation(ctx, r1.ID, 2))
 
 	// role 2
-	r2, err := gm.Create(ctx, group.GKRole, 0, "test_group_2", "test group 2", false)
+	r2, err := gm.Create(ctx, group.FRole, 0, "test_group_2", "test group 2")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, r2.ID, 1))
 
@@ -579,7 +579,7 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -693,7 +693,7 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -761,7 +761,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -866,7 +866,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -884,12 +884,12 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// creating test role and a group
 	//---------------------------------------------------------------------------
 	// role
-	r, err := gm.Create(ctx, group.GKRole, 0, "test_role", "test role", false)
+	r, err := gm.Create(ctx, group.FRole, 0, "test_role", "test role")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, r.ID, 1))
 
 	// group
-	g, err := gm.Create(ctx, group.GKGroup, 0, "test_group", "test group", false)
+	g, err := gm.Create(ctx, group.FGroup, 0, "test_group", "test group")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g.ID, 1))
 
@@ -998,7 +998,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -1015,15 +1015,15 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// adding the user to 2 groups but setting rights to only one
 	//---------------------------------------------------------------------------
-	g1, err := gm.Create(ctx, group.GKGroup, 0, "test group 1", "test group 1", false)
+	g1, err := gm.Create(ctx, group.FGroup, 0, "test group 1", "test group 1")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g1.ID, 2))
 
-	g2, err := gm.Create(ctx, group.GKGroup, g1.ID, "test group 2", "test group 2", false)
+	g2, err := gm.Create(ctx, group.FGroup, g1.ID, "test group 2", "test group 2")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g2.ID, 2))
 
-	g3, err := gm.Create(ctx, group.GKGroup, g2.ID, "test group 3", "test group 3", false)
+	g3, err := gm.Create(ctx, group.FGroup, g2.ID, "test group 3", "test group 3")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g3.ID, 2))
 

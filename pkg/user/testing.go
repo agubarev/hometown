@@ -15,7 +15,7 @@ import (
 
 // GroupManagerForTesting initializes a group container for testing
 func GroupManagerForTesting(db *dbr.Connection) (*group.Manager, error) {
-	s, err := group.NewStore(db)
+	s, err := group.NewMySQLStore(db)
 	if err != nil {
 		return nil, err
 	}
@@ -51,7 +51,7 @@ func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
 	//---------------------------------------------------------------------------
 	// initializing group manager
 	//---------------------------------------------------------------------------
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	if err != nil {
 		return nil, nil, err
 	}

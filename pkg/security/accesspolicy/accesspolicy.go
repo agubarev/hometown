@@ -126,7 +126,7 @@ func (r Right) Translate() string {
 	}
 }
 
-// PropertyDictionary returns a map of property flag values to their respective names
+// Dictionary returns a map of property flag values to their respective names
 func Dictionary() map[uint32]string {
 	dict := make(map[uint32]string)
 

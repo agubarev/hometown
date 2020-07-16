@@ -21,7 +21,7 @@ const (
 	CKAccessPolicyManager
 )
 
-// Member represents a group member contract
+// Asset represents a group asset contract
 type Object interface {
 	ObjectID() int64
 	ObjectKind() uint8

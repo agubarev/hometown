@@ -10,10 +10,10 @@ import (
 func TestGroupNew(t *testing.T) {
 	a := assert.New(t)
 
-	g, err := group.NewGroup(group.GKGroup, 0, group.NewKey("test_key"), group.NewName("test group name"), false)
+	g, err := group.NewGroup(group.FGroup, 0, group.NewKey("test_key"), group.NewName("test group name"), false)
 	a.NoError(err)
-	a.Equal(group.GKGroup, g.Kind)
+	a.Equal(group.FGroup, g.Flags)
 	a.Equal(group.NewKey("test_key"), g.Key)
-	a.Equal(group.NewName("test group name"), g.Name)
+	a.Equal(group.NewName("test group name"), g.DisplayName)
 	a.Equal(false, g.IsDefault)
 }

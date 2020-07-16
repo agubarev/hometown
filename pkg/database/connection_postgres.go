@@ -95,11 +95,6 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 		log.Fatalf("failed to begin transaction: %s", err)
 	}
 
-	// temporarily disabling foreign key checks to enable truncate
-	if _, err = tx.Exec("SET foreign_key_checks = 0"); err != nil {
-		panic(err)
-	}
-
 	defer func() {
 		if p := recover(); p != nil {
 			err = errors.Wrap(err, "recovering from panic after TruncateDatabaseForTesting")
@@ -121,14 +116,10 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 
 	// truncating tables
 	for _, tableName := range tables {
-		_, err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE `%s`", tableName))
+		_, err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", tableName))
 		if err != nil {
 			return nil, errors.Wrap(err, tx.Rollback().Error())
 		}
-	}
-
-	if _, err = tx.Exec("SET foreign_key_checks = 1"); err != nil {
-		panic(err)
 	}
 
 	if err := tx.Commit(); err != nil {

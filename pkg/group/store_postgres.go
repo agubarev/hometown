@@ -10,6 +10,14 @@ type PostgreSQLStore struct {
 	db *pgx.Conn
 }
 
+func NewPostgreSQLStore(db *pgx.Conn) (Store, error) {
+	if db == nil {
+		return nil, ErrNilDatabase
+	}
+
+	return &PostgreSQLStore{db}, nil
+}
+
 func (s *PostgreSQLStore) UpsertGroup(ctx context.Context, g Group) (Group, error) {
 	panic("implement me")
 }

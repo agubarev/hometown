@@ -518,11 +518,11 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 	gs := make([]group.TKey, 0)
 	rs := make([]group.TKey, 0)
 
-	for _, g := range gm.GroupsByMemberID(ctx, group.GKAll, u.ID) {
-		switch g.Kind {
-		case group.GKRole:
+	for _, g := range gm.GroupsByAssetID(ctx, group.FAllGroups, u.ID) {
+		switch g.Flags {
+		case group.FRole:
 			rs = append(rs, g.Key)
-		case group.GKGroup:
+		case group.FGroup:
 			gs = append(gs, g.Key)
 		}
 	}

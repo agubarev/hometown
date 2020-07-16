@@ -29,7 +29,7 @@ func TestNewAccessPolicyManager(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -64,7 +64,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -424,7 +424,7 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -562,7 +562,7 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -576,16 +576,16 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(m)
 
-	g1, err := gm.Create(ctx, group.GKGroup, 0, "test group 1", "test group 1", false)
+	g1, err := gm.Create(ctx, group.FGroup, 0, "test group 1", "test group 1")
 	a.NoError(err)
 
-	g2, err := gm.Create(ctx, group.GKGroup, 0, "test group 2", "test group 2", false)
+	g2, err := gm.Create(ctx, group.FGroup, 0, "test group 2", "test group 2")
 	a.NoError(err)
 
-	r1, err := gm.Create(ctx, group.GKRole, 0, "test role 1", "test role 1", false)
+	r1, err := gm.Create(ctx, group.FRole, 0, "test role 1", "test role 1")
 	a.NoError(err)
 
-	r2, err := gm.Create(ctx, group.GKRole, 0, "test role 2", "test role 2", false)
+	r2, err := gm.Create(ctx, group.FRole, 0, "test role 2", "test role 2")
 	a.NoError(err)
 
 	// expected rights
@@ -645,7 +645,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewStore(db)
+	gs, err := group.NewMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -659,16 +659,16 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(m)
 
-	g1, err := gm.Create(ctx, group.GKGroup, 0, "test group 1", "test group 1", false)
+	g1, err := gm.Create(ctx, group.FGroup, 0, "test group 1", "test group 1")
 	a.NoError(err)
 
-	g2, err := gm.Create(ctx, group.GKGroup, 0, "test group 2", "test group 2", false)
+	g2, err := gm.Create(ctx, group.FGroup, 0, "test group 2", "test group 2")
 	a.NoError(err)
 
-	r1, err := gm.Create(ctx, group.GKRole, 0, "test role 1", "test role 1", false)
+	r1, err := gm.Create(ctx, group.FRole, 0, "test role 1", "test role 1")
 	a.NoError(err)
 
-	r2, err := gm.Create(ctx, group.GKRole, 0, "test role 2", "test role 2", false)
+	r2, err := gm.Create(ctx, group.FRole, 0, "test role 2", "test role 2")
 	a.NoError(err)
 
 	// expected rights

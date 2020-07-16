@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -22,8 +23,8 @@ var (
 	ErrZeroRoleID             = errors.New("role id is zero")
 	ErrZeroID                 = errors.New("id is zero")
 	ErrNonZeroID              = errors.New("id is not zero")
-	ErrZeroMemberID           = errors.New("member id is zero")
-	ErrInvalidMemberKind      = errors.New("member kind is invalid")
+	ErrZeroAssetID            = errors.New("asset id is zero")
+	ErrInvalidAssetKind       = errors.New("asset kind is invalid")
 	ErrNilStore               = errors.New("group store is nil")
 	ErrRelationNotFound       = errors.New("relation not found")
 	ErrGroupAlreadyRegistered = errors.New("group is already registered")
@@ -32,11 +33,11 @@ var (
 	ErrDuplicateGroup         = errors.New("duplicate group")
 	ErrDuplicateParent        = errors.New("duplicate parent")
 	ErrDuplicateRelation      = errors.New("duplicate relation")
-	ErrMemberNotEligible      = errors.New("member is not eligible for this operation")
+	ErrAssetNotEligible       = errors.New("asset is not eligible for this operation")
 	ErrGroupKindMismatch      = errors.New("group kinds mismatch")
 	ErrInvalidKind            = errors.New("invalid group kind")
-	ErrNotMember              = errors.New("member is not a member")
-	ErrAlreadyMember          = errors.New("already a member")
+	ErrNotAsset               = errors.New("asset is not a asset")
+	ErrAlreadyAsset           = errors.New("already a asset")
 	ErrCircuitedParent        = errors.New("circuited parenting")
 	ErrCircuitCheckTimeout    = errors.New("circuit check timed out")
 	ErrNilManager             = errors.New("group manager is nil")
@@ -46,7 +47,23 @@ var (
 	ErrInvalidGroupKey        = errors.New("invalid group key")
 	ErrInvalidGroupName       = errors.New("invalid group name")
 	ErrEmptyGroupKey          = errors.New("group key is empty")
+	ErrAmbiguousKind          = errors.New("group kind is ambiguous")
 )
+
+type AssetKind uint8
+
+const (
+	AKUser AssetKind = iota
+)
+
+func (ak AssetKind) String() string {
+	switch ak {
+	case AKUser:
+		return "user"
+	default:
+		return "unrecognized asset kind"
+	}
+}
 
 // Registry is a typed slice of groups to make sorting easier
 type List []Group
@@ -55,20 +72,20 @@ type List []Group
 // TODO: add default groups which need not to be assigned explicitly
 type Manager struct {
 	// group id -> group
-	groups map[uint32]Group
+	groups map[uuid.UUID]Group
 
 	// group key -> group SubjectID
-	keyMap map[TKey]uint32
+	keyMap map[TKey]uuid.UUID
 
 	// default group ids
-	// NOTE: all tracked members belong to the groups whose IDs
+	// NOTE: all tracked assets belong to the groups whose IDs
 	// are mentioned in this slide
 	// TODO: unless stated otherwise (work out an exclusion mechanism)
-	defaultIDs []uint32
+	defaultIDs []uuid.UUID
 
 	// relationships
-	memberGroups map[uint32][]uint32 // member SubjectID -> slice of group IDs
-	groupMembers map[uint32][]uint32 // group SubjectID -> slice of member IDs
+	assetGroups map[uuid.UUID][]uuid.UUID // asset SubjectID -> slice of group IDs
+	groupAssets map[uuid.UUID][]uuid.UUID // group SubjectID -> slice of asset IDs
 
 	store  Store
 	logger *zap.Logger
@@ -82,12 +99,12 @@ func NewManager(ctx context.Context, s Store) (m *Manager, err error) {
 	}
 
 	m = &Manager{
-		groups:       make(map[uint32]Group, 0),
-		keyMap:       make(map[TKey]uint32),
-		defaultIDs:   make([]uint32, 0),
-		memberGroups: make(map[uint32][]uint32),
-		groupMembers: make(map[uint32][]uint32),
-		store:        s,
+		groups:      make(map[uuid.UUID]Group, 0),
+		keyMap:      make(map[TKey]uuid.UUID),
+		defaultIDs:  make([]uuid.UUID, 0),
+		assetGroups: make(map[uuid.UUID][]uuid.UUID),
+		groupAssets: make(map[uuid.UUID][]uuid.UUID),
+		store:       s,
 	}
 
 	if err = m.Init(ctx); err != nil {
@@ -137,33 +154,33 @@ func (m *Manager) Init(ctx context.Context) error {
 
 	// adding groups to a container
 	for _, g := range groups {
-		// adding member to container
+		// adding asset to container
 		if err := m.Put(ctx, g); err != nil {
 			// just warning and moving forward
 			m.Logger().Info(
 				"Init() failed to add group to container",
-				zap.Uint32("group_id", g.ID),
-				zap.String("kind", g.Kind.String()),
+				zap.String("group_id", g.ID.String()),
+				zap.String("flags", g.Flags.Translate()),
 				zap.ByteString("key", g.Key[:]),
 				zap.Error(err),
 			)
 		}
 	}
 
-	// fetching and distributing group member relations
+	// fetching and distributing group asset relations
 	relations, err := s.FetchAllRelations(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to fetch all relations")
 	}
 
-	// creating runtime links of groups and members
+	// creating runtime links of groups and assets
 	for mid, gids := range relations {
 		for _, gid := range gids {
-			if err = m.LinkMember(ctx, gid, mid); err != nil {
+			if err = m.LinkAsset(ctx, gid, mid); err != nil {
 				m.Logger().Info(
 					"Init() failed to add group to container",
-					zap.Uint32("group_id", gid),
-					zap.Uint32("member_id", mid),
+					zap.String("group_id", gid.String()),
+					zap.String("asset_id", mid.String()),
 					zap.Error(err),
 				)
 			}
@@ -173,11 +190,11 @@ func (m *Manager) Init(ctx context.Context) error {
 	return nil
 }
 
-// DistributeMembers injects given members into the manager, and linking
+// DistributeAssets injects given assets into the manager, and linking
 // them to their respective groups and roles
 // NOTE: does not affect the store
-// TODO: replace members slice with a channel to support a large numbers of members
-func (m *Manager) DistributeMembers(ctx context.Context, members []uint32) (err error) {
+// TODO: replace assets slice with a channel to support a large numbers of assets
+func (m *Manager) DistributeAssets(ctx context.Context, assets []uuid.UUID) (err error) {
 	l := m.Logger()
 
 	s, err := m.Store()
@@ -192,12 +209,12 @@ func (m *Manager) DistributeMembers(ctx context.Context, members []uint32) (err 
 		return err
 	}
 
-	// iterating over injected members
-	l.Info("distributing members among their respective groups")
-	for _, memberID := range members {
-		// checking whether this memberID is listed among fetched relations
-		if groupIDs, ok := relations[memberID]; ok {
-			// iterating over a slice of group IDs related to this member
+	// iterating over injected assets
+	l.Info("distributing assets among their respective groups")
+	for _, assetID := range assets {
+		// checking whether this assetID is listed among fetched relations
+		if groupIDs, ok := relations[assetID]; ok {
+			// iterating over a slice of group IDs related to this asset
 			for _, groupID := range groupIDs {
 				// obtaining the corresponding group
 				if _, err = m.GroupByID(ctx, groupID); err != nil {
@@ -208,17 +225,17 @@ func (m *Manager) DistributeMembers(ctx context.Context, members []uint32) (err 
 					// continuing even if an associated group is not found
 					l.Info(
 						"failed to apply group relation due to missing group",
-						zap.Uint32("member_id", memberID),
-						zap.Uint32("group_id", groupID),
+						zap.String("asset_id", assetID.String()),
+						zap.String("group_id", groupID.String()),
 					)
 				}
 
-				// linking memberID to a group
-				if err = m.LinkMember(ctx, groupID, memberID); err != nil {
+				// linking assetID to a group
+				if err = m.LinkAsset(ctx, groupID, assetID); err != nil {
 					l.Warn(
-						"failed to link member to group",
-						zap.Uint32("member_id", memberID),
-						zap.Uint32("group_id", groupID),
+						"failed to link asset to group",
+						zap.String("asset_id", assetID.String()),
+						zap.String("group_id", groupID.String()),
 						zap.Error(err),
 					)
 				}
@@ -239,9 +256,9 @@ func (m *Manager) Store() (Store, error) {
 }
 
 // Upsert creates new group
-func (m *Manager) Create(ctx context.Context, kind Kind, parentID uint32, key string, name string, isDefault bool) (g Group, err error) {
+func (m *Manager) Create(ctx context.Context, flags Flags, parentID uuid.UUID, key TKey, name TName) (g Group, err error) {
 	// checking parent id
-	if parentID != 0 {
+	if parentID != uuid.Nil {
 		parent, err := m.GroupByID(ctx, parentID)
 		if err != nil {
 			return g, errors.Wrap(err, "failed to obtain parent group")
@@ -252,23 +269,25 @@ func (m *Manager) Create(ctx context.Context, kind Kind, parentID uint32, key st
 			return g, errors.Wrap(err, "parent group validation failed")
 		}
 
-		// groups must be of the same kind
-		if parent.Kind != kind {
+		// groups must be of the same flags
+		if parent.Flags != flags {
 			return g, ErrGroupKindMismatch
 		}
 	}
 
-	g, err = NewGroup(kind, parentID, NewKey(key), NewName(name), isDefault)
+	// initializing new group
+	g, err = NewGroup(flags, parentID, key, name)
 	if err != nil {
 		return g, errors.Wrap(err, "failed to initialize new group")
 	}
 
 	// converting string key and a name into array values
-	copy(g.Key[:], bytes.TrimSpace([]byte(name)))
+	copy(g.Key[:], bytes.TrimSpace(key[:]))
+	copy(g.DisplayName[:], bytes.TrimSpace(name[:]))
 
 	// basic field validation
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
-		return g, errors.Wrap(err, "validation failed")
+		return g, errors.Wrap(err, "new group validation failed")
 	}
 
 	// checking whether there's already some group with such key
@@ -298,7 +317,7 @@ func (m *Manager) Create(ctx context.Context, kind Kind, parentID uint32, key st
 
 // put adds group to the manager
 func (m *Manager) Put(ctx context.Context, g Group) error {
-	if g.ID == 0 {
+	if g.ID == uuid.Nil {
 		return ErrZeroID
 	}
 
@@ -310,7 +329,7 @@ func (m *Manager) Put(ctx context.Context, g Group) error {
 		m.keyMap[g.Key] = g.ID
 
 		// adding group SubjectID to a slice of defaults if it's marked as default
-		if g.IsDefault {
+		if g.IsDefault() {
 			m.defaultIDs = append(m.defaultIDs, g.ID)
 		}
 	}
@@ -321,7 +340,7 @@ func (m *Manager) Put(ctx context.Context, g Group) error {
 }
 
 // lookup looks up in cache and returns a group if found
-func (m *Manager) Lookup(ctx context.Context, groupID uint32) (g Group, err error) {
+func (m *Manager) Lookup(ctx context.Context, groupID uuid.UUID) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[groupID]
 	m.RUnlock()
@@ -334,7 +353,7 @@ func (m *Manager) Lookup(ctx context.Context, groupID uint32) (g Group, err erro
 }
 
 // Remove removing group from the manager
-func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
+func (m *Manager) Remove(ctx context.Context, groupID uuid.UUID) error {
 	// a bit pedantic but consistent, returning an error if group
 	// is already registered within the manager
 	g, err := m.Lookup(ctx, groupID)
@@ -351,20 +370,20 @@ func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
 	delete(m.keyMap, g.Key)
 
 	//---------------------------------------------------------------------------
-	// discarding group membership cache
+	// discarding group assetship cache
 	//---------------------------------------------------------------------------
-	// first, clearing out group SubjectID from every related member
-	for _, memberID := range m.groupMembers[groupID] {
-		for i, id := range m.memberGroups[memberID] {
+	// first, clearing out group SubjectID from every related asset
+	for _, assetID := range m.groupAssets[groupID] {
+		for i, id := range m.assetGroups[assetID] {
 			if id == groupID {
-				m.memberGroups[memberID] = append(m.memberGroups[memberID][0:i], m.memberGroups[memberID][i+1:]...)
+				m.assetGroups[assetID] = append(m.assetGroups[assetID][0:i], m.assetGroups[assetID][i+1:]...)
 				break
 			}
 		}
 	}
 
-	// and eventually discarding the group to members relation
-	delete(m.groupMembers, groupID)
+	// and eventually discarding the group to assets relation
+	delete(m.groupAssets, groupID)
 
 	m.Unlock()
 
@@ -372,11 +391,11 @@ func (m *Manager) Remove(ctx context.Context, groupID uint32) error {
 }
 
 // Registry returns all groups inside a manager
-func (m *Manager) List(kind Kind) (gs []Group) {
+func (m *Manager) List(kind Flags) (gs []Group) {
 	gs = make([]Group, 0)
 
 	for _, g := range m.groups {
-		if g.Kind&kind != 0 {
+		if g.Flags&kind != 0 {
 			gs = append(gs, g)
 		}
 	}
@@ -385,8 +404,8 @@ func (m *Manager) List(kind Kind) (gs []Group) {
 }
 
 // GroupByID returns a group by SubjectID
-func (m *Manager) GroupByID(ctx context.Context, id uint32) (g Group, err error) {
-	if id == 0 {
+func (m *Manager) GroupByID(ctx context.Context, id uuid.UUID) (g Group, err error) {
+	if id == uuid.Nil {
 		return g, ErrZeroGroupID
 	}
 
@@ -429,10 +448,10 @@ func (m *Manager) GroupByName(ctx context.Context, name TName) (g Group, err err
 }
 
 // DeletePolicy returns an access policy by its ObjectID
-// NOTE: also deletes all relations and nested groups (should member have
+// NOTE: also deletes all relations and nested groups (should asset have
 // sufficient access rights to do that)
 // TODO: implement recursive deletion
-func (m *Manager) DeleteGroup(ctx context.Context, groupID uint32) (err error) {
+func (m *Manager) DeleteGroup(ctx context.Context, groupID uuid.UUID) (err error) {
 	g, err := m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
@@ -456,9 +475,9 @@ func (m *Manager) DeleteGroup(ctx context.Context, groupID uint32) (err error) {
 	return nil
 }
 
-// GroupsByMemberID returns a slice of groups to which a given member belongs
-func (m *Manager) GroupsByMemberID(ctx context.Context, mask Kind, memberID uint32) (gs []Group) {
-	if memberID == 0 {
+// GroupsByAssetID returns a slice of groups to which a given asset belongs
+func (m *Manager) GroupsByAssetID(ctx context.Context, mask Flags, assetID uuid.UUID) (gs []Group) {
+	if assetID == uuid.Nil {
 		return gs
 	}
 
@@ -466,8 +485,8 @@ func (m *Manager) GroupsByMemberID(ctx context.Context, mask Kind, memberID uint
 
 	m.RLock()
 	for _, g := range m.groups {
-		if g.Kind&mask != 0 {
-			if m.IsMember(ctx, g.ID, memberID) {
+		if g.Flags&mask != 0 {
+			if m.IsAsset(ctx, g.ID, assetID) {
 				gs = append(gs, g)
 			}
 		}
@@ -477,15 +496,15 @@ func (m *Manager) GroupsByMemberID(ctx context.Context, mask Kind, memberID uint
 	return gs
 }
 
-// Groups to which the member belongs
-func (m *Manager) Groups(ctx context.Context, mask Kind) []Group {
+// Groups to which the asset belongs
+func (m *Manager) Groups(ctx context.Context, mask Flags) []Group {
 	if m.groups == nil {
-		m.groups = make(map[uint32]Group, 0)
+		m.groups = make(map[uuid.UUID]Group, 0)
 	}
 
 	groups := make([]Group, 0)
 	for _, g := range m.groups {
-		if (g.Kind | mask) == mask {
+		if (g.Flags | mask) == mask {
 			groups = append(groups, g)
 		}
 	}
@@ -503,21 +522,21 @@ func (m *Manager) setupDefaultGroups(ctx context.Context) error {
 	//---------------------------------------------------------------------------
 
 	// regular user
-	regularRole, err := m.Create(ctx, GKRole, 0, "regular", "Regular user", false)
+	regularRole, err := m.Create(ctx, FRole, uuid.Nil, NewKey("regular"), NewName("Regular user"))
 	if err != nil {
 		return errors.Wrap(err, "failed to create regular user role")
 	}
 
 	// manager
-	managerRole, err := m.Create(ctx, GKRole, regularRole.ID, "manager", "Manager", false)
+	managerRole, err := m.Create(ctx, FRole, regularRole.ID, NewKey("manager"), NewName("Manager"))
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
 
 	// super user
-	_, err = m.Create(ctx, GKRole, managerRole.ID, "superuser", "Super user", false)
+	_, err = m.Create(ctx, FRole, managerRole.ID, NewKey("superuser"), NewName("Super user"))
 	if err != nil {
-		return fmt.Errorf("failed to create supermember role: %s", err)
+		return fmt.Errorf("failed to create superuser role: %s", err)
 	}
 
 	return nil
@@ -525,7 +544,7 @@ func (m *Manager) setupDefaultGroups(ctx context.Context) error {
 
 // Parent returns a parent of a given group
 func (m *Manager) Parent(ctx context.Context, g Group) (p Group, err error) {
-	if g.ParentID == 0 {
+	if g.ParentID == uuid.Nil {
 		return p, ErrNoParent
 	}
 
@@ -533,7 +552,7 @@ func (m *Manager) Parent(ctx context.Context, g Group) (p Group, err error) {
 }
 
 // Validate performs an integrity check on a given group
-func (m *Manager) Validate(ctx context.Context, groupID uint32) (err error) {
+func (m *Manager) Validate(ctx context.Context, groupID uuid.UUID) (err error) {
 	g, err := m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
@@ -554,14 +573,14 @@ func (m *Manager) Validate(ctx context.Context, groupID uint32) (err error) {
 }
 
 // IsCircuited tests whether the parents trace back to a nil
-func (m *Manager) IsCircuited(ctx context.Context, groupID uint32) (bool, error) {
+func (m *Manager) IsCircuited(ctx context.Context, groupID uuid.UUID) (bool, error) {
 	g, err := m.GroupByID(ctx, groupID)
 	if err != nil {
 		return false, err
 	}
 
 	// no parent means no opportunity to make circular parenting
-	if g.ParentID == 0 {
+	if g.ParentID == uuid.Nil {
 		return false, nil
 	}
 
@@ -570,7 +589,7 @@ func (m *Manager) IsCircuited(ctx context.Context, groupID uint32) (bool, error)
 	// TODO: obtain timeout from the context or use its deadline
 	timeout := time.Now().Add(5 * time.Millisecond)
 	for p, err := m.Parent(ctx, g); err == nil && !time.Now().After(timeout); p, err = m.Parent(ctx, p) {
-		if p.ParentID == 0 {
+		if p.ParentID == uuid.Nil {
 			// it's all good, reached a no-parent point
 			return false, nil
 		}
@@ -580,7 +599,7 @@ func (m *Manager) IsCircuited(ctx context.Context, groupID uint32) (bool, error)
 }
 
 // SetParent assigns a new parent SubjectID
-func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (err error) {
+func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uuid.UUID) (err error) {
 	g, err := m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
@@ -592,15 +611,15 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (e
 	}
 
 	// since new parent could be zero then its kind is irrelevant
-	if newParent.ID != 0 {
+	if newParent.ID != uuid.Nil {
 		// checking whether new parent already is set somewhere along the parenthood
 		// by tracing backwards until a no-parent is met; at this point only a
 		// requested parent is searched and not tested whether the relations
 		// are circuited among themselves
-		if newParent.ParentID != 0 {
-			for pg, err := m.Parent(ctx, g); err == nil && pg.ID != 0; pg, err = m.Parent(ctx, pg) {
+		if newParent.ParentID != uuid.Nil {
+			for pg, err := m.Parent(ctx, g); err == nil && pg.ID != uuid.Nil; pg, err = m.Parent(ctx, pg) {
 				// no more parents, breaking
-				if pg.ParentID == 0 {
+				if pg.ParentID == uuid.Nil {
 					break
 				}
 
@@ -612,7 +631,7 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (e
 		}
 
 		// group kind must be the same all the way back to the top
-		if g.Kind != newParent.Kind {
+		if g.Flags != newParent.Flags {
 			return ErrGroupKindMismatch
 		}
 	}
@@ -637,14 +656,14 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uint32) (e
 	return nil
 }
 
-// IsMember tests whether a given member belongs to a given group
-func (m *Manager) IsMember(ctx context.Context, groupID, memberID uint32) bool {
-	if memberID == 0 || groupID == 0 {
+// IsAsset tests whether a given asset belongs to a given group
+func (m *Manager) IsAsset(ctx context.Context, groupID, assetID uuid.UUID) bool {
+	if assetID == uuid.Nil || groupID == uuid.Nil {
 		return false
 	}
 
 	m.RLock()
-	for _, gid := range m.memberGroups[memberID] {
+	for _, gid := range m.assetGroups[assetID] {
 		if gid == groupID {
 			m.RUnlock()
 			return true
@@ -655,17 +674,17 @@ func (m *Manager) IsMember(ctx context.Context, groupID, memberID uint32) bool {
 	return false
 }
 
-// CreateRelation adding member to a group
+// CreateRelation adding asset to a group
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
-func (m *Manager) CreateRelation(ctx context.Context, groupID, memberID uint32) (err error) {
+func (m *Manager) CreateRelation(ctx context.Context, groupID uuid.UUID, assetKind AssetKind, assetID uuid.UUID) (err error) {
 	groupOrRole, err := m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	if memberID == 0 {
-		return ErrZeroMemberID
+	if assetID == uuid.Nil {
+		return ErrZeroAssetID
 	}
 
 	s, err := m.Store()
@@ -676,53 +695,53 @@ func (m *Manager) CreateRelation(ctx context.Context, groupID, memberID uint32) 
 	l := m.Logger()
 
 	if s != nil {
-		l.Info("creating member relationship",
-			zap.Uint32("group_id", groupID),
-			zap.Uint32("member_id", memberID),
-			zap.String("kind", groupOrRole.Kind.String()),
+		l.Info("creating asset relationship",
+			zap.String("group_id", groupID.String()),
+			zap.String("asset_id", assetID.String()),
+			zap.String("flags", groupOrRole.Flags.Translate()),
 		)
 
 		// persisting relation in the store
-		if err = s.CreateRelation(ctx, groupID, memberID); err != nil {
-			l.Info("failed to store member relation",
-				zap.Uint32("group_id", groupID),
-				zap.Uint32("member_id", memberID),
-				zap.String("kind", groupOrRole.Kind.String()),
+		if err = s.CreateRelation(ctx, groupID, assetKind, assetID); err != nil {
+			l.Info("failed to store asset relation",
+				zap.String("group_id", groupID.String()),
+				zap.String("asset_id", assetID.String()),
+				zap.String("flags", groupOrRole.Flags.Translate()),
 				zap.Error(err),
 			)
 
 			return err
 		}
 	} else {
-		l.Info("creating member relationship while store is not set",
-			zap.Uint32("group_id", groupID),
-			zap.Uint32("member_id", memberID),
-			zap.String("kind", groupOrRole.Kind.String()),
+		l.Info("creating asset relationship while store is not set",
+			zap.String("group_id", groupID.String()),
+			zap.String("asset_id", assetID.String()),
+			zap.String("flags", groupOrRole.Flags.Translate()),
 			zap.Error(err),
 		)
 	}
 
-	// adding member SubjectID to group members
-	if err = m.LinkMember(ctx, groupID, memberID); err != nil {
+	// adding asset SubjectID to group assets
+	if err = m.LinkAsset(ctx, groupID, assetID); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-// DeleteRelation removes member from a group
-func (m *Manager) DeleteRelation(ctx context.Context, groupID, memberID uint32) (err error) {
+// DeleteRelation removes asset from a group
+func (m *Manager) DeleteRelation(ctx context.Context, groupID uuid.UUID, assetKind AssetKind, assetID uuid.UUID) (err error) {
 	_, err = m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	if memberID == 0 {
-		return ErrZeroMemberID
+	if assetID == uuid.Nil {
+		return ErrZeroAssetID
 	}
 
-	// removing memberID from group members
-	if err = m.UnlinkMember(ctx, groupID, memberID); err != nil {
+	// removing assetID from group assets
+	if err = m.UnlinkAsset(ctx, groupID, assetID); err != nil {
 		return err
 	}
 
@@ -734,49 +753,56 @@ func (m *Manager) DeleteRelation(ctx context.Context, groupID, memberID uint32) 
 	l := m.Logger()
 
 	if s != nil {
-		m.Logger().Info("deleting member from group", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID))
+		m.Logger().Info("deleting asset from group",
+			zap.String("group_id", groupID.String()),
+			zap.String("asset_id", assetID.String()),
+			zap.String("asset_kind", assetKind.String()),
+		)
 
 		// deleting a stored relation
-		if err := s.DeleteRelation(ctx, groupID, memberID); err != nil {
+		if err := s.DeleteRelation(ctx, groupID, assetKind, assetID); err != nil {
 			return err
 		}
 	} else {
-		l.Info("deleting member from group while store is not set", zap.Uint32("group_id", groupID), zap.Uint32("member_id", memberID))
+		l.Info("deleting asset from group while store is not set",
+			zap.String("group_id", groupID.String()),
+			zap.String("asset_id", assetID.String()),
+		)
 	}
 
 	return nil
 }
 
-// LinkMember adds a member to the group members
+// LinkAsset adds a asset to the group assets
 // NOTE: does not affect the store
-func (m *Manager) LinkMember(ctx context.Context, groupID, memberID uint32) (err error) {
+func (m *Manager) LinkAsset(ctx context.Context, groupID, assetID uuid.UUID) (err error) {
 	_, err = m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	if memberID == 0 {
-		return ErrZeroMemberID
+	if assetID == uuid.Nil {
+		return ErrZeroAssetID
 	}
 
-	if m.IsMember(ctx, groupID, memberID) {
-		return ErrAlreadyMember
+	if m.IsAsset(ctx, groupID, assetID) {
+		return ErrAlreadyAsset
 	}
 
 	m.Lock()
 
-	// group SubjectID -> member IDs
-	if m.groupMembers[groupID] == nil {
-		m.groupMembers[groupID] = []uint32{memberID}
+	// group SubjectID -> asset IDs
+	if m.groupAssets[groupID] == nil {
+		m.groupAssets[groupID] = []uuid.UUID{assetID}
 	} else {
-		m.groupMembers[groupID] = append(m.groupMembers[groupID], memberID)
+		m.groupAssets[groupID] = append(m.groupAssets[groupID], assetID)
 	}
 
-	// member SubjectID -> group IDs
-	if m.memberGroups[memberID] == nil {
-		m.memberGroups[memberID] = []uint32{groupID}
+	// asset SubjectID -> group IDs
+	if m.assetGroups[assetID] == nil {
+		m.assetGroups[assetID] = []uuid.UUID{groupID}
 	} else {
-		m.memberGroups[memberID] = append(m.memberGroups[memberID], groupID)
+		m.assetGroups[assetID] = append(m.assetGroups[assetID], groupID)
 	}
 
 	m.Unlock()
@@ -784,33 +810,33 @@ func (m *Manager) LinkMember(ctx context.Context, groupID, memberID uint32) (err
 	return nil
 }
 
-// UnlinkMember removes a member from the group members
+// UnlinkAsset removes a asset from the group assets
 // NOTE: does not affect the store
-func (m *Manager) UnlinkMember(ctx context.Context, groupID, memberID uint32) (err error) {
+func (m *Manager) UnlinkAsset(ctx context.Context, groupID, assetID uuid.UUID) (err error) {
 	_, err = m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	if memberID == 0 {
-		return ErrZeroMemberID
+	if assetID == uuid.Nil {
+		return ErrZeroAssetID
 	}
 
 	m.Lock()
 
-	if m.groupMembers[groupID] != nil {
-		for i, mid := range m.groupMembers[groupID] {
-			if mid == memberID {
-				m.groupMembers[groupID] = append(m.groupMembers[groupID][0:i], m.groupMembers[groupID][i+1:]...)
+	if m.groupAssets[groupID] != nil {
+		for i, mid := range m.groupAssets[groupID] {
+			if mid == assetID {
+				m.groupAssets[groupID] = append(m.groupAssets[groupID][0:i], m.groupAssets[groupID][i+1:]...)
 				break
 			}
 		}
 	}
 
-	if m.memberGroups[memberID] != nil {
-		for i, gid := range m.memberGroups[memberID] {
+	if m.assetGroups[assetID] != nil {
+		for i, gid := range m.assetGroups[assetID] {
 			if gid == groupID {
-				m.memberGroups[memberID] = append(m.memberGroups[memberID][0:i], m.memberGroups[memberID][i+1:]...)
+				m.assetGroups[assetID] = append(m.assetGroups[assetID][0:i], m.assetGroups[assetID][i+1:]...)
 				break
 			}
 		}
@@ -821,10 +847,10 @@ func (m *Manager) UnlinkMember(ctx context.Context, groupID, memberID uint32) (e
 	return nil
 }
 
-// Invite an existing user to become a member of the group
+// Invite an existing user to become a asset of the group
 // NOTE: this is optional and often can be disabled for better control
 // TODO: requires careful planning
-func (m *Manager) Invite(ctx context.Context, groupID, userID uint32) (err error) {
+func (m *Manager) Invite(ctx context.Context, groupID, userID uuid.UUID) (err error) {
 	// TODO: implement
 
 	panic("not implemented")

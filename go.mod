@@ -16,6 +16,7 @@ require (
 	github.com/gocraft/dbr/v2 v2.7.0
 	github.com/gofrs/uuid v3.3.0+incompatible // indirect
 	github.com/golang/protobuf v1.3.3 // indirect
+	github.com/google/uuid v1.1.1
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect
 	github.com/jackc/pgx v3.6.2+incompatible
