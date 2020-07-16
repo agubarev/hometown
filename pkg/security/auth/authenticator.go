@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
@@ -60,9 +61,9 @@ const (
 
 // Claims holds required JWT claims
 type Claims struct {
-	UserID int64    `json:"uid"`
-	Roles  []string `json:"rs,omitempty"`
-	Groups []string `json:"gs,omitempty"`
+	UserID uint32       `json:"uid"`
+	Roles  []group.TKey `json:"rs,omitempty"`
+	Groups []group.TKey `json:"gs,omitempty"`
 
 	jwt.StandardClaims
 }
@@ -74,7 +75,7 @@ type Claims struct {
 // because it contains the refresh token
 type Session struct {
 	Token         string    `json:"t,omitempty"`
-	UserID        int64     `json:"uid,omitempty"`
+	UserID        uint32    `json:"uid,omitempty"`
 	IP            string    `json:"ip,omitempty"`
 	UserAgent     string    `json:"ua,omitempty"`
 	AccessTokenID string    `json:"jti,omitempty"`
@@ -106,7 +107,7 @@ func (s *Session) Validate() error {
 
 // RefreshTokenPayload represents the payload of a refresh token
 type RefreshTokenPayload struct {
-	UserID    int64  `json:"uid,omitempty"`
+	UserID    uint32 `json:"uid,omitempty"`
 	IP        string `json:"ip,omitempty"`
 	UserAgent string `json:"ua,omitempty"`
 }
@@ -218,11 +219,11 @@ type Authenticator struct {
 	AccessTokenTTL  time.Duration
 	RefreshTokenTTL time.Duration
 
-	config      Config
-	userManager *user.Manager
-	backend     Backend
-	privateKey  *rsa.PrivateKey
-	logger      *zap.Logger
+	config     Config
+	users      *user.Manager
+	backend    Backend
+	privateKey *rsa.PrivateKey
+	logger     *zap.Logger
 }
 
 // NewAuthenticator initializes a new authenticator
@@ -255,7 +256,7 @@ func NewAuthenticator(pk *rsa.PrivateKey, um *user.Manager, b Backend, cfg Confi
 
 	// initializing new authenticator
 	m := &Authenticator{
-		userManager:     um,
+		users:           um,
 		AccessTokenTTL:  15 * time.Minute,
 		RefreshTokenTTL: 24 * time.Hour,
 
@@ -293,14 +294,14 @@ func (a *Authenticator) Logger() *zap.Logger {
 }
 
 func (a *Authenticator) UserManager() *user.Manager {
-	if a.userManager == nil {
+	if a.users == nil {
 		panic(ErrNilUserManager)
 	}
 
-	return a.userManager
+	return a.users
 }
 
-func (a *Authenticator) GroupManager() *user.GroupManager {
+func (a *Authenticator) GroupManager() *group.Manager {
 	return a.UserManager().GroupManager()
 }
 
@@ -330,7 +331,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 
 	// obtaining logger
 	l := a.Logger().With(
-		zap.Int64("user_id", u.ID),
+		zap.Uint32("user_id", u.ID),
 		zap.String("username", u.Username),
 		zap.String("ip", ri.IP.String()),
 		zap.String("user_agent", ri.UserAgent),
@@ -390,14 +391,14 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 	}
 
 	// obtaining a user specified in the token's payload
-	u, err = a.userManager.UserByID(ctx, payload.UserID)
+	u, err = a.users.UserByID(ctx, payload.UserID)
 	if err != nil {
 		return u, err
 	}
 
 	// obtaining logger
 	l := a.Logger().With(
-		zap.Int64("user_id", u.ID),
+		zap.Uint32("user_id", u.ID),
 		zap.String("username", u.Username),
 		zap.String("ip", ri.IP.String()),
 		zap.String("user_agent", ri.UserAgent),
@@ -455,7 +456,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 }
 
 // DestroySession destroys session by token, and as a given user
-func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID int64, stok string, ri *RequestMetadata) error {
+func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32, stok string, ri *RequestMetadata) error {
 	if destroyedByID == 0 {
 		return user.ErrZeroUserID
 	}
@@ -514,14 +515,14 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 	gm := a.GroupManager()
 
 	// slicing group names
-	gs := make([]string, 0)
-	rs := make([]string, 0)
+	gs := make([]group.TKey, 0)
+	rs := make([]group.TKey, 0)
 
-	for _, g := range gm.GroupsByUserID(ctx, u.ID, user.GKAll) {
+	for _, g := range gm.GroupsByMemberID(ctx, group.GKAll, u.ID) {
 		switch g.Kind {
-		case user.GKRole:
+		case group.GKRole:
 			rs = append(rs, g.Key)
-		case user.GKGroup:
+		case group.GKGroup:
 			gs = append(gs, g.Key)
 		}
 	}
@@ -669,7 +670,7 @@ func (a *Authenticator) claimsFromToken(tok string) (claims Claims, err error) {
 }
 
 // UserIDFromToken parses access token and returns user SubjectID
-func (a *Authenticator) UserIDFromToken(tok string) (_ int64, err error) {
+func (a *Authenticator) UserIDFromToken(tok string) (_ uint32, err error) {
 	claims, err := a.claimsFromToken(tok)
 	if err != nil {
 		return 0, errors.Wrap(err, "failed to obtain user id from access token")
@@ -684,7 +685,7 @@ func (a *Authenticator) UserFromToken(ctx context.Context, tok string) (u user.U
 		return u, err
 	}
 
-	u, err = a.userManager.UserByID(ctx, userID)
+	u, err = a.users.UserByID(ctx, userID)
 	if err != nil {
 		return u, errors.Wrap(err, "failed to obtain user from access token")
 	}

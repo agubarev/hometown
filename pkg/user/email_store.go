@@ -116,11 +116,11 @@ func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email
 	return es, nil
 }
 
-func (s *MySQLStore) FetchPrimaryEmailByUserID(ctx context.Context, userID int64) (e Email, err error) {
+func (s *MySQLStore) FetchPrimaryEmailByUserID(ctx context.Context, userID uint32) (e Email, err error) {
 	return s.fetchEmailByQuery(ctx, "SELECT * FROM `user_email` WHERE user_id = ? AND is_primary = 1 LIMIT 1", userID)
 }
 
-func (s *MySQLStore) FetchEmailsByUserID(ctx context.Context, userID int64) ([]Email, error) {
+func (s *MySQLStore) FetchEmailsByUserID(ctx context.Context, userID uint32) ([]Email, error) {
 	return s.fetchEmailsByQuery(ctx, "SELECT * FROM `user_email` WHERE user_id = ?", userID)
 }
 
@@ -178,7 +178,7 @@ func (s *MySQLStore) UpdateEmail(ctx context.Context, e Email, changelog diff.Ch
 	return e, nil
 }
 
-func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID int64, addr string) (err error) {
+func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID uint32, addr string) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

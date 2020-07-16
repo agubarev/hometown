@@ -57,7 +57,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// updating IP from where the user has just authenticated from
-		u.LastLoginIP = ri.IP.String()
+		u.LastLoginIP = ri.IP
 
 		return u, nil
 	})

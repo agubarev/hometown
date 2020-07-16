@@ -34,18 +34,19 @@ func Run(ctx context.Context, c *core.Core, addr string) (err error) {
 	// API ROUTING (V1)
 	//---------------------------------------------------------------------------
 	r.Route("/api/v1", func(r chi.Router) {
-		r.Use(MiddlewareBase(ctx))
+		r.Use(MiddlewareContext(ctx))
 		//r.Use(epauth.MiddlewareAuth)
 
-		r.Use(func(handler http.Handler) http.Handler {
-			return endpoints.NewEndpoint(endpoints.NewName("authentication middleware"))
+		// authentication middleware
+		r.Use(func(next http.Handler) http.Handler {
+			return epauth.MiddlewareAuth(next)
 		})
 
 		r.Route("/group", func(r chi.Router) {
 			r.Method(http.MethodPost, "/", endpoints.NewEndpoint(endpoints.NewName("post_group"), c, epgroup.Post))
-			r.Method(http.MethodGet, "/{id}", endpoints.NewEndpoint(endpoints.NewName("get_group"), c, epgroup.Get))
-			r.Method(http.MethodPatch, "/{id}", endpoints.NewEndpoint(endpoints.NewName("patch_group"), c, epgroup.Patch))
-			r.Method(http.MethodDelete, "/{id}", endpoints.NewEndpoint(endpoints.NewName("delete_group"), c, epgroup.Delete))
+			//r.Method(http.MethodGet, "/{id}", endpoints.NewEndpoint(endpoints.NewName("get_group"), c, epgroup.Get))
+			//r.Method(http.MethodPatch, "/{id}", endpoints.NewEndpoint(endpoints.NewName("patch_group"), c, epgroup.Patch))
+			//r.Method(http.MethodDelete, "/{id}", endpoints.NewEndpoint(endpoints.NewName("delete_group"), c, epgroup.Delete))
 		})
 
 		r.Route("/user", func(r chi.Router) {

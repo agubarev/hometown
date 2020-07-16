@@ -63,7 +63,7 @@ func (s *MySQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...in
 
 // CreateUser creates a new entry in the storage backend
 func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error) {
-	// if ObjectID is not 0, then it's not considered as new
+	// if object ID is not 0, then it's not considered as new
 	if u.ID != 0 {
 		return u, ErrNonZeroID
 	}
@@ -83,8 +83,8 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error)
 		return u, err
 	}
 
-	// setting new ObjectID
-	u.ID = int64(newID)
+	// setting newly generated ID
+	u.ID = uint32(newID)
 
 	return u, nil
 }
@@ -141,14 +141,14 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 
 	// distributing new IDs in their sequential order
 	for i := range us {
-		us[i].ID = firstNewID
+		us[i].ID = uint32(firstNewID)
 		firstNewID++
 	}
 
 	return us, nil
 }
 
-func (s *MySQLStore) FetchUserByID(ctx context.Context, id int64) (u User, err error) {
+func (s *MySQLStore) FetchUserByID(ctx context.Context, id uint32) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE id = ? LIMIT 1", id)
 }
 
@@ -197,7 +197,7 @@ func (s *MySQLStore) UpdateUser(ctx context.Context, u User, changelog diff.Chan
 	return u, nil
 }
 
-func (s *MySQLStore) DeleteUserByID(ctx context.Context, id int64) (err error) {
+func (s *MySQLStore) DeleteUserByID(ctx context.Context, id uint32) (err error) {
 	if id == 0 {
 		return ErrZeroID
 	}

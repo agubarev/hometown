@@ -32,7 +32,6 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// performing basic validation of credentials
-
 	if err = creds.SanitizeAndValidate(); err != nil {
 		util.WriteResponseErrorTo(w, "invalid_payload", err, http.StatusBadRequest)
 		return
@@ -74,7 +73,7 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// updating IP from where the user has just authenticated from
-	u.LastLoginIP = ri.IP.String()
+	u.LastLoginIP = ri.IP
 
 	/*
 		// logging user

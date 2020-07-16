@@ -2,7 +2,6 @@ package endpoints
 
 import (
 	"bytes"
-	"context"
 	"database/sql/driver"
 	"net/http"
 	"strconv"
@@ -81,7 +80,7 @@ func NewEndpoint(name TName, c *core.Core, h Handler) Endpoint {
 func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	u, err := e.core.UserManager().UserByID(
 		r.Context(),
-		r.Context().Value(CKUserID).(int64),
+		r.Context().Value(CKUserID).(uint32),
 	)
 
 	if err != nil {
@@ -94,7 +93,7 @@ func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	// executing handler
-	result, code, err := e.handler(e.ctx, e.core, ac, w, r)
+	result, code, err := e.handler(e.core, w, r)
 	if err != nil {
 		http.Error(w, err.Error(), code)
 		return

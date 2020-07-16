@@ -29,6 +29,7 @@ type Essential struct {
 	DisplayName string `db:"display_name" json:"display_name"`
 }
 
+// TODO: solve net.IP field problem
 type Metadata struct {
 	Checksum uint64 `db:"checksum" json:"checksum"`
 
@@ -46,7 +47,7 @@ type Metadata struct {
 	LastLoginIP       net.IP       `db:"last_login_ip" json:"last_login_ip"`
 	LastLoginFailedAt dbr.NullTime `db:"last_login_failed_at" json:"last_login_failed_at"`
 	LastLoginFailedIP string       `db:"last_login_failed_ip" json:"last_login_failed_ip"`
-	LastLoginAttempts uint8        `db:"last_login_attempts" json:"last_login_attempts"`
+	LastLoginAttempts uint16       `db:"last_login_attempts" json:"last_login_attempts"`
 
 	// account suspension
 	IsSuspended         bool         `db:"is_suspended" json:"is_suspended"`
@@ -140,7 +141,7 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "LastLoginAt":
 			u.LastLoginAt = change.To.(dbr.NullTime)
 		case "LastLoginIP":
-			u.LastLoginIP = change.To.(string)
+			u.LastLoginIP = change.To.(net.IP)
 		case "Checksum":
 			u.Checksum = change.To.(uint64)
 		case "CreatedAt":

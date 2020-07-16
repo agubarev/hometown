@@ -116,11 +116,11 @@ func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []Phone) (_ []Phone
 	return ps, nil
 }
 
-func (s *MySQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID int64) (p Phone, err error) {
+func (s *MySQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID uint32) (p Phone, err error) {
 	return s.fetchPhoneByQuery(ctx, "SELECT * FROM `user_phone` WHERE user_id = ? AND is_primary = 1 LIMIT 1", userID)
 }
 
-func (s *MySQLStore) FetchPhonesByUserID(ctx context.Context, userID int64) ([]Phone, error) {
+func (s *MySQLStore) FetchPhonesByUserID(ctx context.Context, userID uint32) ([]Phone, error) {
 	return s.fetchPhonesByQuery(ctx, "SELECT * FROM `user_phone` WHERE user_id = ?", userID)
 }
 
@@ -178,7 +178,7 @@ func (s *MySQLStore) UpdatePhone(ctx context.Context, p Phone, changelog diff.Ch
 	return p, nil
 }
 
-func (s *MySQLStore) DeletePhoneByNumber(ctx context.Context, userID int64, number string) (err error) {
+func (s *MySQLStore) DeletePhoneByNumber(ctx context.Context, userID uint32, number string) (err error) {
 	if userID == 0 {
 		return ErrZeroUserID
 	}

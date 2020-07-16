@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
@@ -29,8 +31,8 @@ type Object interface {
 // TODO: consider naming first release `Lidia`
 type Manager struct {
 	passwords password.Manager
-	groups    *GroupManager
-	policies  *AccessPolicyManager
+	groups    *group.Manager
+	policies  *accesspolicy.Manager
 	tokens    *token.Manager
 	store     Store
 	logger    *zap.Logger
@@ -126,14 +128,9 @@ func (m *Manager) SetPasswordManager(pm password.Manager) error {
 }
 
 // SetGroupManager assigns a group manager
-func (m *Manager) SetGroupManager(gm *GroupManager) error {
+func (m *Manager) SetGroupManager(gm *group.Manager) error {
 	if gm == nil {
-		return ErrNilGroupManager
-	}
-
-	err := gm.Validate()
-	if err != nil {
-		return fmt.Errorf("failed to validate group container: %s", err)
+		return group.ErrNilManager
 	}
 
 	// setting
@@ -158,9 +155,9 @@ func (m *Manager) SetTokenManager(tm *token.Manager) error {
 }
 
 // SetAccessPolicyManager assigns access policy manager
-func (m *Manager) SetAccessPolicyManager(apm *AccessPolicyManager) error {
+func (m *Manager) SetAccessPolicyManager(apm *accesspolicy.Manager) error {
 	if apm == nil {
-		return ErrNilAccessPolicyManager
+		return accesspolicy.ErrNilAccessPolicyManager
 	}
 
 	m.policies = apm
@@ -168,17 +165,17 @@ func (m *Manager) SetAccessPolicyManager(apm *AccessPolicyManager) error {
 	return nil
 }
 
-func (m *Manager) GroupManager() *GroupManager {
+func (m *Manager) GroupManager() *group.Manager {
 	if m.groups == nil {
-		panic(ErrNilGroupManager)
+		panic(group.ErrNilManager)
 	}
 
 	return m.groups
 }
 
-func (m *Manager) AccessPolicyManager() *AccessPolicyManager {
+func (m *Manager) AccessPolicyManager() *accesspolicy.Manager {
 	if m.passwords == nil {
-		panic(ErrNilAccessPolicyManager)
+		panic(accesspolicy.ErrNilAccessPolicyManager)
 	}
 
 	return m.policies

@@ -51,7 +51,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 
 	m.Logger().Debug(
 		"created new phone",
-		zap.Int64("user_id", phone.UserID),
+		zap.Uint32("user_id", phone.UserID),
 		zap.String("number", phone.Number),
 	)
 
@@ -88,7 +88,7 @@ func (m *Manager) BulkCreatePhone(ctx context.Context, newPhones []Phone) (phone
 }
 
 // PrimaryPhoneByUserID obtains the primary phone by user id
-func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID int64) (phone Phone, err error) {
+func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uint32) (phone Phone, err error) {
 	if userID == 0 {
 		return phone, ErrPhoneNotFound
 	}
@@ -147,7 +147,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int64("user_id", phone.UserID),
+		zap.Uint32("user_id", phone.UserID),
 		zap.String("number", phone.Number),
 	)
 
@@ -156,7 +156,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 
 // DeletePhoneByNumber deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID int64, number string) (phone Phone, err error) {
+func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uint32, number string) (phone Phone, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, errors.Wrap(err, "failed to obtain a store")

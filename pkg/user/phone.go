@@ -14,7 +14,7 @@ import (
 // NewPhoneObject contains fields sufficient to create a new object
 type NewPhoneObject struct {
 	PhoneEssential
-	UserID      int64
+	UserID      uint32
 	IsConfirmed bool
 }
 
@@ -36,7 +36,7 @@ type PhoneMetadata struct {
 // Phone represents certain emails which are custom
 // and are handled by the customer
 type Phone struct {
-	UserID int64 `db:"user_id" json:"user_id"`
+	UserID uint32 `db:"user_id" json:"user_id"`
 
 	PhoneEssential
 	PhoneMetadata
@@ -56,7 +56,7 @@ func (p *Phone) hashKey() {
 	key.WriteString(p.Number)
 
 	// adding user ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
+	if err := binary.Write(key, binary.LittleEndian, p.UserID); err != nil {
 		panic(errors.Wrap(err, "failed to hash phone key"))
 	}
 
@@ -91,7 +91,7 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			p.UserID = change.To.(int64)
+			p.UserID = change.To.(uint32)
 		case "Number":
 			p.Number = change.To.(string)
 		case "CreatedAt":

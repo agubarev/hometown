@@ -18,7 +18,7 @@ const (
 // Password object
 type Password struct {
 	Kind             Kind         `db:"kind" json:"-"`
-	OwnerID          int64        `db:"owner_id" json:"-"`
+	OwnerID          uint32       `db:"owner_id" json:"-"`
 	Hash             []byte       `db:"hash" json:"-"`
 	CreatedAt        dbr.NullTime `db:"created_at" json:"-"`
 	UpdatedAt        dbr.NullTime `db:"updated_at" json:"-"`
@@ -66,7 +66,7 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 }
 
 // New creates a hash from a given raw password byte slice
-func New(k Kind, ownerID int64, rawpass []byte, data []string) (p Password, err error) {
+func New(k Kind, ownerID uint32, rawpass []byte, data []string) (p Password, err error) {
 	if err = EvaluatePasswordStrength(rawpass, data); err != nil {
 		return p, err
 	}

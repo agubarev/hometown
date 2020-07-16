@@ -5,6 +5,8 @@ import (
 	"flag"
 	"log"
 
+	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
@@ -12,13 +14,13 @@ import (
 )
 
 // GroupManagerForTesting initializes a group container for testing
-func GroupManagerForTesting(db *dbr.Connection) (*GroupManager, error) {
-	s, err := NewGroupStore(db)
+func GroupManagerForTesting(db *dbr.Connection) (*group.Manager, error) {
+	s, err := group.NewStore(db)
 	if err != nil {
 		return nil, err
 	}
 
-	return NewGroupManager(s)
+	return group.NewManager(context.Background(), s)
 }
 
 // ManagerForTesting returns a fully initialized user manager for testing
@@ -47,27 +49,27 @@ func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
 	}
 
 	//---------------------------------------------------------------------------
-	// initializing policy manager
-	//---------------------------------------------------------------------------
-	aps, err := NewDefaultAccessPolicyStore(db)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	apm, err := NewAccessPolicyManager(aps)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	//---------------------------------------------------------------------------
 	// initializing group manager
 	//---------------------------------------------------------------------------
-	gs, err := NewGroupStore(db)
+	gs, err := group.NewStore(db)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	gm, err := NewGroupManager(gs)
+	gm, err := group.NewManager(ctx, gs)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	//---------------------------------------------------------------------------
+	// initializing policy manager
+	//---------------------------------------------------------------------------
+	aps, err := accesspolicy.NewDefaultMySQLStore(db)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	apm, err := accesspolicy.NewManager(aps, gm)
 	if err != nil {
 		return nil, nil, err
 	}

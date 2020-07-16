@@ -115,7 +115,7 @@ func (s *MySQLStore) BulkCreateProfile(ctx context.Context, profiles []Profile) 
 	return profiles, nil
 }
 
-func (s *MySQLStore) FetchProfileByUserID(ctx context.Context, id int64) (profile Profile, err error) {
+func (s *MySQLStore) FetchProfileByUserID(ctx context.Context, id uint32) (profile Profile, err error) {
 	return s.fetchProfileByQuery(ctx, "SELECT * FROM `user_profile` WHERE user_id = ? LIMIT 1", id)
 }
 
@@ -162,9 +162,9 @@ func (s *MySQLStore) UpdateProfile(ctx context.Context, profile Profile, changel
 	return profile, nil
 }
 
-func (s *MySQLStore) DeleteProfileByUserID(ctx context.Context, userID int64) (err error) {
+func (s *MySQLStore) DeleteProfileByUserID(ctx context.Context, userID uint32) (err error) {
 	if userID == 0 {
-		return ErrZeroID
+		return ErrZeroUserID
 	}
 
 	_, err = s.connection.NewSession(nil).

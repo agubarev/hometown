@@ -11,6 +11,7 @@ import (
 
 	auth2 "github.com/agubarev/hometown/internal/server/endpoints/auth"
 	"github.com/agubarev/hometown/pkg/database"
+	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/auth"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
@@ -54,36 +55,42 @@ func TestSignin(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(testuser)
 
-	gm := um.GroupManager()
+	// initializing group store
+	gs, err := group.NewStore(db)
+	a.NoError(err)
+	a.NotNil(gs)
+
+	gm, err := group.NewManager(ctx, gs)
+	a.NoError(err)
 	a.NotNil(gm)
 
 	// creating groups and roles for testing
-	g1, err := gm.Create(ctx, user.GKGroup, 0, "group_1", "Group 1")
+	g1, err := gm.Create(ctx, group.GKGroup, 0, "group_1", "Group 1", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := gm.Create(ctx, user.GKGroup, 0, "group_2", "Group 2")
+	g2, err := gm.Create(ctx, group.GKGroup, 0, "group_2", "Group 2", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := gm.Create(ctx, user.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)")
+	g3, err := gm.Create(ctx, group.GKGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := gm.Create(ctx, user.GKRole, 0, "role_1", "Role 1")
+	r1, err := gm.Create(ctx, group.GKRole, 0, "role_1", "Role 1", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := gm.Create(ctx, user.GKRole, 0, "role_2", "Role 2")
+	r2, err := gm.Create(ctx, group.GKRole, 0, "role_2", "Role 2", false)
 	a.NoError(err)
 	a.NotNil(g1)
 
 	// adding test user to every role and a group
-	a.NoError(g1.AddMember(ctx, testuser.ID))
-	a.NoError(g2.AddMember(ctx, testuser.ID))
-	a.NoError(g3.AddMember(ctx, testuser.ID))
-	a.NoError(r1.AddMember(ctx, testuser.ID))
-	a.NoError(r2.AddMember(ctx, testuser.ID))
+	a.NoError(gm.CreateRelation(ctx, g1.ID, testuser.ID))
+	a.NoError(gm.CreateRelation(ctx, g2.ID, testuser.ID))
+	a.NoError(gm.CreateRelation(ctx, g3.ID, testuser.ID))
+	a.NoError(gm.CreateRelation(ctx, r1.ID, testuser.ID))
+	a.NoError(gm.CreateRelation(ctx, r2.ID, testuser.ID))
 
 	// ====================================================================================
 	// wrong password

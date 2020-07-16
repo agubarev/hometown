@@ -1,20 +1,16 @@
 package auth
 
 import (
-	"context"
 	"net/http"
 	"strings"
 
 	"github.com/agubarev/hometown/internal/core"
-	"github.com/agubarev/hometown/internal/server"
 	"github.com/agubarev/hometown/internal/server/endpoints"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/davecgh/go-spew/spew"
 )
 
 func Post(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error) {
-	c := ctx.Value(server.CKCore)
-
 	newUser := user.NewUserObject{
 		Essential:        user.Essential{},
 		ProfileEssential: user.ProfileEssential{},
@@ -35,9 +31,6 @@ func Post(c *core.Core, w http.ResponseWriter, r *http.Request) (result interfac
 // MiddlewareAuth validates the authorization header and adds
 // a corresponding user to the context
 func MiddlewareAuth(next http.Handler) http.Handler {
-	return func(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error) {
-
-	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		parts := strings.SplitN(r.Header.Get("Authorization"), " ", 2)
 		if len(parts) != 2 {
@@ -61,4 +54,14 @@ func MiddlewareAuth(next http.Handler) http.Handler {
 
 		//next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+func MWAuthentication(c *core.Core) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return endpoints.NewEndpoint(endpoints.NewName("authentication"), c, func(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error) {
+			spew.Dump("AUTHENTICATION MIDDLEWARE")
+
+			return result, http.StatusOK, nil
+		})
+	}
 }

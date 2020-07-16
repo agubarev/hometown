@@ -52,7 +52,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 
 	m.Logger().Debug(
 		"created new email",
-		zap.Int64("user_id", email.UserID),
+		zap.Uint32("user_id", email.UserID),
 		zap.String("addr", email.Addr),
 	)
 
@@ -103,7 +103,7 @@ func (m *Manager) EmailByAddr(ctx context.Context, addr string) (email Email, er
 }
 
 // PrimaryEmailByUserID obtains the primary email by user id
-func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID int64) (email Email, err error) {
+func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uint32) (email Email, err error) {
 	if userID == 0 {
 		return email, ErrEmailNotFound
 	}
@@ -162,7 +162,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int64("user_id", email.UserID),
+		zap.Uint32("user_id", email.UserID),
 		zap.String("addr", email.Addr),
 	)
 
@@ -171,7 +171,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 
 // DeleteEmailByAddr deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID int64, addr string) (err error) {
+func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uint32, addr string) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")
@@ -211,7 +211,7 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 	}
 
 	m.Logger().Info("email confirmed",
-		zap.Int64("user_id", email.UserID),
+		zap.Uint32("user_id", email.UserID),
 		zap.String("email", email.Addr),
 	)
 

@@ -14,7 +14,7 @@ import (
 // EmailNewObject contains fields sufficient to create a new object
 type NewEmailObject struct {
 	EmailEssential
-	UserID      int64
+	UserID      uint32
 	IsConfirmed bool
 }
 
@@ -36,7 +36,7 @@ type EmailMetadata struct {
 // Email represents certain emails which are custom
 // and are handled by the customer
 type Email struct {
-	UserID int64 `db:"user_id" json:"user_id"`
+	UserID uint32 `db:"user_id" json:"user_id"`
 
 	EmailEssential
 	EmailMetadata
@@ -91,7 +91,7 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			email.UserID = change.To.(int64)
+			email.UserID = change.To.(uint32)
 		case "Addr":
 			email.Addr = change.To.(string)
 		case "CreatedAt":

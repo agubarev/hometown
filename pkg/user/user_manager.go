@@ -218,7 +218,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 
 	m.Logger().Debug(
 		"created new user",
-		zap.Int64("id", u.ID),
+		zap.Uint32("id", u.ID),
 		zap.String("username", u.Username),
 		zap.String("email", newUser.EmailAddr),
 	)
@@ -256,7 +256,7 @@ func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []User) (us []Use
 }
 
 // UserByID returns a user if found by ObjectID
-func (m *Manager) UserByID(ctx context.Context, id int64) (u User, err error) {
+func (m *Manager) UserByID(ctx context.Context, id uint32) (u User, err error) {
 	if id == 0 {
 		return u, ErrUserNotFound
 	}
@@ -303,7 +303,7 @@ func (m *Manager) UserByEmailAddr(ctx context.Context, addr string) (u User, err
 
 // UpdateUser updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateUser(ctx context.Context, id int64, fn func(ctx context.Context, r User) (u User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context.Context, r User) (u User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, essentialChangelog, err
@@ -347,7 +347,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id int64, fn func(ctx context.
 
 	m.Logger().Debug(
 		"updated",
-		zap.Int64("id", u.ID),
+		zap.Uint32("id", u.ID),
 		zap.String("username", u.Username),
 	)
 
@@ -356,7 +356,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id int64, fn func(ctx context.
 
 // DeleteUserByID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteUserByID(ctx context.Context, id int64, isHard bool) (u User, err error) {
+func (m *Manager) DeleteUserByID(ctx context.Context, id uint32, isHard bool) (u User, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, errors.Wrap(err, "failed to obtain a store")
@@ -428,7 +428,7 @@ func (m *Manager) CheckAvailability(ctx context.Context, username string, email 
 }
 
 // SetPassword sets a new password for the user
-func (m *Manager) SetPassword(ctx context.Context, userID int64, p password.Password) (err error) {
+func (m *Manager) SetPassword(ctx context.Context, userID uint32, p password.Password) (err error) {
 	// paranoid check of whether the user is eligible to have
 	// a password created and stored
 	if userID == 0 {

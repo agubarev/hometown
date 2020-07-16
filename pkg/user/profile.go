@@ -14,7 +14,7 @@ import (
 // NewProfileObject contains fields sufficient to create a new object
 type NewProfileObject struct {
 	ProfileEssential
-	UserID int64 `db:"user_id" json:"user_id"`
+	UserID uint32 `db:"user_id" json:"user_id"`
 }
 
 // ProfileEssential represents an essential part of the primary object
@@ -37,7 +37,7 @@ type ProfileMetadata struct {
 // Profile represents certain profiles which are custom
 // and are handled by the customer
 type Profile struct {
-	UserID int64 `db:"user_id" json:"-"`
+	UserID uint32 `db:"user_id" json:"-"`
 
 	ProfileEssential
 	ProfileMetadata
@@ -78,7 +78,7 @@ func (p *Profile) hashKey() {
 	key.WriteString("profile")
 
 	// adding ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, int64(p.UserID)); err != nil {
+	if err := binary.Write(key, binary.LittleEndian, p.UserID); err != nil {
 		panic(errors.Wrap(err, "failed to hash profile key"))
 	}
 

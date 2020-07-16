@@ -34,4 +34,7 @@ var (
 	ErrZeroRoleID                = errors.New("role id is zero")
 	ErrZeroAssignorID            = errors.New("assignor id is zero")
 	ErrZeroAssigneeID            = errors.New("assignee id is zero")
+	ErrNothingChanged            = errors.New("nothing has changed")
+	ErrZeroID                    = errors.New("id is zero")
+	ErrNonZeroID                 = errors.New("id is non-zero")
 )

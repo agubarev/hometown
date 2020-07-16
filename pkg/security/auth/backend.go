@@ -35,7 +35,7 @@ type DefaultBackend struct {
 	rtokenMap map[string]Session
 
 	// is a map of user IDs to a map of tokens, containing the actual session
-	sessions map[int64]map[string]Session
+	sessions map[uint32]map[string]Session
 
 	// hasWorker flags whether this backend has a cleaner worker started
 	hasWorker bool
@@ -49,7 +49,7 @@ func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
 		blacklist:      make(map[string]RevokedAccessToken),
 		stokenMap:      make(map[string]Session),
-		sessions:       make(map[int64]map[string]Session),
+		sessions:       make(map[uint32]map[string]Session),
 		workerInterval: 1 * time.Minute,
 	}
 

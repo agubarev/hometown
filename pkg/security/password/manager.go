@@ -28,8 +28,8 @@ const (
 // userManager describes the behaviour of a user password manager
 type Manager interface {
 	Upsert(ctx context.Context, p Password) error
-	Get(ctx context.Context, kind Kind, ownerID int64) (Password, error)
-	Delete(ctx context.Context, kind Kind, ownerID int64) error
+	Get(ctx context.Context, kind Kind, ownerID uint32) (Password, error)
+	Delete(ctx context.Context, kind Kind, ownerID uint32) error
 }
 
 type defaultManager struct {
@@ -61,7 +61,7 @@ func (m *defaultManager) Upsert(ctx context.Context, p Password) (err error) {
 	return m.store.Upsert(ctx, p)
 }
 
-func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID int64) (p Password, err error) {
+func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID uint32) (p Password, err error) {
 	if m.store == nil {
 		return p, ErrNilPasswordStore
 	}
@@ -77,7 +77,7 @@ func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID int64) (p Pass
 	return m.store.Get(ctx, k, ownerID)
 }
 
-func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID int64) error {
+func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID uint32) error {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}
