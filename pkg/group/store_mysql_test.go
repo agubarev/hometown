@@ -1,30 +1,22 @@
 package group_test
 
-import (
-	"context"
-	"testing"
-
-	"github.com/agubarev/hometown/pkg/database"
-	"github.com/agubarev/hometown/pkg/group"
-	"github.com/stretchr/testify/assert"
-)
-
+/*
 func TestGroupStorePut(t *testing.T) {
 	a := assert.New(t)
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
 		DisplayName: group.NewName("test name"),
@@ -44,13 +36,13 @@ func TestGroupStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
 		DisplayName: group.NewName("test name"),
@@ -78,29 +70,29 @@ func TestGroupStoreGetAll(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	g1 := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
 		DisplayName: group.NewName("test name"),
 	}
 
 	g2 := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FRole,
 		Key:         group.NewKey("test_role"),
 		DisplayName: group.NewName("test role"),
 	}
 
 	g3 := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group123"),
 		DisplayName: group.NewName("test group 123"),
@@ -144,7 +136,7 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -180,7 +172,7 @@ func TestGroupStoreRelations(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := group.NewMySQLStore(db)
+	s, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -213,3 +205,4 @@ func TestGroupStoreRelations(t *testing.T) {
 	a.NoError(err)
 	a.False(ok)
 }
+*/

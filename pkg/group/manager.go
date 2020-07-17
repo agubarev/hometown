@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -65,6 +66,16 @@ func (ak AssetKind) String() string {
 	}
 }
 
+type Asset struct {
+	Kind AssetKind
+	ID   uuid.UUID
+}
+
+type Relation struct {
+	GroupID uuid.UUID
+	Asset   Asset
+}
+
 // Registry is a typed slice of groups to make sorting easier
 type List []Group
 
@@ -84,8 +95,8 @@ type Manager struct {
 	defaultIDs []uuid.UUID
 
 	// relationships
-	assetGroups map[uuid.UUID][]uuid.UUID // asset SubjectID -> slice of group IDs
-	groupAssets map[uuid.UUID][]uuid.UUID // group SubjectID -> slice of asset IDs
+	assetGroups map[Asset][]uuid.UUID // asset SubjectID -> slice of group IDs
+	groupAssets map[uuid.UUID][]Asset // group SubjectID -> slice of asset IDs
 
 	store  Store
 	logger *zap.Logger
@@ -102,8 +113,8 @@ func NewManager(ctx context.Context, s Store) (m *Manager, err error) {
 		groups:      make(map[uuid.UUID]Group, 0),
 		keyMap:      make(map[TKey]uuid.UUID),
 		defaultIDs:  make([]uuid.UUID, 0),
-		assetGroups: make(map[uuid.UUID][]uuid.UUID),
-		groupAssets: make(map[uuid.UUID][]uuid.UUID),
+		assetGroups: make(map[Asset][]uuid.UUID),
+		groupAssets: make(map[uuid.UUID][]Asset),
 		store:       s,
 	}
 
@@ -173,73 +184,17 @@ func (m *Manager) Init(ctx context.Context) error {
 		return errors.Wrap(err, "failed to fetch all relations")
 	}
 
+	spew.Dump(relations)
+
 	// creating runtime links of groups and assets
-	for mid, gids := range relations {
-		for _, gid := range gids {
-			if err = m.LinkAsset(ctx, gid, mid); err != nil {
-				m.Logger().Info(
-					"Init() failed to add group to container",
-					zap.String("group_id", gid.String()),
-					zap.String("asset_id", mid.String()),
-					zap.Error(err),
-				)
-			}
-		}
-	}
-
-	return nil
-}
-
-// DistributeAssets injects given assets into the manager, and linking
-// them to their respective groups and roles
-// NOTE: does not affect the store
-// TODO: replace assets slice with a channel to support a large numbers of assets
-func (m *Manager) DistributeAssets(ctx context.Context, assets []uuid.UUID) (err error) {
-	l := m.Logger()
-
-	s, err := m.Store()
-	if err != nil {
-		return err
-	}
-
-	// fetching all relations
-	l.Info("fetching group relations")
-	relations, err := s.FetchAllRelations(ctx)
-	if err != nil {
-		return err
-	}
-
-	// iterating over injected assets
-	l.Info("distributing assets among their respective groups")
-	for _, assetID := range assets {
-		// checking whether this assetID is listed among fetched relations
-		if groupIDs, ok := relations[assetID]; ok {
-			// iterating over a slice of group IDs related to this asset
-			for _, groupID := range groupIDs {
-				// obtaining the corresponding group
-				if _, err = m.GroupByID(ctx, groupID); err != nil {
-					if err != ErrGroupNotFound {
-						return errors.Wrapf(err, "failed to obtain group: %d", groupID)
-					}
-
-					// continuing even if an associated group is not found
-					l.Info(
-						"failed to apply group relation due to missing group",
-						zap.String("asset_id", assetID.String()),
-						zap.String("group_id", groupID.String()),
-					)
-				}
-
-				// linking assetID to a group
-				if err = m.LinkAsset(ctx, groupID, assetID); err != nil {
-					l.Warn(
-						"failed to link asset to group",
-						zap.String("asset_id", assetID.String()),
-						zap.String("group_id", groupID.String()),
-						zap.Error(err),
-					)
-				}
-			}
+	for _, rel := range relations {
+		if err = m.LinkAsset(ctx, rel.GroupID, rel.Asset.Kind, rel.Asset.ID); err != nil {
+			m.Logger().Info(
+				"Init() failed to add group to container",
+				zap.String("group_id", gid.String()),
+				zap.String("asset_id", mid.String()),
+				zap.Error(err),
+			)
 		}
 	}
 
@@ -370,7 +325,7 @@ func (m *Manager) Remove(ctx context.Context, groupID uuid.UUID) error {
 	delete(m.keyMap, g.Key)
 
 	//---------------------------------------------------------------------------
-	// discarding group assetship cache
+	// discarding group relationship cache
 	//---------------------------------------------------------------------------
 	// first, clearing out group SubjectID from every related asset
 	for _, assetID := range m.groupAssets[groupID] {
@@ -394,11 +349,13 @@ func (m *Manager) Remove(ctx context.Context, groupID uuid.UUID) error {
 func (m *Manager) List(kind Flags) (gs []Group) {
 	gs = make([]Group, 0)
 
+	m.RLock()
 	for _, g := range m.groups {
 		if g.Flags&kind != 0 {
 			gs = append(gs, g)
 		}
 	}
+	m.RUnlock()
 
 	return gs
 }
@@ -437,6 +394,16 @@ func (m *Manager) GroupByKey(ctx context.Context, key TKey) (g Group, err error)
 	if ok {
 		return g, nil
 	}
+
+	g, err = m.store.FetchGroupByKey(ctx, key)
+	if err != nil {
+		return g, errors.Wrapf(err, "failed to obtain group by key: %s", key)
+	}
+
+	m.Lock()
+	m.groups[g.ID] = g
+	m.keyMap[g.Key] = g.ID
+	m.Unlock()
 
 	return g, ErrGroupNotFound
 }
@@ -657,13 +624,13 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uuid.UUID)
 }
 
 // IsAsset tests whether a given asset belongs to a given group
-func (m *Manager) IsAsset(ctx context.Context, groupID, assetID uuid.UUID) bool {
-	if assetID == uuid.Nil || groupID == uuid.Nil {
+func (m *Manager) IsAsset(ctx context.Context, groupID uuid.UUID, asset Asset) bool {
+	if groupID == uuid.Nil || asset.ID == uuid.Nil {
 		return false
 	}
 
 	m.RLock()
-	for _, gid := range m.assetGroups[assetID] {
+	for _, gid := range m.assetGroups[asset] {
 		if gid == groupID {
 			m.RUnlock()
 			return true
@@ -775,17 +742,17 @@ func (m *Manager) DeleteRelation(ctx context.Context, groupID uuid.UUID, assetKi
 
 // LinkAsset adds a asset to the group assets
 // NOTE: does not affect the store
-func (m *Manager) LinkAsset(ctx context.Context, groupID, assetID uuid.UUID) (err error) {
+func (m *Manager) LinkAsset(ctx context.Context, groupID uuid.UUID, asset Asset) (err error) {
 	_, err = m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	if assetID == uuid.Nil {
+	if asset.ID == uuid.Nil {
 		return ErrZeroAssetID
 	}
 
-	if m.IsAsset(ctx, groupID, assetID) {
+	if m.IsAsset(ctx, groupID, asset) {
 		return ErrAlreadyAsset
 	}
 

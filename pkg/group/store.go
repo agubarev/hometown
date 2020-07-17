@@ -15,7 +15,7 @@ type Store interface {
 	FetchGroupByName(ctx context.Context, name TName) (g Group, err error)
 	FetchGroupsByName(ctx context.Context, isPartial bool, name TName) (gs []Group, err error)
 	FetchAllGroups(ctx context.Context) (gs []Group, err error)
-	FetchAllRelations(ctx context.Context) (map[uuid.UUID][]uuid.UUID, error)
+	FetchAllRelations(ctx context.Context) ([]Relation, error)
 	FetchGroupRelations(ctx context.Context, groupID uuid.UUID) ([]uuid.UUID, error)
 	HasRelation(ctx context.Context, groupID uuid.UUID, assetKind AssetKind, assetID uuid.UUID) (bool, error)
 	DeleteByID(ctx context.Context, groupID uuid.UUID) error

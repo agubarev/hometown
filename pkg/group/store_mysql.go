@@ -1,17 +1,6 @@
 package group
 
-import (
-	"context"
-	"database/sql"
-	"fmt"
-	"io"
-
-	"github.com/agubarev/hometown/pkg/util/guard"
-	"github.com/go-sql-driver/mysql"
-	"github.com/gocraft/dbr/v2"
-	"github.com/pkg/errors"
-)
-
+/*
 // MySQLStore is the default group store implementation
 type MySQLStore struct {
 	db *dbr.Connection
@@ -58,9 +47,9 @@ func (s *MySQLStore) getMany(ctx context.Context, q string, args ...interface{})
 
 // UpdatePolicy storing group
 func (s *MySQLStore) UpsertGroup(ctx context.Context, g Group) (Group, error) {
-	// if an object has ObjectID other than 0, then it's considered
+	// if an object has object id other than nil, then it's considered
 	// as being already created, thus requiring an update
-	if g.ID != 0 {
+	if g.ID != uuid.Nil {
 		return s.Update(ctx, g)
 	}
 
@@ -69,8 +58,8 @@ func (s *MySQLStore) UpsertGroup(ctx context.Context, g Group) (Group, error) {
 
 // Upsert creates a new database record
 func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
-	// if ObjectID is not 0, then it's not considered as new
-	if g.ID != 0 {
+	// if object id is not nil, then it's not considered as new
+	if g.ID != uuid.Nil {
 		return g, ErrNonZeroID
 	}
 
@@ -85,20 +74,12 @@ func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 		return g, err
 	}
 
-	// obtaining new record SubjectID
-	newID, err := res.LastInsertId()
-	if err != nil {
-		return g, errors.Wrap(err, "failed to obtain new group SubjectID")
-	}
-
-	g.ID = uint32(newID)
-
 	return g, nil
 }
 
 // UpdatePolicy updates an existing group
 func (s *MySQLStore) Update(ctx context.Context, g Group) (Group, error) {
-	if g.ID == 0 {
+	if g.ID == uuid.Nil {
 		return g, ErrZeroID
 	}
 
@@ -127,7 +108,7 @@ func (s *MySQLStore) Update(ctx context.Context, g Group) (Group, error) {
 	return g, nil
 }
 
-func (s *MySQLStore) FetchGroupByID(ctx context.Context, id uint32) (Group, error) {
+func (s *MySQLStore) FetchGroupByID(ctx context.Context, id uuid.UUID) (Group, error) {
 	return s.get(ctx, "SELECT * FROM `group` WHERE id = ? LIMIT 1", id)
 }
 
@@ -157,7 +138,7 @@ func (s *MySQLStore) FetchAllGroups(ctx context.Context) ([]Group, error) {
 }
 
 // DeletePolicy from the store by group ObjectID
-func (s *MySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
+func (s *MySQLStore) DeleteByID(ctx context.Context, id uuid.UUID) (err error) {
 	g, err := s.FetchGroupByID(ctx, id)
 	if err != nil {
 		return err
@@ -189,7 +170,7 @@ func (s *MySQLStore) DeleteByID(ctx context.Context, id uint32) (err error) {
 }
 
 // CreateRelation store a relation flagging that user belongs to a group
-func (s *MySQLStore) CreateRelation(ctx context.Context, groupID uint32, userID uint32) (err error) {
+func (s *MySQLStore) CreateRelation(ctx context.Context, groupID uuid.UUID, userID uuid.UUID) (err error) {
 	_, err = s.db.ExecContext(
 		ctx,
 		"INSERT IGNORE INTO `group_users`(group_id, user_id) VALUES(?, ?)",
@@ -202,8 +183,8 @@ func (s *MySQLStore) CreateRelation(ctx context.Context, groupID uint32, userID 
 
 // FetchAllRelations retrieving all relations
 // NOTE: a map of users IDs -> a slice of group IDs
-func (s *MySQLStore) FetchAllRelations(ctx context.Context) (relations map[uint32][]uint32, err error) {
-	relations = make(map[uint32][]uint32, 0)
+func (s *MySQLStore) FetchAllRelations(ctx context.Context) (relations map[uuid.UUID][]uuid.UUID, err error) {
+	relations = make(map[uuid.UUID][]uuid.UUID, 0)
 
 	// querying for just one column (user_id)
 	rows, err := s.db.NewSession(nil).QueryContext(ctx, "SELECT group_id, user_id FROM `group_users`")
@@ -223,14 +204,14 @@ func (s *MySQLStore) FetchAllRelations(ctx context.Context) (relations map[uint3
 
 	// iterating over and scanning found relations
 	for rows.Next() {
-		var groupID, userID uint32
+		var groupID, userID uuid.UUID
 		if err := rows.Scan(&groupID, &userID); err != nil {
 			return nil, err
 		}
 
 		// initializing a nested slice if it's nil
 		if relations[userID] == nil {
-			relations[userID] = make([]uint32, 0)
+			relations[userID] = make([]uuid.UUID, 0)
 		}
 
 		// adding user ObjectID to the resulting slice
@@ -241,8 +222,8 @@ func (s *MySQLStore) FetchAllRelations(ctx context.Context) (relations map[uint3
 }
 
 // FetchGroupRelations retrieving all group-user relations
-func (s *MySQLStore) FetchGroupRelations(ctx context.Context, groupID uint32) ([]uint32, error) {
-	relations := make([]uint32, 0)
+func (s *MySQLStore) FetchGroupRelations(ctx context.Context, groupID uuid.UUID) ([]uuid.UUID, error) {
+	relations := make([]uuid.UUID, 0)
 
 	sess := s.db.NewSession(nil)
 
@@ -264,7 +245,7 @@ func (s *MySQLStore) FetchGroupRelations(ctx context.Context, groupID uint32) ([
 
 	// iterating over and scanning found relations
 	for rows.Next() {
-		var userID uint32
+		var userID uuid.UUID
 
 		if err := rows.Scan(&userID); err != nil {
 			return nil, err
@@ -278,13 +259,13 @@ func (s *MySQLStore) FetchGroupRelations(ctx context.Context, groupID uint32) ([
 }
 
 // HasRelation checks whether group-user relation exists
-func (s *MySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uint32) (bool, error) {
+func (s *MySQLStore) HasRelation(ctx context.Context, groupID uuid.UUID, userID uuid.UUID) (bool, error) {
 	sess := s.db.NewSession(nil)
 
 	// querying for just one column (user_id)
 	rows, err := sess.QueryContext(
 		ctx,
-		"SELECT group_id, user_id FROM `group_users` WHERE group_id = ? AND user_id = ? LIMIT 1",
+		"SELECT group_id, asset_id FROM `group_assets` WHERE group_id = ? AND user_id = ? LIMIT 1",
 		groupID,
 		userID,
 	)
@@ -310,7 +291,7 @@ func (s *MySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uin
 
 	// iterating over and scanning found relations
 	for rows.Next() {
-		var foundGroupID, foundUserID uint32
+		var foundGroupID, foundUserID uuid.UUID
 		if err := rows.Scan(&foundGroupID, &foundUserID); err != nil {
 			return false, err
 		}
@@ -325,7 +306,7 @@ func (s *MySQLStore) HasRelation(ctx context.Context, groupID uint32, userID uin
 }
 
 // DeleteRelation deletes a group-user relation
-func (s *MySQLStore) DeleteRelation(ctx context.Context, groupID uint32, userID uint32) error {
+func (s *MySQLStore) DeleteRelation(ctx context.Context, groupID uuid.UUID, userID uuid.UUID) error {
 	res, err := s.db.ExecContext(
 		ctx,
 		"DELETE FROM `group_users` WHERE group_id = ? AND user_id = ? LIMIT 1",
@@ -358,3 +339,4 @@ func (s *MySQLStore) DeleteRelation(ctx context.Context, groupID uint32, userID 
 
 	return nil
 }
+*/

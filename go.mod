@@ -14,7 +14,7 @@ require (
 	github.com/go-chi/chi v4.0.3+incompatible
 	github.com/go-sql-driver/mysql v1.5.0
 	github.com/gocraft/dbr/v2 v2.7.0
-	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/golang/protobuf v1.3.3 // indirect
 	github.com/google/uuid v1.1.1
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
@@ -26,7 +26,6 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d
-	github.com/neelance/astrewrite v0.0.0-20160511093645-99348263ae86 // indirect
 	github.com/oklog/ulid v1.3.1
 	github.com/pelletier/go-toml v1.6.0 // indirect
 	github.com/pkg/errors v0.9.1

@@ -6,6 +6,7 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -23,8 +24,8 @@ func TestPostgreSQLStore_UpsertGroup(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
 		DisplayName: group.NewName("test name"),
@@ -49,8 +50,8 @@ func TestPostgreSQLStore_FetchGroupByID(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
 		DisplayName: group.NewName("test name"),
@@ -83,24 +84,24 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 	a.NotNil(s)
 
 	g1 := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
 		DisplayName: group.NewName("test name"),
 	}
 
 	g2 := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FRole,
 		Key:         group.NewKey("test_role"),
 		DisplayName: group.NewName("test role"),
 	}
 
 	g3 := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group123"),
 		DisplayName: group.NewName("test group 123"),
@@ -149,8 +150,8 @@ func TestPostgreSQLStore_DeleteByID(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group"),
 		DisplayName: group.NewName("test group"),
@@ -185,31 +186,33 @@ func TestPostgreSQLStore_DeleteRelation(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          0,
-		ParentID:    0,
+		ID:          uuid.Nil,
+		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group"),
 		DisplayName: group.NewName("test group"),
 	}
 
+	uid1 := uuid.New()
+
 	// making sure there is no previous relation
-	ok, err := s.HasRelation(ctx, g.ID, 1)
+	ok, err := s.HasRelation(ctx, g.ID, group.AKUser, uid1)
 	a.NoError(err)
 	a.False(ok)
 
 	// creating a relation
-	a.NoError(s.CreateRelation(ctx, g.ID, 1))
+	a.NoError(s.CreateRelation(ctx, g.ID, group.AKUser, uid1))
 
 	// now they must be related
-	ok, err = s.HasRelation(ctx, g.ID, 1)
+	ok, err = s.HasRelation(ctx, g.ID, group.AKUser, uid1)
 	a.NoError(err)
 	a.True(ok)
 
 	// breaking relation
-	a.NoError(s.DeleteRelation(ctx, g.ID, 1))
+	a.NoError(s.DeleteRelation(ctx, g.ID, group.AKUser, uid1))
 
 	// making sure the relation is gone
-	ok, err = s.HasRelation(ctx, g.ID, 1)
+	ok, err = s.HasRelation(ctx, g.ID, group.AKUser, uid1)
 	a.NoError(err)
 	a.False(ok)
 }
