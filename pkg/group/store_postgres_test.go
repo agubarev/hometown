@@ -24,7 +24,7 @@ func TestPostgreSQLStore_UpsertGroup(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
@@ -50,7 +50,7 @@ func TestPostgreSQLStore_FetchGroupByID(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
@@ -84,7 +84,7 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 	a.NotNil(s)
 
 	g1 := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_key"),
@@ -92,7 +92,7 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 	}
 
 	g2 := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FRole,
 		Key:         group.NewKey("test_role"),
@@ -100,7 +100,7 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 	}
 
 	g3 := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group123"),
@@ -150,13 +150,14 @@ func TestPostgreSQLStore_DeleteByID(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group"),
 		DisplayName: group.NewName("test group"),
 	}
 
+	// creating test group
 	g, err = s.UpsertGroup(ctx, g)
 	a.NoError(err)
 
@@ -186,33 +187,37 @@ func TestPostgreSQLStore_DeleteRelation(t *testing.T) {
 	a.NotNil(s)
 
 	g := group.Group{
-		ID:          uuid.Nil,
+		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
 		Key:         group.NewKey("test_group"),
 		DisplayName: group.NewName("test group"),
 	}
 
+	// creating test group
+	g, err = s.UpsertGroup(ctx, g)
+	a.NoError(err)
+
 	uid1 := uuid.New()
 
 	// making sure there is no previous relation
-	ok, err := s.HasRelation(ctx, g.ID, group.AKUser, uid1)
+	ok, err := s.HasRelation(ctx, group.NewRelation(g.ID, group.AKUser, uid1))
 	a.NoError(err)
 	a.False(ok)
 
 	// creating a relation
-	a.NoError(s.CreateRelation(ctx, g.ID, group.AKUser, uid1))
+	a.NoError(s.CreateRelation(ctx, group.NewRelation(g.ID, group.AKUser, uid1)))
 
 	// now they must be related
-	ok, err = s.HasRelation(ctx, g.ID, group.AKUser, uid1)
+	ok, err = s.HasRelation(ctx, group.NewRelation(g.ID, group.AKUser, uid1))
 	a.NoError(err)
 	a.True(ok)
 
 	// breaking relation
-	a.NoError(s.DeleteRelation(ctx, g.ID, group.AKUser, uid1))
+	a.NoError(s.DeleteRelation(ctx, group.NewRelation(g.ID, group.AKUser, uid1)))
 
 	// making sure the relation is gone
-	ok, err = s.HasRelation(ctx, g.ID, group.AKUser, uid1)
+	ok, err = s.HasRelation(ctx, group.NewRelation(g.ID, group.AKUser, uid1))
 	a.NoError(err)
 	a.False(ok)
 }

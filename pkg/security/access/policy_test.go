@@ -1,4 +1,4 @@
-package accesspolicy_test
+package access_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/security/accesspolicy"
+	"github.com/agubarev/hometown/pkg/security/access"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -22,7 +22,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -37,22 +37,22 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
 	p, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key"), // key
-		0,                               // owner ID
-		0,                               // parent ID
-		0,                               // object ID
-		accesspolicy.TObjectName{},      // object type
-		0,                               // flags
+		access.NewKey("test_key"), // key
+		0,                         // owner ID
+		0,                         // parent ID
+		0,                         // object ID
+		access.TObjectName{},      // object type
+		0,                         // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(accesspolicy.NewKey("test_key"), p.Key)
+	a.Equal(access.NewKey("test_key"), p.Key)
 	a.Zero(p.OwnerID)
 	a.Zero(p.ParentID)
 	a.Zero(p.ObjectID)
@@ -61,16 +61,16 @@ func TestNewAccessPolicy(t *testing.T) {
 
 	p, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key2"), // key
-		1,                                // owner ID
-		0,                                // parent ID
-		0,                                // object ID
-		accesspolicy.TObjectName{},       // object type
-		0,                                // flags
+		access.NewKey("test_key2"), // key
+		1,                          // owner ID
+		0,                          // parent ID
+		0,                          // object ID
+		access.TObjectName{},       // object type
+		0,                          // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(accesspolicy.NewKey("test_key2"), p.Key)
+	a.Equal(access.NewKey("test_key2"), p.Key)
 	a.Equal(uint32(1), p.OwnerID)
 	a.Zero(p.ParentID)
 	a.Zero(p.ObjectID)
@@ -80,16 +80,16 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with parent
 	pWithParent, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key3"), // key
-		1,                                // owner ID
-		p.ID,                             // parent ID
-		0,                                // object ID
-		accesspolicy.TObjectName{},       // object type
-		0,                                // flags
+		access.NewKey("test_key3"), // key
+		1,                          // owner ID
+		p.ID,                       // parent ID
+		0,                          // object ID
+		access.TObjectName{},       // object type
+		0,                          // flags
 	)
 	a.NoError(err)
 	a.NotNil(pWithParent)
-	a.Equal(accesspolicy.NewKey("test_key3"), pWithParent.Key)
+	a.Equal(access.NewKey("test_key3"), pWithParent.Key)
 	a.Equal(uint32(1), pWithParent.OwnerID)
 	a.Equal(p.ID, pWithParent.ParentID)
 	a.False(pWithParent.IsInherited())
@@ -98,36 +98,36 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with inheritance (without a parent)
 	_, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key4"), // key
-		1,                                // owner ID
-		0,                                // parent ID
-		1,                                // object ID
-		accesspolicy.NewObjectName("test object"), // object type
-		accesspolicy.FInherit,                     // flags
+		access.NewKey("test_key4"),          // key
+		1,                                   // owner ID
+		0,                                   // parent ID
+		1,                                   // object ID
+		access.NewObjectName("test object"), // object type
+		access.FInherit,                     // flags
 	)
 	a.Error(err)
 
 	// with extension (without a parent)
 	_, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key5"), // key
-		1,                                // owner ID
-		0,                                // parent ID
-		1,                                // object ID
-		accesspolicy.NewObjectName("test object"), // object type
-		accesspolicy.FExtend,                      // flags
+		access.NewKey("test_key5"),          // key
+		1,                                   // owner ID
+		0,                                   // parent ID
+		1,                                   // object ID
+		access.NewObjectName("test object"), // object type
+		access.FExtend,                      // flags
 	)
 	a.Error(err)
 
 	// with inheritance (with a parent)
 	pInheritedWithParent, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key6"), // key
-		1,                                // owner ID
-		p.ID,                             // parent ID
-		1,                                // object ID
-		accesspolicy.NewObjectName("test object"), // object type
-		accesspolicy.FInherit,                     // flags
+		access.NewKey("test_key6"),          // key
+		1,                                   // owner ID
+		p.ID,                                // parent ID
+		1,                                   // object ID
+		access.NewObjectName("test object"), // object type
+		access.FInherit,                     // flags
 	)
 	a.NoError(err)
 	a.NotNil(pInheritedWithParent)
@@ -135,12 +135,12 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with extension (with a parent)
 	pExtendedWithParent, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key7"), // key
-		1,                                // owner ID
-		p.ID,                             // parent ID
-		1,                                // object ID
-		accesspolicy.NewObjectName("another test object"), // object type
-		accesspolicy.FExtend,                              // flags
+		access.NewKey("test_key7"), // key
+		1,                          // owner ID
+		p.ID,                       // parent ID
+		1,                          // object ID
+		access.NewObjectName("another test object"), // object type
+		access.FExtend, // flags
 	)
 	a.NoError(err)
 	a.NotNil(pExtendedWithParent)
@@ -161,7 +161,7 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -176,23 +176,23 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := accesspolicy.APView | accesspolicy.APChange
+	wantedRights := access.APView | access.APChange
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
 	//---------------------------------------------------------------------------
 	p, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key"), // key
-		1,                               // owner ID
-		0,                               // parent ID
-		0,                               // object ID
-		accesspolicy.TObjectName{},      // object type
-		0,                               // flags
+		access.NewKey("test_key"), // key
+		1,                         // owner ID
+		0,                         // parent ID
+		0,                         // object ID
+		access.TObjectName{},      // object type
+		0,                         // flags
 	)
 	a.NoError(err)
 
@@ -204,19 +204,19 @@ func TestSetPublicRights(t *testing.T) {
 	a.NoError(m.SetPublicRights(ctx, p.ID, 1, wantedRights))
 	a.NoError(m.Update(ctx, p))
 	a.Equal(wantedRights, roster.Everyone)
-	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, p.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKEveryone, p.ID, 1, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent and inheritance only
 	//---------------------------------------------------------------------------
 	pWithInheritance, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test_key_w_inheritance"), // key
-		1,                          // owner ID
-		p.ID,                       // parent ID
-		0,                          // object ID
-		accesspolicy.TObjectName{}, // object type
-		accesspolicy.FInherit,      // flags
+		access.NewKey("test_key_w_inheritance"), // key
+		1,                                       // owner ID
+		p.ID,                                    // parent ID
+		0,                                       // object ID
+		access.TObjectName{},                    // object type
+		access.FInherit,                         // flags
 	)
 	// not setting it's own rights as it must inherit them from a parent
 	a.NoError(err)
@@ -228,19 +228,19 @@ func TestSetPublicRights(t *testing.T) {
 
 	parent, err := m.PolicyByID(ctx, pWithInheritance.ParentID)
 	a.NoError(err)
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pWithInheritance.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pWithInheritance.ID, 1, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, inheritance false, extend true; using parent's rights no own rights
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		accesspolicy.TKey{}, // key
-		0,                   // owner ID
-		parent.ID,           // parent ID
-		1,                   // object ID
-		accesspolicy.NewObjectName("some object"), // object type
-		accesspolicy.FExtend,                      // flags
+		access.TKey{},                       // key
+		0,                                   // owner ID
+		parent.ID,                           // parent ID
+		1,                                   // object ID
+		access.NewObjectName("some object"), // object type
+		access.FExtend,                      // flags
 	)
 	a.NoError(err)
 
@@ -251,8 +251,8 @@ func TestSetPublicRights(t *testing.T) {
 
 	parent, err = m.PolicyByID(ctx, pExtendedNoOwn.ParentID)
 	a.NoError(err)
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, parent.ID, 1, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedNoOwn.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, parent.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedNoOwn.ID, 1, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, inherit false, extend true; using parent's rights with it's own
@@ -261,15 +261,15 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		accesspolicy.TKey{}, // key
-		1,                   // owner ID
-		parent.ID,           // parent ID
-		1,                   // object ID
-		accesspolicy.NewObjectName("and another object"), // object type
-		accesspolicy.FExtend,                             // flags
+		access.TKey{}, // key
+		1,             // owner ID
+		parent.ID,     // parent ID
+		1,             // object ID
+		access.NewObjectName("and another object"), // object type
+		access.FExtend, // flags
 	)
 	a.NoError(err)
-	a.NoError(m.SetPublicRights(ctx, pExtendedWithOwn.ID, 1, wantedRights|accesspolicy.APMove))
+	a.NoError(m.SetPublicRights(ctx, pExtendedWithOwn.ID, 1, wantedRights|access.APMove))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	parent, err = m.PolicyByID(ctx, pExtendedWithOwn.ParentID)
@@ -284,7 +284,7 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(parentRoster)
 
 	a.Equal(wantedRights, parentRoster.Everyone)
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedWithOwn.ID, 1, wantedRights|accesspolicy.APMove))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedWithOwn.ID, 1, wantedRights|access.APMove))
 }
 
 func TestSetGroupRights(t *testing.T) {
@@ -302,7 +302,7 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -317,11 +317,11 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := accesspolicy.APView | accesspolicy.APChange
+	wantedRights := access.APView | access.APChange
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
@@ -329,12 +329,12 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("parent"), // key
-		1,                             // owner ID
-		0,                             // parent ID
-		0,                             // object ID
-		accesspolicy.TObjectName{},    // object type
-		0,                             // flags
+		access.NewKey("parent"), // key
+		1,                       // owner ID
+		0,                       // parent ID
+		0,                       // object ID
+		access.TObjectName{},    // object type
+		0,                       // flags
 	)
 	a.NoError(err)
 
@@ -355,7 +355,7 @@ func TestSetGroupRights(t *testing.T) {
 	// assigning wanted rights to the first group (1)
 	a.NoError(m.SetGroupRights(ctx, basePolicy.ID, 1, g1.ID, wantedRights))
 	a.NoError(m.Update(ctx, basePolicy))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, basePolicy.ID, g1.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, basePolicy.ID, g1.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// now with parent, using inheritance only, no extension
@@ -364,18 +364,18 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInherit, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("with inherit"), // key
-		0,                                   // owner ID
-		basePolicy.ID,                       // parent ID
-		0,                                   // object ID
-		accesspolicy.TObjectName{},          // object type
-		accesspolicy.FInherit,               // flags
+		access.NewKey("with inherit"), // key
+		0,                             // owner ID
+		basePolicy.ID,                 // parent ID
+		0,                             // object ID
+		access.TObjectName{},          // object type
+		access.FInherit,               // flags
 	)
 	a.NoError(err)
 
 	// checking rights on both parent and its child
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pWithInherit.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pWithInherit.ID, 2, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// + with parent
@@ -385,18 +385,18 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("with extend, no own rights"), // key
-		0,                          // owner ID
-		basePolicy.ID,              // parent ID
-		0,                          // object ID
-		accesspolicy.TObjectName{}, // object type
-		accesspolicy.FExtend,       // flags
+		access.NewKey("with extend, no own rights"), // key
+		0,                    // owner ID
+		basePolicy.ID,        // parent ID
+		0,                    // object ID
+		access.TObjectName{}, // object type
+		access.FExtend,       // flags
 	)
 	a.NoError(err)
 
 	// checking rights on the extended policy
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedNoOwn.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedNoOwn.ID, 2, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, inheritance false, extend true; using parent's rights with it's own
@@ -405,22 +405,22 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("with extend and own rights"), // key
-		0,                          // owner ID
-		basePolicy.ID,              // parent ID
-		0,                          // object ID
-		accesspolicy.TObjectName{}, // object type
-		accesspolicy.FExtend,       // flags
+		access.NewKey("with extend and own rights"), // key
+		0,                    // owner ID
+		basePolicy.ID,        // parent ID
+		0,                    // object ID
+		access.TObjectName{}, // object type
+		access.FExtend,       // flags
 	)
 	a.NoError(err)
 
 	// setting own rights for this policy
-	a.NoError(m.SetUserRights(ctx, pExtendedWithOwn.ID, 1, 2, accesspolicy.APMove))
+	a.NoError(m.SetUserRights(ctx, pExtendedWithOwn.ID, 1, 2, access.APMove))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	// expecting a proper blend with parent rights
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedWithOwn.ID, 2, wantedRights|accesspolicy.APMove))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedWithOwn.ID, 2, wantedRights|access.APMove))
 }
 
 func TestSetRoleRights(t *testing.T) {
@@ -438,7 +438,7 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -453,11 +453,11 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := accesspolicy.APChange | accesspolicy.APDelete
+	wantedRights := access.APChange | access.APDelete
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
@@ -465,12 +465,12 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("parent"), // key
-		1,                             // owner ID
-		0,                             // parent ID
-		0,                             // object ID
-		accesspolicy.TObjectName{},    // object type
-		0,                             // flags
+		access.NewKey("parent"), // key
+		1,                       // owner ID
+		0,                       // parent ID
+		0,                       // object ID
+		access.TObjectName{},    // object type
+		0,                       // flags
 	)
 	a.NoError(err)
 
@@ -491,7 +491,7 @@ func TestSetRoleRights(t *testing.T) {
 	// assigning wanted rights to the first role (1)
 	a.NoError(m.SetRoleRights(ctx, basePolicy.ID, 1, r1.ID, wantedRights))
 	a.NoError(m.Update(ctx, basePolicy))
-	a.True(m.HasRights(ctx, accesspolicy.SKRoleGroup, basePolicy.ID, r1.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKRoleGroup, basePolicy.ID, r1.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// now with parent, using inheritance only, no extension
@@ -500,18 +500,18 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInherit, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("with inherit"), // key
-		1,                                   // owner ID
-		basePolicy.ID,                       // parent ID
-		0,                                   // object ID
-		accesspolicy.TObjectName{},          // object type
-		accesspolicy.FInherit,               // flags
+		access.NewKey("with inherit"), // key
+		1,                             // owner ID
+		basePolicy.ID,                 // parent ID
+		0,                             // object ID
+		access.TObjectName{},          // object type
+		access.FInherit,               // flags
 	)
 	a.NoError(err)
 
 	// checking rights on both parent and its child
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pWithInherit.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pWithInherit.ID, 2, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// + with parent
@@ -521,18 +521,18 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("with extend, no own rights"), // key
-		1,                          // owner ID
-		basePolicy.ID,              // parent ID
-		0,                          // object ID
-		accesspolicy.TObjectName{}, // object type
-		accesspolicy.FExtend,       // flags
+		access.NewKey("with extend, no own rights"), // key
+		1,                    // owner ID
+		basePolicy.ID,        // parent ID
+		0,                    // object ID
+		access.TObjectName{}, // object type
+		access.FExtend,       // flags
 	)
 	a.NoError(err)
 
 	// checking rights on the extended policy
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedNoOwn.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedNoOwn.ID, 2, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, inheritance false, extend true; using parent's rights with it's own
@@ -541,22 +541,22 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("with extend and own rights"), // key
-		1,                          // owner ID
-		basePolicy.ID,              // parent ID
-		0,                          // object ID
-		accesspolicy.TObjectName{}, // object type
-		accesspolicy.FExtend,       // flags
+		access.NewKey("with extend and own rights"), // key
+		1,                    // owner ID
+		basePolicy.ID,        // parent ID
+		0,                    // object ID
+		access.TObjectName{}, // object type
+		access.FExtend,       // flags
 	)
 	a.NoError(err)
 
 	// setting own rights for this policy
-	a.NoError(m.SetUserRights(ctx, pExtendedWithOwn.ID, 1, 2, accesspolicy.APCopy))
+	a.NoError(m.SetUserRights(ctx, pExtendedWithOwn.ID, 1, 2, access.APCopy))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	// expecting a proper blend with parent rights
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedWithOwn.ID, 2, wantedRights|accesspolicy.APCopy))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedWithOwn.ID, 2, wantedRights|access.APCopy))
 }
 
 func TestSetUserRights(t *testing.T) {
@@ -574,7 +574,7 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -589,11 +589,11 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := accesspolicy.APChange | accesspolicy.APDelete
+	wantedRights := access.APChange | access.APDelete
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
@@ -601,18 +601,18 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("base policy"), // key
-		1,                                  // owner ID
-		0,                                  // parent ID
-		0,                                  // object ID
-		accesspolicy.TObjectName{},         // object type
-		0,                                  // flags
+		access.NewKey("base policy"), // key
+		1,                            // owner ID
+		0,                            // parent ID
+		0,                            // object ID
+		access.TObjectName{},         // object type
+		0,                            // flags
 	)
 	a.NoError(err)
 	a.NoError(m.SetUserRights(ctx, basePolicy.ID, 1, 2, wantedRights))
 	a.NoError(m.Update(ctx, basePolicy))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 1, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 2, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 2, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, using inheritance only
@@ -620,17 +620,17 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInheritance, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("inheritance only"), // key
-		0,                                       // owner ID
-		basePolicy.ID,                           // parent ID
-		0,                                       // object ID
-		accesspolicy.TObjectName{},              // object type
-		accesspolicy.FInherit,                   // flags
+		access.NewKey("inheritance only"), // key
+		0,                                 // owner ID
+		basePolicy.ID,                     // parent ID
+		0,                                 // object ID
+		access.TObjectName{},              // object type
+		access.FInherit,                   // flags
 	)
 	a.NoError(err)
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 1, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pWithInheritance.ID, 2, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, pWithInheritance.ID, 3, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pWithInheritance.ID, 2, wantedRights))
+	a.False(m.HasRights(ctx, access.SKUser, pWithInheritance.ID, 3, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, legacy false, extend true; using parent's rights through
@@ -638,17 +638,17 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("extension only"), // key
-		0,                                     // owner ID
-		basePolicy.ID,                         // parent ID
-		0,                                     // object ID
-		accesspolicy.TObjectName{},            // object type
-		accesspolicy.FExtend,                  // flags
+		access.NewKey("extension only"), // key
+		0,                               // owner ID
+		basePolicy.ID,                   // parent ID
+		0,                               // object ID
+		access.TObjectName{},            // object type
+		access.FExtend,                  // flags
 	)
 	a.NoError(err)
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 1, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedNoOwn.ID, 2, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, pExtendedNoOwn.ID, 3, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedNoOwn.ID, 2, wantedRights))
+	a.False(m.HasRights(ctx, access.SKUser, pExtendedNoOwn.ID, 3, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, no inherit, extend true; using parent's rights with it's own
@@ -657,20 +657,20 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("extension with own rights"), // key
-		0,                          // owner ID
-		basePolicy.ID,              // parent ID
-		0,                          // object ID
-		accesspolicy.TObjectName{}, // object type
-		accesspolicy.FExtend,       // flags
+		access.NewKey("extension with own rights"), // key
+		0,                    // owner ID
+		basePolicy.ID,        // parent ID
+		0,                    // object ID
+		access.TObjectName{}, // object type
+		access.FExtend,       // flags
 	)
 	a.NoError(err)
-	a.NoError(m.SetUserRights(ctx, pExtendedWithOwn.ID, 1, 2, wantedRights|accesspolicy.APMove))
+	a.NoError(m.SetUserRights(ctx, pExtendedWithOwn.ID, 1, 2, wantedRights|access.APMove))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, basePolicy.ID, 1, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, pExtendedWithOwn.ID, 2, wantedRights|accesspolicy.APMove))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, pExtendedWithOwn.ID, 3, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, pExtendedWithOwn.ID, 3, wantedRights|accesspolicy.APMove))
+	a.True(m.HasRights(ctx, access.SKUser, basePolicy.ID, 1, wantedRights))
+	a.True(m.HasRights(ctx, access.SKUser, pExtendedWithOwn.ID, 2, wantedRights|access.APMove))
+	a.False(m.HasRights(ctx, access.SKUser, pExtendedWithOwn.ID, 3, wantedRights))
+	a.False(m.HasRights(ctx, access.SKUser, pExtendedWithOwn.ID, 3, wantedRights|access.APMove))
 }
 
 func TestIsOwner(t *testing.T) {
@@ -688,7 +688,7 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -703,7 +703,7 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -712,30 +712,30 @@ func TestIsOwner(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy"), // key
-		1,                                  // owner ID
-		0,                                  // parent ID
-		0,                                  // object ID
-		accesspolicy.TObjectName{},         // object type
-		0,                                  // flags
+		access.NewKey("test policy"), // key
+		1,                            // owner ID
+		0,                            // parent ID
+		0,                            // object ID
+		access.TObjectName{},         // object type
+		0,                            // flags
 	)
 	a.NoError(err)
 
 	// testing owner and testuser rights
-	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, accesspolicy.APView))
+	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, access.APView))
 	a.NoError(m.Update(ctx, ap))
 
 	// user 1 (owner)
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APChange))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APDelete))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APFullAccess))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APChange))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APDelete))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APFullAccess))
 
 	// user 2
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APDelete))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APFullAccess))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APDelete))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APFullAccess))
 
 	a.True(ap.IsOwner(1))
 	a.False(ap.IsOwner(2))
@@ -756,7 +756,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -771,7 +771,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -780,22 +780,22 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy"), // key
-		1,                                  // owner ID
-		0,                                  // parent ID
-		0,                                  // object ID
-		accesspolicy.TObjectName{},         // object type
-		0,                                  // flags
+		access.NewKey("test policy"), // key
+		1,                            // owner ID
+		0,                            // parent ID
+		0,                            // object ID
+		access.TObjectName{},         // object type
+		0,                            // flags
 	)
 	a.NoError(err)
 
 	//---------------------------------------------------------------------------
 	// setting base rights and saving them safely
 	//---------------------------------------------------------------------------
-	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, accesspolicy.APView|accesspolicy.APChange))
+	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, access.APView|access.APChange))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
 
 	//---------------------------------------------------------------------------
 	// setting additional rights correctly and incorrectly
@@ -803,42 +803,42 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	// safe point of when it was either loaded or safely stored
 	//---------------------------------------------------------------------------
 	// assigning a few rights but not updating the store
-	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, accesspolicy.APView|accesspolicy.APChange|accesspolicy.APDelete))
+	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, access.APView|access.APChange|access.APDelete))
 
 	// testing the rights which haven't been persisted yet
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APChange))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APDelete))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APFullAccess))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APFullAccess))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APChange))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APDelete))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APFullAccess))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APFullAccess))
 	a.True(ap.IsOwner(1))
 	a.False(ap.IsOwner(2))
 
 	// attempting to set rights as a second user to a third
 	// NOTE: must fail and restore backup, clearing out any changes made
 	// WARNING: THIS MUST FAIL AND RESTORE BACKUP, ROLLING BACK ANY CHANGES ON THE POLICY ROSTER
-	a.EqualError(m.SetUserRights(ctx, ap.ID, 2, 3, accesspolicy.APChange), accesspolicy.ErrExcessOfRights.Error())
+	a.EqualError(m.SetUserRights(ctx, ap.ID, 2, 3, access.APChange), access.ErrExcessOfRights.Error())
 
 	// NOTE: this update must be harmless, because there must be nothing to change
 	a.NoError(m.Update(ctx, ap))
 
 	// checking whether the rights were returned to its previous state
 	// user 1
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APChange))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APDelete))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 1, accesspolicy.APFullAccess))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APChange))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APDelete))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 1, access.APFullAccess))
 
 	// user 2
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APDelete))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APFullAccess))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APDelete))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APFullAccess))
 
 	// user 3 (assignment to this user must've provoked the restoration)
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 3, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 3, access.APChange))
 
 	// just in case
 	a.True(ap.IsOwner(1))
@@ -861,7 +861,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -876,7 +876,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -893,19 +893,19 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, g.ID, 1))
 
-	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APCopy | accesspolicy.APDelete
+	wantedRights := access.APView | access.APChange | access.APCopy | access.APDelete
 
 	//---------------------------------------------------------------------------
 	// test policy
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy"), // key
-		1,                                  // owner ID
-		0,                                  // parent ID
-		0,                                  // object ID
-		accesspolicy.TObjectName{},         // object type
-		0,                                  // flags
+		access.NewKey("test policy"), // key
+		1,                            // owner ID
+		0,                            // parent ID
+		0,                            // object ID
+		access.TObjectName{},         // object type
+		0,                            // flags
 	)
 	a.NoError(err)
 
@@ -913,69 +913,69 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// public access
 	//---------------------------------------------------------------------------
 	// setting
-	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKEveryone, ap.ID, 2, access.APView))
+	a.False(m.HasRights(ctx, access.SKEveryone, ap.ID, 2, access.APChange))
 	a.NoError(m.SetPublicRights(ctx, ap.ID, 1, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, access.SKEveryone, ap.ID, 2, access.APView))
+	a.True(m.HasRights(ctx, access.SKEveryone, ap.ID, 2, access.APChange))
 
 	// unsetting
-	a.NoError(m.UnsetRights(ctx, accesspolicy.SKEveryone, ap.ID, 1, 2))
+	a.NoError(m.UnsetRights(ctx, access.SKEveryone, ap.ID, 1, 2))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKEveryone, ap.ID, 2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKEveryone, ap.ID, 2, access.APView))
+	a.False(m.HasRights(ctx, access.SKEveryone, ap.ID, 2, access.APChange))
 
 	//---------------------------------------------------------------------------
 	// user rights
 	//---------------------------------------------------------------------------
 	// setting
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
 	a.NoError(m.SetUserRights(ctx, ap.ID, 1, 2, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.True(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
 
 	// unsetting
-	a.NoError(m.UnsetRights(ctx, accesspolicy.SKUser, ap.ID, 1, 2))
+	a.NoError(m.UnsetRights(ctx, access.SKUser, ap.ID, 1, 2))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKUser, ap.ID, 2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APView))
+	a.False(m.HasRights(ctx, access.SKUser, ap.ID, 2, access.APChange))
 
 	//---------------------------------------------------------------------------
 	// role rights
 	//---------------------------------------------------------------------------
 	// setting
-	a.False(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKRoleGroup, ap.ID, r.ID, access.APView))
+	a.False(m.HasRights(ctx, access.SKRoleGroup, ap.ID, r.ID, access.APChange))
 	a.NoError(m.SetRoleRights(ctx, ap.ID, 1, r.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, access.SKRoleGroup, ap.ID, r.ID, access.APView))
+	a.True(m.HasRights(ctx, access.SKRoleGroup, ap.ID, r.ID, access.APChange))
 
 	// unsetting
-	a.NoError(m.UnsetRights(ctx, accesspolicy.SKRoleGroup, ap.ID, 1, r.ID))
+	a.NoError(m.UnsetRights(ctx, access.SKRoleGroup, ap.ID, 1, r.ID))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKRoleGroup, ap.ID, r.ID, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKRoleGroup, ap.ID, r.ID, access.APView))
+	a.False(m.HasRights(ctx, access.SKRoleGroup, ap.ID, r.ID, access.APChange))
 
 	//---------------------------------------------------------------------------
 	// group rights
 	//---------------------------------------------------------------------------
 	// setting
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g.ID, access.APView))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g.ID, access.APChange))
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APView))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g.ID, access.APView))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g.ID, access.APChange))
 
 	// unsetting
-	a.NoError(m.UnsetRights(ctx, accesspolicy.SKGroup, ap.ID, 1, g.ID))
+	a.NoError(m.UnsetRights(ctx, access.SKGroup, ap.ID, 1, g.ID))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APView))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g.ID, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g.ID, access.APView))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g.ID, access.APChange))
 }
 
 func TestHasGroupRights(t *testing.T) {
@@ -993,7 +993,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := accesspolicy.NewDefaultMySQLStore(db)
+	s, err := access.NewDefaultMySQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -1008,7 +1008,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := accesspolicy.NewManager(s, gm)
+	m, err := access.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -1028,7 +1028,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NoError(gm.CreateRelation(ctx, g3.ID, 2))
 
 	// expected rights
-	wantedRights := accesspolicy.APCreate | accesspolicy.APView
+	wantedRights := access.APCreate | access.APView
 
 	//---------------------------------------------------------------------------
 	// setting rights only for the g1, thus g3 must inherit its
@@ -1036,21 +1036,21 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy"), // key
-		1,                                  // owner ID
-		0,                                  // parent ID
-		0,                                  // object ID
-		accesspolicy.TObjectName{},         // object type
-		0,                                  // flags
+		access.NewKey("test policy"), // key
+		1,                            // owner ID
+		0,                            // parent ID
+		0,                            // object ID
+		access.TObjectName{},         // object type
+		0,                            // flags
 	)
 	a.NoError(err)
 
 	// setting rights for group 1
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g1.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g3.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// setting rights only for the second group, thus g3 must inherit its
@@ -1058,21 +1058,21 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy 2"), // key
-		1,                                    // owner ID
-		0,                                    // parent ID
-		0,                                    // object ID
-		accesspolicy.TObjectName{},           // object type
-		0,                                    // flags
+		access.NewKey("test policy 2"), // key
+		1,                              // owner ID
+		0,                              // parent ID
+		0,                              // object ID
+		access.TObjectName{},           // object type
+		0,                              // flags
 	)
 	a.NoError(err)
 
 	// setting rights for group 2
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g2.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g3.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// setting rights only for the third group, group 1 and group 2 must not have
@@ -1080,21 +1080,21 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy 3"), // key
-		1,                                    // owner ID
-		0,                                    // parent ID
-		0,                                    // object ID
-		accesspolicy.TObjectName{},           // object type
-		0,                                    // flags
+		access.NewKey("test policy 3"), // key
+		1,                              // owner ID
+		0,                              // parent ID
+		0,                              // object ID
+		access.TObjectName{},           // object type
+		0,                              // flags
 	)
 	a.NoError(err)
 
 	// setting rights for group 3
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g3.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g3.ID, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// setting rights only for group 1 & 2, group 3 must inherit the rights
@@ -1102,52 +1102,52 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy 4"), // key
-		1,                                    // owner ID
-		0,                                    // parent ID
-		0,                                    // object ID
-		accesspolicy.TObjectName{},           // object type
-		0,                                    // flags
+		access.NewKey("test policy 4"), // key
+		1,                              // owner ID
+		0,                              // parent ID
+		0,                              // object ID
+		access.TObjectName{},           // object type
+		0,                              // flags
 	)
 	a.NoError(err)
 
 	// rights to be used
-	group1Rights := accesspolicy.APView | accesspolicy.APCreate
-	wantedRights = accesspolicy.APDelete | accesspolicy.APCopy
+	group1Rights := access.APView | access.APCreate
+	wantedRights = access.APDelete | access.APCopy
 
 	// setting rights for group 1 and 2
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g1.ID, group1Rights))
 	a.NoError(m.SetGroupRights(ctx, ap.ID, 1, g2.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
 
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, group1Rights))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g1.ID, group1Rights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g1.ID, wantedRights))
 
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, group1Rights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g2.ID, group1Rights))
 
-	a.True(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, group1Rights))
+	a.True(m.HasRights(ctx, access.SKGroup, ap.ID, g3.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g3.ID, group1Rights))
 
 	//---------------------------------------------------------------------------
 	// not setting any rights, only checking
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		accesspolicy.NewKey("test policy 5"), // key
-		1,                                    // owner ID
-		0,                                    // parent ID
-		0,                                    // object ID
-		accesspolicy.TObjectName{},           // object type
-		0,                                    // flags
+		access.NewKey("test policy 5"), // key
+		1,                              // owner ID
+		0,                              // parent ID
+		0,                              // object ID
+		access.TObjectName{},           // object type
+		0,                              // flags
 	)
 	a.NoError(err)
 
 	// test rights
-	wantedRights = accesspolicy.APCreate | accesspolicy.APView
+	wantedRights = access.APCreate | access.APView
 
 	// all check results must be false
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g1.ID, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g2.ID, wantedRights))
-	a.False(m.HasRights(ctx, accesspolicy.SKGroup, ap.ID, g3.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g1.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g2.ID, wantedRights))
+	a.False(m.HasRights(ctx, access.SKGroup, ap.ID, g3.ID, wantedRights))
 }

@@ -1,4 +1,4 @@
-package accesspolicy
+package access
 
 import (
 	"context"
@@ -45,7 +45,7 @@ var (
 
 // Manager is the access policy registry
 type Manager struct {
-	policies   map[uint32]AccessPolicy
+	policies   map[uint32]Policy
 	keyMap     map[TKey]uint32
 	roster     map[uint32]*Roster
 	groups     *group.Manager
@@ -61,7 +61,7 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	}
 
 	c := &Manager{
-		policies: make(map[uint32]AccessPolicy),
+		policies: make(map[uint32]Policy),
 		roster:   make(map[uint32]*Roster),
 		keyMap:   make(map[TKey]uint32),
 		groups:   gm,
@@ -71,7 +71,7 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	return c, nil
 }
 
-func (m *Manager) putPolicy(ap AccessPolicy, r *Roster) (err error) {
+func (m *Manager) putPolicy(ap Policy, r *Roster) (err error) {
 	if err = ap.Validate(); err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (m *Manager) putPolicy(ap AccessPolicy, r *Roster) (err error) {
 	return nil
 }
 
-func (m *Manager) lookupPolicy(policyID uint32) (ap AccessPolicy, err error) {
+func (m *Manager) lookupPolicy(policyID uint32) (ap Policy, err error) {
 	if policyID == 0 {
 		return ap, ErrPolicyNotFound
 	}
@@ -120,7 +120,7 @@ func (m *Manager) removePolicy(policyID uint32) (err error) {
 }
 
 // Upsert creates a new access policy
-func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap AccessPolicy, err error) {
+func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap Policy, err error) {
 	ap, err = NewAccessPolicy(key, ownerID, parentID, objectID, objectType, flags)
 	if err != nil {
 		return ap, errors.Wrap(err, "failed to initialize new access policy")
@@ -178,7 +178,7 @@ func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID, objec
 }
 
 // Update updates given access policy
-func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (err error) {
+func (m *Manager) Update(ctx context.Context, ap Policy) (err error) {
 	if err = ap.Validate(); err != nil {
 		return errors.Wrap(err, "failed to validate access policy before updating")
 	}
@@ -253,7 +253,7 @@ func (m *Manager) Update(ctx context.Context, ap AccessPolicy) (err error) {
 }
 
 // PolicyByID returns an access policy by its ObjectID
-func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap Policy, err error) {
 	if id == 0 {
 		return ap, ErrZeroPolicyID
 	}
@@ -284,7 +284,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uint32) (ap AccessPolicy, e
 }
 
 // PolicyByKey returns an access policy by its key
-func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (ap Policy, err error) {
 	m.RLock()
 	ap, ok := m.policies[m.keyMap[name]]
 	m.RUnlock()
@@ -315,7 +315,7 @@ func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (ap AccessPolicy, 
 }
 
 // PolicyByObject returns an access policy by its kind and id
-func (m *Manager) PolicyByObject(ctx context.Context, name TObjectName, objectID uint32) (ap AccessPolicy, err error) {
+func (m *Manager) PolicyByObject(ctx context.Context, name TObjectName, objectID uint32) (ap Policy, err error) {
 	// attempting to obtain policy from the store
 	ap, err = m.store.FetchPolicyByObject(ctx, objectID, name)
 	if err != nil {
@@ -337,7 +337,7 @@ func (m *Manager) PolicyByObject(ctx context.Context, name TObjectName, objectID
 }
 
 // DeletePolicy returns an access policy by its ObjectID
-func (m *Manager) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error) {
+func (m *Manager) DeletePolicy(ctx context.Context, ap Policy) (err error) {
 	if err = ap.Validate(); err != nil {
 		return errors.Wrap(err, "failed to delete access policy")
 	}
@@ -491,10 +491,10 @@ func (m *Manager) UnsetRights(ctx context.Context, kind SubjectKind, policyID, a
 		return ErrZeroAssignorID
 	}
 
-	// the assignorID must have a right to set rights (APManageRights) and have all the
+	// the assignorID must have a right to set rights (APManageAccess) and have all the
 	// rights himself that he's attempting to assign to others
 	// TODO: consider weighting the rights of who strips whose rights
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageAccess) {
 		return ErrAccessDenied
 	}
 
@@ -628,7 +628,7 @@ func (m *Manager) SetPublicRights(ctx context.Context, policyID, assignorID uint
 	}
 
 	// checking whether the assignorID has at least the assigned rights
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageAccess|rights) {
 		return ErrExcessOfRights
 	}
 
@@ -682,7 +682,7 @@ func (m *Manager) SetRoleRights(ctx context.Context, policyID, assignorID, roleI
 
 	// checking whether assignor has the right to manage,
 	// and has at least the assigned rights itself
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageAccess|rights) {
 		return ErrExcessOfRights
 	}
 
@@ -736,7 +736,7 @@ func (m *Manager) SetGroupRights(ctx context.Context, policyID, assignorID, grou
 
 	// checking whether assignor has the right to manage,
 	// and has at least the assigned rights itself
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageAccess|rights) {
 		return ErrExcessOfRights
 	}
 
@@ -777,7 +777,7 @@ func (m *Manager) SetUserRights(ctx context.Context, policyID, assignorID, assig
 
 	// checking whether assignor has the right to manage,
 	// and has at least the assigned rights itself
-	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageRights|rights) {
+	if !m.HasRights(ctx, SKUser, policyID, assignorID, APManageAccess|rights) {
 		return ErrExcessOfRights
 	}
 

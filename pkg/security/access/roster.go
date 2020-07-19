@@ -1,4 +1,4 @@
-package accesspolicy
+package access
 
 import (
 	"sync"
@@ -20,7 +20,7 @@ type Roster struct {
 	calculatedCache map[uint64]Right
 
 	// this slice accumulates batch changes made to this roster
-	changes []accessChange
+	changes []change
 
 	registryLock sync.RWMutex
 	cacheLock    sync.RWMutex
@@ -156,7 +156,7 @@ func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, righ
 	r.createBackup()
 
 	// initializing new change
-	change := accessChange{
+	change := change{
 		action:      action,
 		subjectKind: kind,
 		subjectID:   subjectID,
@@ -192,7 +192,7 @@ func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, righ
 	//---------------------------------------------------------------------------
 	r.changeLock.Lock()
 	if r.changes == nil {
-		r.changes = []accessChange{change}
+		r.changes = []change{change}
 	} else {
 		r.changes = append(r.changes, change)
 	}

@@ -258,53 +258,6 @@ func (s *MySQLStore) FetchGroupRelations(ctx context.Context, groupID uuid.UUID)
 	return relations, nil
 }
 
-// HasRelation checks whether group-user relation exists
-func (s *MySQLStore) HasRelation(ctx context.Context, groupID uuid.UUID, userID uuid.UUID) (bool, error) {
-	sess := s.db.NewSession(nil)
-
-	// querying for just one column (user_id)
-	rows, err := sess.QueryContext(
-		ctx,
-		"SELECT group_id, asset_id FROM `group_assets` WHERE group_id = ? AND user_id = ? LIMIT 1",
-		groupID,
-		userID,
-	)
-
-	// deferring a Close() on io.Closer (standard procedure)
-	defer func(c io.Closer) {
-		if err == nil {
-			return
-		}
-
-		if xerr := c.Close(); xerr != nil {
-			err = xerr
-		}
-	}(rows)
-
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return false, nil
-		}
-
-		return false, err
-	}
-
-	// iterating over and scanning found relations
-	for rows.Next() {
-		var foundGroupID, foundUserID uuid.UUID
-		if err := rows.Scan(&foundGroupID, &foundUserID); err != nil {
-			return false, err
-		}
-
-		// paranoid check
-		if foundGroupID == groupID && foundUserID == userID {
-			return true, nil
-		}
-	}
-
-	return false, nil
-}
-
 // DeleteRelation deletes a group-user relation
 func (s *MySQLStore) DeleteRelation(ctx context.Context, groupID uuid.UUID, userID uuid.UUID) error {
 	res, err := s.db.ExecContext(

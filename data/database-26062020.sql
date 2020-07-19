@@ -11,7 +11,7 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 
--- Dumping structure for table hometown.accesspolicy
+-- Dumping structure for table hometown.access
 CREATE TABLE IF NOT EXISTS `accesspolicy` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `parent_id` int unsigned NOT NULL,

@@ -3,11 +3,10 @@ package group
 import (
 	"bytes"
 	"database/sql/driver"
-	"strconv"
 	"strings"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
+	"github.com/jackc/pgx/pgtype"
 )
 
 // Flags designates whether a group is enabled, default, a role or a standard group
@@ -212,23 +211,29 @@ func (g *Group) SetName(name interface{}, maxLen int) error {
 // conversions
 //---------------------------------------------------------------------------
 
+func (ak AssetKind) Value() (driver.Value, error) {
+	return ak, nil
+}
+
+func (ak *AssetKind) Scan(data []byte) error {
+	*ak = AssetKind(data[0])
+	return nil
+}
+
 func (flags Flags) Value() (driver.Value, error) {
 	return flags, nil
 }
 
-func (flags *Flags) Scan(src interface{}) error {
-	n, err := strconv.ParseUint(string(src.([]byte)), 10, 8)
-	if err != nil {
-		return errors.Wrapf(err, "failed to scan Flags value: %s", src.([]byte))
-	}
+func (key TKey) MarshalBinary() ([]byte, error) {
+	return key[:], nil
+}
 
-	*flags = Flags(n)
-
-	return nil
+func (key *TKey) UnmarshalBinary(data []byte) ([]byte, error) {
+	copy(key[:], data)
+	return key[:], nil
 }
 
 func (key TKey) Value() (driver.Value, error) {
-	// a little hack to store an empty string instead of zeroes
 	if key[0] == 0 {
 		return "", nil
 	}
@@ -241,13 +246,25 @@ func (key TKey) Value() (driver.Value, error) {
 	return key[0:zeroPos], nil
 }
 
+func (key TKey) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	return append(buf, key[:]...), nil
+}
+
 func (key *TKey) Scan(v interface{}) error {
 	copy(key[:], v.([]byte))
 	return nil
 }
 
+func (key TKey) String() string {
+	zeroPos := bytes.IndexByte(key[:], byte(0))
+	if zeroPos == -1 {
+		return string(key[:])
+	}
+
+	return string(key[:zeroPos])
+}
+
 func (name TName) Value() (driver.Value, error) {
-	// a little hack to store an empty string instead of zeroes
 	if name[0] == 0 {
 		return "", nil
 	}
@@ -258,6 +275,24 @@ func (name TName) Value() (driver.Value, error) {
 	}
 
 	return name[0:zeroPos], nil
+}
+
+func (name TName) MarshalBinary() ([]byte, error) {
+	return name[:], nil
+}
+
+func (name *TName) UnmarshalBinary(data []byte) ([]byte, error) {
+	copy(name[:], data)
+	return name[:], nil
+}
+
+func (name TName) String() string {
+	zeroPos := bytes.IndexByte(name[:], byte(0))
+	if zeroPos == -1 {
+		return string(name[:])
+	}
+
+	return string(name[:zeroPos])
 }
 
 func (name *TName) Scan(v interface{}) error {

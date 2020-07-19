@@ -102,22 +102,21 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 	}()
 
 	tables := []string{
-		"user",
-		"user_email",
-		"user_phone",
-		"user_profile",
-		"password",
-		"token",
 		"group",
-		"group_users",
-		"accesspolicy",
-		"accesspolicy_roster",
+		"group_assets",
+		//"user",
+		//"user_email",
+		//"user_phone",
+		//"user_profile",
+		//"password",
+		//"token",
+		//"access",
+		//"accesspolicy_roster",
 	}
 
 	// truncating tables
 	for _, tableName := range tables {
-		_, err := tx.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", tableName))
-		if err != nil {
+		if _, err := tx.Exec(fmt.Sprintf(`TRUNCATE TABLE "%s" RESTART IDENTITY CASCADE`, tableName)); err != nil {
 			return nil, errors.Wrap(err, tx.Rollback().Error())
 		}
 	}

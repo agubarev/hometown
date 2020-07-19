@@ -1,10 +1,11 @@
-package accesspolicy
+package access
 
 import (
 	"bytes"
 	"database/sql/driver"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -13,7 +14,13 @@ import (
 const (
 	FInherit uint8 = 1 << iota
 	FExtend
+	FSealed
 )
+
+type Object struct {
+	Name TObjectName
+	ID   uuid.UUID
+}
 
 type (
 	TKey        [32]byte
@@ -70,14 +77,14 @@ func (a RAction) String() string {
 	case RSet:
 		return "set"
 	default:
-		return "unrecognized action"
+		return "unrecognized roster action"
 	}
 }
 
 // Right is a single permission set
 type Right uint32
 
-type accessChange struct {
+type change struct {
 	// denotes an action that occurred: -1 deleted, 0 updated, 1 created
 	action      RAction
 	subjectKind SubjectKind
@@ -89,12 +96,16 @@ type accessChange struct {
 const (
 	APNoAccess = Right(0)
 	APView     = Right(1 << (iota - Right(1)))
+	APViewDeleted
+	APViewHidden
 	APCreate
 	APChange
 	APDelete
+	APRestoreDeleted
 	APCopy
+	APDuplicate
 	APMove
-	APManageRights
+	APManageAccess
 	APFullAccess = ^Right(0)
 
 	// this flag is used for access bits without translation
@@ -107,18 +118,26 @@ func (r Right) Translate() string {
 		return "no_access"
 	case APView:
 		return "view"
+	case APViewDeleted:
+		return "view_deleted"
+	case APViewHidden:
+		return "view_hidden"
 	case APCreate:
 		return "create"
 	case APChange:
 		return "change"
 	case APDelete:
 		return "delete"
+	case APRestoreDeleted:
+		return "restore_deleted"
 	case APCopy:
 		return "copy"
+	case APDuplicate:
+		return "duplicate"
 	case APMove:
 		return "move"
-	case APManageRights:
-		return "manage_rights"
+	case APManageAccess:
+		return "manage_access"
 	case APFullAccess:
 		return "full_access"
 	default:
@@ -157,7 +176,7 @@ func (r Right) String() string {
 	return strings.Join(s, ",")
 }
 
-// AccessPolicy is a generalized ruleset for an object
+// Policy is a generalized ruleset for an object
 // if IsInherited is true, then the policy's own rosters will point to it's parent
 // and everything else will be ignored as long as it's true
 // NOTE: policy may be shared by multiple entities
@@ -168,7 +187,7 @@ func (r Right) String() string {
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
 // TODO: add caching mechanism to skip rights summarization
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
-type AccessPolicy struct {
+type Policy struct {
 	Key        TKey        `db:"key" json:"key"`
 	ObjectName TObjectName `db:"object_type" json:"object_type"`
 	ID         uint32      `db:"id" json:"id"`
@@ -179,13 +198,13 @@ type AccessPolicy struct {
 	_          struct{}
 }
 
-// NewAccessPolicy create a new AccessPolicy object
-func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap AccessPolicy, err error) {
+// NewAccessPolicy create a new Policy object
+func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap Policy, err error) {
 	// initializing new policy
 	// NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 	// because this allows to create independent policies in the middle of a chain and still
 	// benefit from using parent's rights as default with it's own corrections/exclusions
-	ap = AccessPolicy{
+	ap = Policy{
 		OwnerID:    ownerID,
 		ParentID:   parentID,
 		Key:        key,
@@ -214,14 +233,14 @@ func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TO
 
 // IsOwner checks whether a given user is the owner of this policy
 // NOTE: owner of the policy (meaning: the main entity) has full rights on it
-// NOTE: *** DO NOT remove owner zero check, to reduce the risk of abuse or mistake ***
-func (ap AccessPolicy) IsOwner(userID uint32) bool {
+// WARNING: *** DO NOT remove owner zero check, to reduce the risk of abuse or mistake ***
+func (ap Policy) IsOwner(userID uint32) bool {
 	return ap.OwnerID != 0 && (ap.OwnerID == userID)
 }
 
 // ApplyChangelog applies changes described by a diff.Diff()'s changelog
 // NOTE: doing a manual update to avoid using reflection
-func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
+func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 	// it's ok if there are no changes to apply
 	if len(changelog) == 0 {
 		return nil
@@ -248,7 +267,7 @@ func (ap *AccessPolicy) ApplyChangelog(changelog diff.Changelog) (err error) {
 }
 
 // SanitizeAndValidate validates access policy by performing basic self-check
-func (ap AccessPolicy) Validate() error {
+func (ap Policy) Validate() error {
 	// policy must have some designators
 	if ap.Key[0] == 0 && ap.ObjectName[0] == 0 {
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object type empty")
@@ -279,16 +298,16 @@ func (ap AccessPolicy) Validate() error {
 	return nil
 }
 
-func (ap AccessPolicy) IsInherited() bool {
+func (ap Policy) IsInherited() bool {
 	return (ap.Flags & FInherit) == FInherit
 }
 
-func (ap AccessPolicy) IsExtended() bool {
+func (ap Policy) IsExtended() bool {
 	return (ap.Flags & FExtend) == FExtend
 }
 
 // SetKey sets a key name to the group
-func (ap *AccessPolicy) SetKey(key interface{}, maxLen int) error {
+func (ap *Policy) SetKey(key interface{}, maxLen int) error {
 	if ap.ID != 0 {
 		return ErrForbiddenChange
 	}
@@ -321,7 +340,7 @@ func (ap *AccessPolicy) SetKey(key interface{}, maxLen int) error {
 }
 
 // SetObjectName sets an object type name
-func (ap *AccessPolicy) SetObjectName(objectType interface{}, maxLen int) error {
+func (ap *Policy) SetObjectName(objectType interface{}, maxLen int) error {
 	if ap.ID != 0 {
 		return ErrForbiddenChange
 	}

@@ -76,7 +76,7 @@ func MySQLForTesting() (conn *dbr.Connection, err error) {
 		"token",
 		"group",
 		"group_users",
-		"accesspolicy",
+		"access",
 		"accesspolicy_roster",
 	}
 

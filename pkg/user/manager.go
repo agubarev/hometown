@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/security/accesspolicy"
+	"github.com/agubarev/hometown/pkg/security/access"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
@@ -32,7 +32,7 @@ type Object interface {
 type Manager struct {
 	passwords password.Manager
 	groups    *group.Manager
-	policies  *accesspolicy.Manager
+	policies  *access.Manager
 	tokens    *token.Manager
 	store     Store
 	logger    *zap.Logger
@@ -155,9 +155,9 @@ func (m *Manager) SetTokenManager(tm *token.Manager) error {
 }
 
 // SetAccessPolicyManager assigns access policy manager
-func (m *Manager) SetAccessPolicyManager(apm *accesspolicy.Manager) error {
+func (m *Manager) SetAccessPolicyManager(apm *access.Manager) error {
 	if apm == nil {
-		return accesspolicy.ErrNilAccessPolicyManager
+		return access.ErrNilAccessPolicyManager
 	}
 
 	m.policies = apm
@@ -173,9 +173,9 @@ func (m *Manager) GroupManager() *group.Manager {
 	return m.groups
 }
 
-func (m *Manager) AccessPolicyManager() *accesspolicy.Manager {
+func (m *Manager) AccessPolicyManager() *access.Manager {
 	if m.passwords == nil {
-		panic(accesspolicy.ErrNilAccessPolicyManager)
+		panic(access.ErrNilAccessPolicyManager)
 	}
 
 	return m.policies

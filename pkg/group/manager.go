@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -20,11 +19,11 @@ var (
 	ErrNilDatabase            = errors.New("database is nil")
 	ErrNothingChanged         = errors.New("nothing changed")
 	ErrNoParent               = errors.New("no parent group")
-	ErrZeroGroupID            = errors.New("role group id is zero")
+	ErrNilGroupID             = errors.New("role group id is zero")
 	ErrZeroRoleID             = errors.New("role id is zero")
 	ErrZeroID                 = errors.New("id is zero")
 	ErrNonZeroID              = errors.New("id is not zero")
-	ErrZeroAssetID            = errors.New("asset id is zero")
+	ErrNilAssetID             = errors.New("asset id is zero")
 	ErrInvalidAssetKind       = errors.New("asset kind is invalid")
 	ErrNilStore               = errors.New("group store is nil")
 	ErrRelationNotFound       = errors.New("relation not found")
@@ -71,9 +70,26 @@ type Asset struct {
 	ID   uuid.UUID
 }
 
+func NewAsset(k AssetKind, id uuid.UUID) Asset {
+	return Asset{
+		Kind: k,
+		ID:   id,
+	}
+}
+
 type Relation struct {
 	GroupID uuid.UUID
 	Asset   Asset
+}
+
+func NewRelation(gid uuid.UUID, k AssetKind, aid uuid.UUID) Relation {
+	return Relation{
+		GroupID: gid,
+		Asset: Asset{
+			Kind: k,
+			ID:   aid,
+		},
+	}
 }
 
 // Registry is a typed slice of groups to make sorting easier
@@ -95,8 +111,8 @@ type Manager struct {
 	defaultIDs []uuid.UUID
 
 	// relationships
-	assetGroups map[Asset][]uuid.UUID // asset SubjectID -> slice of group IDs
-	groupAssets map[uuid.UUID][]Asset // group SubjectID -> slice of asset IDs
+	assetGroups map[Asset][]uuid.UUID // asset -> slice of group IDs
+	groupAssets map[uuid.UUID][]Asset // group ID -> slice of asset IDs
 
 	store  Store
 	logger *zap.Logger
@@ -184,15 +200,14 @@ func (m *Manager) Init(ctx context.Context) error {
 		return errors.Wrap(err, "failed to fetch all relations")
 	}
 
-	spew.Dump(relations)
-
 	// creating runtime links of groups and assets
 	for _, rel := range relations {
-		if err = m.LinkAsset(ctx, rel.GroupID, rel.Asset.Kind, rel.Asset.ID); err != nil {
+		if err = m.LinkAsset(ctx, rel.GroupID, rel.Asset); err != nil {
 			m.Logger().Info(
 				"Init() failed to add group to container",
-				zap.String("group_id", gid.String()),
-				zap.String("asset_id", mid.String()),
+				zap.String("group_id", rel.GroupID.String()),
+				zap.String("asset_id", rel.Asset.ID.String()),
+				zap.String("asset_kind", rel.Asset.Kind.String()),
 				zap.Error(err),
 			)
 		}
@@ -248,13 +263,16 @@ func (m *Manager) Create(ctx context.Context, flags Flags, parentID uuid.UUID, k
 	// checking whether there's already some group with such key
 	if _, err = m.GroupByKey(ctx, g.Key); err != nil {
 		// returning on unexpected error
-		if err != ErrGroupNotFound {
+		if errors.Cause(err) != ErrGroupNotFound {
 			return g, err
 		}
 	} else {
 		// no error means that the group key is already taken, thus canceling group creation
 		return g, ErrGroupKeyTaken
 	}
+
+	// generating new UUID before creating
+	g.ID = uuid.New()
 
 	// creating new group in the store
 	g, err = m.store.UpsertGroup(ctx, g)
@@ -363,7 +381,7 @@ func (m *Manager) List(kind Flags) (gs []Group) {
 // GroupByID returns a group by SubjectID
 func (m *Manager) GroupByID(ctx context.Context, id uuid.UUID) (g Group, err error) {
 	if id == uuid.Nil {
-		return g, ErrZeroGroupID
+		return g, ErrNilGroupID
 	}
 
 	// lookup cache first
@@ -443,8 +461,8 @@ func (m *Manager) DeleteGroup(ctx context.Context, groupID uuid.UUID) (err error
 }
 
 // GroupsByAssetID returns a slice of groups to which a given asset belongs
-func (m *Manager) GroupsByAssetID(ctx context.Context, mask Flags, assetID uuid.UUID) (gs []Group) {
-	if assetID == uuid.Nil {
+func (m *Manager) GroupsByAssetID(ctx context.Context, mask Flags, asset Asset) (gs []Group) {
+	if asset.ID == uuid.Nil {
 		return gs
 	}
 
@@ -453,7 +471,7 @@ func (m *Manager) GroupsByAssetID(ctx context.Context, mask Flags, assetID uuid.
 	m.RLock()
 	for _, g := range m.groups {
 		if g.Flags&mask != 0 {
-			if m.IsAsset(ctx, g.ID, assetID) {
+			if m.IsAsset(ctx, g.ID, asset) {
 				gs = append(gs, g)
 			}
 		}
@@ -644,14 +662,14 @@ func (m *Manager) IsAsset(ctx context.Context, groupID uuid.UUID, asset Asset) b
 // CreateRelation adding asset to a group
 // NOTE: storing relation only if group has a store set is implicit and should at least
 // log/print about the occurrence
-func (m *Manager) CreateRelation(ctx context.Context, groupID uuid.UUID, assetKind AssetKind, assetID uuid.UUID) (err error) {
-	groupOrRole, err := m.GroupByID(ctx, groupID)
+func (m *Manager) CreateRelation(ctx context.Context, rel Relation) (err error) {
+	groupOrRole, err := m.GroupByID(ctx, rel.GroupID)
 	if err != nil {
 		return err
 	}
 
-	if assetID == uuid.Nil {
-		return ErrZeroAssetID
+	if rel.Asset.ID == uuid.Nil {
+		return ErrNilAssetID
 	}
 
 	s, err := m.Store()
@@ -663,16 +681,18 @@ func (m *Manager) CreateRelation(ctx context.Context, groupID uuid.UUID, assetKi
 
 	if s != nil {
 		l.Info("creating asset relationship",
-			zap.String("group_id", groupID.String()),
-			zap.String("asset_id", assetID.String()),
+			zap.String("group_id", rel.GroupID.String()),
+			zap.String("asset_id", rel.Asset.ID.String()),
+			zap.String("asset_kind", rel.Asset.Kind.String()),
 			zap.String("flags", groupOrRole.Flags.Translate()),
 		)
 
 		// persisting relation in the store
-		if err = s.CreateRelation(ctx, groupID, assetKind, assetID); err != nil {
+		if err = s.CreateRelation(ctx, rel); err != nil {
 			l.Info("failed to store asset relation",
-				zap.String("group_id", groupID.String()),
-				zap.String("asset_id", assetID.String()),
+				zap.String("group_id", rel.GroupID.String()),
+				zap.String("asset_id", rel.Asset.ID.String()),
+				zap.String("asset_kind", rel.Asset.Kind.String()),
 				zap.String("flags", groupOrRole.Flags.Translate()),
 				zap.Error(err),
 			)
@@ -681,15 +701,16 @@ func (m *Manager) CreateRelation(ctx context.Context, groupID uuid.UUID, assetKi
 		}
 	} else {
 		l.Info("creating asset relationship while store is not set",
-			zap.String("group_id", groupID.String()),
-			zap.String("asset_id", assetID.String()),
+			zap.String("group_id", rel.GroupID.String()),
+			zap.String("asset_id", rel.Asset.ID.String()),
+			zap.String("asset_kind", rel.Asset.Kind.String()),
 			zap.String("flags", groupOrRole.Flags.Translate()),
 			zap.Error(err),
 		)
 	}
 
 	// adding asset SubjectID to group assets
-	if err = m.LinkAsset(ctx, groupID, assetID); err != nil {
+	if err = m.LinkAsset(ctx, rel.GroupID, rel.Asset); err != nil {
 		return err
 	}
 
@@ -697,18 +718,18 @@ func (m *Manager) CreateRelation(ctx context.Context, groupID uuid.UUID, assetKi
 }
 
 // DeleteRelation removes asset from a group
-func (m *Manager) DeleteRelation(ctx context.Context, groupID uuid.UUID, assetKind AssetKind, assetID uuid.UUID) (err error) {
-	_, err = m.GroupByID(ctx, groupID)
+func (m *Manager) DeleteRelation(ctx context.Context, rel Relation) (err error) {
+	_, err = m.GroupByID(ctx, rel.GroupID)
 	if err != nil {
 		return err
 	}
 
-	if assetID == uuid.Nil {
-		return ErrZeroAssetID
+	if rel.Asset.ID == uuid.Nil {
+		return ErrNilAssetID
 	}
 
 	// removing assetID from group assets
-	if err = m.UnlinkAsset(ctx, groupID, assetID); err != nil {
+	if err = m.UnlinkAsset(ctx, rel.GroupID, rel.Asset); err != nil {
 		return err
 	}
 
@@ -721,19 +742,20 @@ func (m *Manager) DeleteRelation(ctx context.Context, groupID uuid.UUID, assetKi
 
 	if s != nil {
 		m.Logger().Info("deleting asset from group",
-			zap.String("group_id", groupID.String()),
-			zap.String("asset_id", assetID.String()),
-			zap.String("asset_kind", assetKind.String()),
+			zap.String("group_id", rel.GroupID.String()),
+			zap.String("asset_id", rel.Asset.ID.String()),
+			zap.String("asset_kind", rel.Asset.Kind.String()),
 		)
 
 		// deleting a stored relation
-		if err := s.DeleteRelation(ctx, groupID, assetKind, assetID); err != nil {
+		if err := s.DeleteRelation(ctx, rel); err != nil {
 			return err
 		}
 	} else {
 		l.Info("deleting asset from group while store is not set",
-			zap.String("group_id", groupID.String()),
-			zap.String("asset_id", assetID.String()),
+			zap.String("group_id", rel.GroupID.String()),
+			zap.String("asset_id", rel.Asset.ID.String()),
+			zap.String("asset_kind", rel.Asset.Kind.String()),
 		)
 	}
 
@@ -749,7 +771,7 @@ func (m *Manager) LinkAsset(ctx context.Context, groupID uuid.UUID, asset Asset)
 	}
 
 	if asset.ID == uuid.Nil {
-		return ErrZeroAssetID
+		return ErrNilAssetID
 	}
 
 	if m.IsAsset(ctx, groupID, asset) {
@@ -760,16 +782,16 @@ func (m *Manager) LinkAsset(ctx context.Context, groupID uuid.UUID, asset Asset)
 
 	// group SubjectID -> asset IDs
 	if m.groupAssets[groupID] == nil {
-		m.groupAssets[groupID] = []uuid.UUID{assetID}
+		m.groupAssets[groupID] = []Asset{asset}
 	} else {
-		m.groupAssets[groupID] = append(m.groupAssets[groupID], assetID)
+		m.groupAssets[groupID] = append(m.groupAssets[groupID], asset)
 	}
 
 	// asset SubjectID -> group IDs
-	if m.assetGroups[assetID] == nil {
-		m.assetGroups[assetID] = []uuid.UUID{groupID}
+	if m.assetGroups[asset] == nil {
+		m.assetGroups[asset] = []uuid.UUID{groupID}
 	} else {
-		m.assetGroups[assetID] = append(m.assetGroups[assetID], groupID)
+		m.assetGroups[asset] = append(m.assetGroups[asset], groupID)
 	}
 
 	m.Unlock()
@@ -779,31 +801,31 @@ func (m *Manager) LinkAsset(ctx context.Context, groupID uuid.UUID, asset Asset)
 
 // UnlinkAsset removes a asset from the group assets
 // NOTE: does not affect the store
-func (m *Manager) UnlinkAsset(ctx context.Context, groupID, assetID uuid.UUID) (err error) {
+func (m *Manager) UnlinkAsset(ctx context.Context, groupID uuid.UUID, asset Asset) (err error) {
 	_, err = m.GroupByID(ctx, groupID)
 	if err != nil {
 		return err
 	}
 
-	if assetID == uuid.Nil {
-		return ErrZeroAssetID
+	if asset.ID == uuid.Nil {
+		return ErrNilAssetID
 	}
 
 	m.Lock()
 
 	if m.groupAssets[groupID] != nil {
-		for i, mid := range m.groupAssets[groupID] {
-			if mid == assetID {
+		for i, _asset := range m.groupAssets[groupID] {
+			if _asset == _asset {
 				m.groupAssets[groupID] = append(m.groupAssets[groupID][0:i], m.groupAssets[groupID][i+1:]...)
 				break
 			}
 		}
 	}
 
-	if m.assetGroups[assetID] != nil {
-		for i, gid := range m.assetGroups[assetID] {
+	if m.assetGroups[asset] != nil {
+		for i, gid := range m.assetGroups[asset] {
 			if gid == groupID {
-				m.assetGroups[assetID] = append(m.assetGroups[assetID][0:i], m.assetGroups[assetID][i+1:]...)
+				m.assetGroups[asset] = append(m.assetGroups[asset][0:i], m.assetGroups[asset][i+1:]...)
 				break
 			}
 		}
@@ -817,7 +839,7 @@ func (m *Manager) UnlinkAsset(ctx context.Context, groupID, assetID uuid.UUID) (
 // Invite an existing user to become a asset of the group
 // NOTE: this is optional and often can be disabled for better control
 // TODO: requires careful planning
-func (m *Manager) Invite(ctx context.Context, groupID, userID uuid.UUID) (err error) {
+func (m *Manager) Invite(ctx context.Context, groupID uuid.UUID, asset Asset) (err error) {
 	// TODO: implement
 
 	panic("not implemented")

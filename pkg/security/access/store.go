@@ -1,29 +1,25 @@
-package accesspolicy
+package access
 
 import (
 	"context"
-	"log"
-
-	"github.com/agubarev/hometown/pkg/util/guard"
-	"github.com/gocraft/dbr/v2"
-	"github.com/pkg/errors"
 )
 
-// Store is a storage contract interface for the AccessPolicy objects
-// TODO: keep rights separate and segregated by it's kind i.e. Public, AccessPolicy, Role, User etc.
+// Store is a storage contract interface for the Policy objects
+// TODO: keep rights separate and segregated by it's kind i.e. Public, Policy, Role, User etc.
 type Store interface {
-	CreatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) (AccessPolicy, *Roster, error)
-	UpdatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) error
-	FetchPolicyByID(ctx context.Context, id uint32) (AccessPolicy, error)
-	FetchPolicyByKey(ctx context.Context, key TKey) (ap AccessPolicy, err error)
-	FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (ap AccessPolicy, err error)
-	DeletePolicy(ctx context.Context, ap AccessPolicy) error
+	CreatePolicy(ctx context.Context, p Policy, r *Roster) (Policy, *Roster, error)
+	UpdatePolicy(ctx context.Context, p Policy, r *Roster) error
+	FetchPolicyByID(ctx context.Context, id uint32) (Policy, error)
+	FetchPolicyByKey(ctx context.Context, key TKey) (p Policy, err error)
+	FetchPolicyByObject(ctx context.Context, obj TObject) (p Policy, err error)
+	DeletePolicy(ctx context.Context, p Policy) error
 	CreateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
 	FetchRosterByPolicyID(ctx context.Context, policyID uint32) (r *Roster, err error)
 	UpdateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
 	DeleteRoster(ctx context.Context, policyID uint32) (err error)
 }
 
+/*
 // RosterDatabaseRecord represents a single database row
 type RosterDatabaseRecord struct {
 	PolicyID        uint32      `db:"policy_id"`
@@ -49,7 +45,7 @@ func NewDefaultMySQLStore(db *dbr.Connection) (Store, error) {
 	return s, nil
 }
 
-func (s *DefaultMySQLStore) get(ctx context.Context, q string, args ...interface{}) (ap AccessPolicy, err error) {
+func (s *DefaultMySQLStore) get(ctx context.Context, q string, args ...interface{}) (ap Policy, err error) {
 	sess := s.db.NewSession(nil)
 
 	// fetching policy itself
@@ -64,7 +60,7 @@ func (s *DefaultMySQLStore) get(ctx context.Context, q string, args ...interface
 	return ap, nil
 }
 
-func (s *DefaultMySQLStore) getMany(ctx context.Context, q string, args ...interface{}) (aps []AccessPolicy, err error) {
+func (s *DefaultMySQLStore) getMany(ctx context.Context, q string, args ...interface{}) (aps []Policy, err error) {
 	count, err := s.db.NewSession(nil).SelectBySql(q, args...).LoadContext(ctx, &aps)
 	switch true {
 	case err != nil:
@@ -180,7 +176,7 @@ func (s *DefaultMySQLStore) applyRosterChanges(tx *dbr.Tx, policyID uint32, r *R
 }
 
 // Upsert creating access policy
-func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) (AccessPolicy, *Roster, error) {
+func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap Policy, r *Roster) (Policy, *Roster, error) {
 	if ap.ID != 0 {
 		return ap, r, ErrNonZeroID
 	}
@@ -194,7 +190,7 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap AccessPolicy, r
 	//---------------------------------------------------------------------------
 	// creating access policy
 	//---------------------------------------------------------------------------
-	result, err := tx.InsertInto("accesspolicy").
+	result, err := tx.InsertInto("access").
 		Columns(guard.DBColumnsFrom(&ap)...).
 		Record(&ap).
 		ExecContext(ctx)
@@ -242,7 +238,7 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap AccessPolicy, r
 // UpdatePolicy updates an existing access policy along with its rights rosters
 // NOTE: rights rosters keeps track of its changes, thus, update will
 // only affect changes mentioned by the respective Roster object
-func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r *Roster) (err error) {
+func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Roster) (err error) {
 	if ap.ID == 0 {
 		return ErrZeroPolicyID
 	}
@@ -267,7 +263,7 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 	}
 
 	// updating access policy
-	_, err = tx.Update("accesspolicy").SetMap(updates).Where("id = ?", ap.ID).ExecContext(ctx)
+	_, err = tx.Update("access").SetMap(updates).Where("id = ?", ap.ID).ExecContext(ctx)
 	if err != nil {
 		return errors.Wrap(err, "failed to update access policy")
 	}
@@ -288,22 +284,22 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap AccessPolicy, r
 }
 
 // FetchPolicyByID fetches access policy by SubjectID
-func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
+func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (Policy, error) {
+	return s.get(ctx, "SELECT * FROM access WHERE id = ? LIMIT 1", policyID)
 }
 
 // PolicyByKey retrieving a access policy by a key
-func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `key` = ? LIMIT 1", key)
+func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (Policy, error) {
+	return s.get(ctx, "SELECT * FROM access WHERE `key` = ? LIMIT 1", key)
 }
 
 // PolicyByObject retrieving a access policy by a kind and its respective id
-func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (AccessPolicy, error) {
-	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
+func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (Policy, error) {
+	return s.get(ctx, "SELECT * FROM access WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
 // DeletePolicy deletes access policy and its corresponding roster
-func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap AccessPolicy) (err error) {
+func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap Policy) (err error) {
 	if ap.ID == 0 {
 		return ErrZeroPolicyID
 	}
@@ -315,7 +311,7 @@ func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap AccessPolicy) (
 	defer tx.RollbackUnlessCommitted()
 
 	// deleting access policy
-	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy WHERE id = ?", ap.ID); err != nil {
+	if _, err = tx.ExecContext(ctx, "DELETE FROM access WHERE id = ?", ap.ID); err != nil {
 		return errors.Wrapf(err, "failed to delete access policy: policy_id=%d", ap.ID)
 	}
 
@@ -431,3 +427,4 @@ func (s *DefaultMySQLStore) DeleteRoster(ctx context.Context, policyID uint32) (
 
 	return nil
 }
+*/

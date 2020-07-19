@@ -18,5 +18,6 @@ func TestGroupNew(t *testing.T) {
 	a.True(g.IsGroup())
 	a.Equal(group.NewKey("test_key"), g.Key)
 	a.Equal(group.NewName("test group name"), g.DisplayName)
-	a.Equal(false, g.IsDefault)
+	a.False(g.IsDefault())
+	a.True(g.IsEnabled())
 }
