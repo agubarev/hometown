@@ -42,6 +42,8 @@ var (
 	ErrKeyTooLong                   = errors.New("key is too long")
 	ErrObjectNameTooLong            = errors.New("object name is too long")
 	ErrForbiddenChange              = errors.New("access policy key, object name or id is not allowed to rosterChange")
+	ErrNilPolicyID                  = errors.New("policy id is nil")
+	ErrNothingChanged               = errors.New("nothing changed")
 )
 
 // Manager is the access policy registry
@@ -668,7 +670,7 @@ func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}
 
 	// making sure it is a role group
-	if g.Flags != group.FRole {
+	if !g.IsRole() {
 		return errors.Wrapf(
 			err,
 			"GrantRoleAccess(policy_id=%d, assignor_id=%d, role_id=%d, rights=%d): expecting %s, got %s",
@@ -722,7 +724,7 @@ func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor A
 	}
 
 	// making sure it is a standard group
-	if g.Flags != group.FGroup {
+	if !g.IsGroup() {
 		return errors.Wrapf(
 			err,
 			"GrantGroupAccess(policy_id=%d, assignor_id=%d, role_id=%d, rights=%d): expecting %s, got %s",
