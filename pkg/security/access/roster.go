@@ -3,7 +3,7 @@ package access
 import (
 	"sync"
 
-	"github.com/agubarev/hometown/pkg/util"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -13,14 +13,11 @@ type Roster struct {
 	Registry []Cell `json:"registry"`
 
 	// holds a calculated summary cache of rights for a specific group/role/user
-	// NOTE: a key is a packed value of 2 uint32s, left 32 bits are the
-	// flags (i.e. a kind like a group/role/user/etc...), and the right 32 bits
-	// is the uint32 object SubjectID
-	// NOTE: these values are reset should any corresponding value change
-	calculatedCache map[uint64]Right
+	// NOTE: these values are reset should any corresponding value rosterChange
+	calculatedCache map[Actor]Right
 
 	// this slice accumulates batch changes made to this roster
-	changes []change
+	changes []rosterChange
 
 	registryLock sync.RWMutex
 	cacheLock    sync.RWMutex
@@ -31,29 +28,40 @@ type Roster struct {
 	Everyone Right `json:"everyone"`
 }
 
+type Actor struct {
+	ID   uuid.UUID
+	Kind ActorKind
+}
+
+func NewActor(k ActorKind, id uuid.UUID) Actor {
+	return Actor{
+		ID:   id,
+		Kind: k,
+	}
+}
+
 // Cell represents a single access registry cell
 type Cell struct {
-	Rights    Right       `json:"rights"`
-	SubjectID uint32      `json:"subject_id"`
-	Kind      SubjectKind `json:"kind"`
+	Key    Actor `json:"key"`
+	Rights Right `json:"rights"`
 }
 
 // NewRoster is a shorthand initializer function
 func NewRoster(regsize int) *Roster {
 	return &Roster{
 		Registry:        make([]Cell, regsize),
-		calculatedCache: make(map[uint64]Right),
+		calculatedCache: make(map[Actor]Right),
 		Everyone:        APNoAccess,
 	}
 }
 
 // put adds a new or alters an existing access cell
-func (r *Roster) put(kind SubjectKind, subjectID uint32, rights Right) {
+func (r *Roster) put(key Actor, rights Right) {
 	r.registryLock.Lock()
 
 	// finding existing cell
 	for i, cell := range r.Registry {
-		if cell.SubjectID == subjectID && cell.Kind == kind {
+		if cell.Key == key {
 			// altering the rights of an existing cell
 			r.Registry[i].Rights = rights
 
@@ -66,9 +74,8 @@ func (r *Roster) put(kind SubjectKind, subjectID uint32, rights Right) {
 
 	// appending new cell because it hasn't been found above
 	r.Registry = append(r.Registry, Cell{
-		Rights:    rights,
-		SubjectID: subjectID,
-		Kind:      kind,
+		Rights: rights,
+		Key:    key,
 	})
 
 	r.registryLock.Unlock()
@@ -76,8 +83,8 @@ func (r *Roster) put(kind SubjectKind, subjectID uint32, rights Right) {
 
 // lookup looks up the isolated rights of a specific subject of a kind
 // NOTE: does not summarize any rights, nor includes public access rights
-func (r *Roster) lookup(k SubjectKind, subjectID uint32) (access Right) {
-	access, err := r.lookupCache(k, subjectID)
+func (r *Roster) lookup(key Actor) (access Right) {
+	access, err := r.lookupCache(key)
 	if err != nil && err != ErrCacheMiss {
 		// returning cached value
 		return access
@@ -86,7 +93,7 @@ func (r *Roster) lookup(k SubjectKind, subjectID uint32) (access Right) {
 	// finding access rights
 	r.registryLock.RLock()
 	for _, cell := range r.Registry {
-		if cell.SubjectID == subjectID && cell.Kind == k {
+		if cell.Key == key {
 			access = cell.Rights
 			break
 		}
@@ -94,22 +101,22 @@ func (r *Roster) lookup(k SubjectKind, subjectID uint32) (access Right) {
 	r.registryLock.RUnlock()
 
 	// caching
-	r.putCache(k, subjectID, access)
+	r.putCache(key, access)
 
 	return access
 }
 
 // hasRights tests whether a given subject of a kind has specific access rights
 // NOTE: does not summarize anything, only tests a concrete subject of a kind
-func (r *Roster) hasRights(kind SubjectKind, subjectID uint32, rights Right) bool {
-	return r.lookup(kind, subjectID)&rights == rights
+func (r *Roster) hasRights(key Actor, rights Right) bool {
+	return r.lookup(key)&rights == rights
 }
 
-func (r *Roster) delete(k SubjectKind, subjectID uint32) {
+func (r *Roster) delete(key Actor) {
 	// searching and removing registry access cell
 	r.registryLock.Lock()
 	for i, cell := range r.Registry {
-		if cell.SubjectID == subjectID && cell.Kind == k {
+		if cell.Key == key {
 			r.Registry = append(r.Registry[:i], r.Registry[i+1:]...)
 			break
 		}
@@ -117,21 +124,21 @@ func (r *Roster) delete(k SubjectKind, subjectID uint32) {
 	r.registryLock.Unlock()
 
 	// clearing out specific calculated cache
-	r.deleteCache(k, subjectID)
+	r.deleteCache(key)
 }
 
 // putCache caches calculated access for user or a group/role
 // NOTE: this cache is cleared whenever any relevant policy are changed
-func (r *Roster) putCache(k SubjectKind, id uint32, rights Right) {
+func (r *Roster) putCache(key Actor, rights Right) {
 	r.cacheLock.Lock()
-	r.calculatedCache[util.PackU32s(uint32(k), id)] = rights
+	r.calculatedCache[key] = rights
 	r.cacheLock.Unlock()
 }
 
 // lookupCache returns a cached, calculated access for a given user or group
-func (r *Roster) lookupCache(k SubjectKind, id uint32) (Right, error) {
+func (r *Roster) lookupCache(key Actor) (Right, error) {
 	r.cacheLock.RLock()
-	right, ok := r.calculatedCache[util.PackU32s(uint32(k), id)]
+	right, ok := r.calculatedCache[key]
 	r.cacheLock.RUnlock()
 
 	if !ok {
@@ -144,46 +151,45 @@ func (r *Roster) lookupCache(k SubjectKind, id uint32) (Right, error) {
 // deleteCache removes calculated access cache
 // NOTE: it must be used for any subject whose rights were altered
 // directly or indirectly
-func (r *Roster) deleteCache(k SubjectKind, id uint32) {
+func (r *Roster) deleteCache(key Actor) {
 	r.cacheLock.Lock()
-	delete(r.calculatedCache, util.PackU32s(uint32(k), id))
+	delete(r.calculatedCache, key)
 	r.cacheLock.Unlock()
 }
 
-// change adds a single deferred action for change and further storing
-func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, rights Right) {
+// change adds a single deferred action to change policy before storing
+func (r *Roster) change(action RAction, key Actor, rights Right) {
 	// the roster must have a backup before any unsaved changes to be made
 	r.createBackup()
 
-	// initializing new change
-	change := change{
+	// initializing new rosterChange
+	change := rosterChange{
 		action:      action,
-		subjectKind: kind,
-		subjectID:   subjectID,
+		key:         key,
 		accessRight: rights,
 	}
 
 	//---------------------------------------------------------------------------
-	// applying the actual change
+	// applying the actual rosterChange
 	//---------------------------------------------------------------------------
 	switch action {
 	case RSet:
 		// if kind is Everyone(public), then there's no need update registry
-		if kind == SKEveryone {
+		if key.Kind == SKEveryone {
 			r.Everyone = rights
 		} else {
-			r.put(kind, subjectID, rights)
+			r.put(key, rights)
 		}
 	case RUnset:
-		if kind == SKEveryone {
+		if key.Kind == SKEveryone {
 			r.Everyone = APNoAccess
 		} else {
-			r.delete(kind, subjectID)
+			r.delete(key)
 		}
 	default:
 		panic(errors.Wrapf(
 			ErrUnrecognizedRosterAction,
-			"action=%d, kind=%s, subject_id=%d, rights=%d", action, kind, subjectID, rights,
+			"action=%d, kind=%s, subject_id=%d, rights=%d", action, key.Kind, key.ID, rights,
 		))
 	}
 
@@ -192,7 +198,7 @@ func (r *Roster) change(action RAction, kind SubjectKind, subjectID uint32, righ
 	//---------------------------------------------------------------------------
 	r.changeLock.Lock()
 	if r.changes == nil {
-		r.changes = []change{change}
+		r.changes = []rosterChange{change}
 	} else {
 		r.changes = append(r.changes, change)
 	}
@@ -256,7 +262,7 @@ func (r *Roster) restoreBackup() {
 
 	// re-initializing fresh registry and a cache
 	r.Registry = make([]Cell, len(r.backup.Registry))
-	r.calculatedCache = make(map[uint64]Right, len(r.backup.calculatedCache))
+	r.calculatedCache = make(map[Actor]Right, len(r.backup.calculatedCache))
 
 	// restoring public rights
 	r.Everyone = r.backup.Everyone

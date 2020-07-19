@@ -101,7 +101,7 @@ type Manager struct {
 	// group id -> group
 	groups map[uuid.UUID]Group
 
-	// group key -> group SubjectID
+	// group key -> group ID
 	keyMap map[TKey]uuid.UUID
 
 	// default group ids
@@ -301,7 +301,7 @@ func (m *Manager) Put(ctx context.Context, g Group) error {
 		m.groups[g.ID] = g
 		m.keyMap[g.Key] = g.ID
 
-		// adding group SubjectID to a slice of defaults if it's marked as default
+		// adding group ID to a slice of defaults if it's marked as default
 		if g.IsDefault() {
 			m.defaultIDs = append(m.defaultIDs, g.ID)
 		}
@@ -345,7 +345,7 @@ func (m *Manager) Remove(ctx context.Context, groupID uuid.UUID) error {
 	//---------------------------------------------------------------------------
 	// discarding group relationship cache
 	//---------------------------------------------------------------------------
-	// first, clearing out group SubjectID from every related asset
+	// first, clearing out group ID from every related asset
 	for _, assetID := range m.groupAssets[groupID] {
 		for i, id := range m.assetGroups[assetID] {
 			if id == groupID {
@@ -378,7 +378,7 @@ func (m *Manager) List(kind Flags) (gs []Group) {
 	return gs
 }
 
-// GroupByID returns a group by SubjectID
+// GroupByID returns a group by ID
 func (m *Manager) GroupByID(ctx context.Context, id uuid.UUID) (g Group, err error) {
 	if id == uuid.Nil {
 		return g, ErrNilGroupID
@@ -583,7 +583,7 @@ func (m *Manager) IsCircuited(ctx context.Context, groupID uuid.UUID) (bool, err
 	return false, ErrCircuitCheckTimeout
 }
 
-// SetParent assigns a new parent SubjectID
+// SetParent assigns a new parent ID
 func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uuid.UUID) (err error) {
 	g, err := m.GroupByID(ctx, groupID)
 	if err != nil {
@@ -621,7 +621,7 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uuid.UUID)
 		}
 	}
 
-	// previous checks have passed, thus assingning a new parent SubjectID
+	// previous checks have passed, thus assingning a new parent ID
 	// NOTE: ParentID is used to rebuild parent-child connections after
 	// loading groups from the store
 	g.ParentID = newParent.ID
@@ -709,7 +709,7 @@ func (m *Manager) CreateRelation(ctx context.Context, rel Relation) (err error) 
 		)
 	}
 
-	// adding asset SubjectID to group assets
+	// adding asset ID to group assets
 	if err = m.LinkAsset(ctx, rel.GroupID, rel.Asset); err != nil {
 		return err
 	}
@@ -780,14 +780,14 @@ func (m *Manager) LinkAsset(ctx context.Context, groupID uuid.UUID, asset Asset)
 
 	m.Lock()
 
-	// group SubjectID -> asset IDs
+	// group ID -> asset IDs
 	if m.groupAssets[groupID] == nil {
 		m.groupAssets[groupID] = []Asset{asset}
 	} else {
 		m.groupAssets[groupID] = append(m.groupAssets[groupID], asset)
 	}
 
-	// asset SubjectID -> group IDs
+	// asset ID -> group IDs
 	if m.assetGroups[asset] == nil {
 		m.assetGroups[asset] = []uuid.UUID{groupID}
 	} else {

@@ -2,6 +2,8 @@ package access
 
 import (
 	"context"
+
+	"github.com/google/uuid"
 )
 
 // Store is a storage contract interface for the Policy objects
@@ -9,22 +11,22 @@ import (
 type Store interface {
 	CreatePolicy(ctx context.Context, p Policy, r *Roster) (Policy, *Roster, error)
 	UpdatePolicy(ctx context.Context, p Policy, r *Roster) error
-	FetchPolicyByID(ctx context.Context, id uint32) (Policy, error)
-	FetchPolicyByKey(ctx context.Context, key TKey) (p Policy, err error)
-	FetchPolicyByObject(ctx context.Context, obj TObject) (p Policy, err error)
+	FetchPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error)
+	FetchPolicyByKey(ctx context.Context, key Key) (p Policy, err error)
+	FetchPolicyByObject(ctx context.Context, obj Object) (p Policy, err error)
 	DeletePolicy(ctx context.Context, p Policy) error
-	CreateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
-	FetchRosterByPolicyID(ctx context.Context, policyID uint32) (r *Roster, err error)
-	UpdateRoster(ctx context.Context, policyID uint32, r *Roster) (err error)
-	DeleteRoster(ctx context.Context, policyID uint32) (err error)
+	CreateRoster(ctx context.Context, policyID uuid.UUID, r *Roster) (err error)
+	FetchRosterByPolicyID(ctx context.Context, pid uuid.UUID) (r *Roster, err error)
+	UpdateRoster(ctx context.Context, pid uuid.UUID, r *Roster) (err error)
+	DeleteRoster(ctx context.Context, pid uuid.UUID) (err error)
 }
 
 /*
 // RosterDatabaseRecord represents a single database row
 type RosterDatabaseRecord struct {
 	PolicyID        uint32      `db:"policy_id"`
-	SubjectID       uint32      `db:"subject_id"`
-	SubjectKind     SubjectKind `db:"subject_kind"`
+	ID       uint32      `db:"subject_id"`
+	Kind     Kind `db:"subject_kind"`
 	AccessRight     Right       `db:"access"`
 	AccessExplained string      `db:"access_explained"`
 }
@@ -79,7 +81,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 	// for everyone
 	records = append(records, RosterDatabaseRecord{
 		PolicyID:        policyID,
-		SubjectKind:     SKEveryone,
+		Kind:     SKEveryone,
 		AccessRight:     r.Everyone,
 		AccessExplained: r.Everyone.String(),
 	})
@@ -91,8 +93,8 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 		case SKRoleGroup, SKGroup, SKUser:
 			records = append(records, RosterDatabaseRecord{
 				PolicyID:        policyID,
-				SubjectKind:     _r.Kind,
-				SubjectID:       _r.SubjectID,
+				Kind:     _r.Kind,
+				ID:       _r.ID,
 				AccessRight:     _r.Rights,
 				AccessExplained: _r.Rights.String(),
 			})
@@ -100,7 +102,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 			log.Printf(
 				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
 				_r.Kind,
-				_r.SubjectID,
+				_r.ID,
 				_r.Rights,
 			)
 		}
@@ -115,16 +117,16 @@ func (s *DefaultMySQLStore) buildRoster(records []RosterDatabaseRecord) (r *Rost
 
 	// transforming database records into the roster object
 	for _, _r := range records {
-		switch _r.SubjectKind {
+		switch _r.Kind {
 		case SKEveryone:
 			r.Everyone = _r.AccessRight
 		case SKRoleGroup, SKGroup, SKUser:
-			r.put(_r.SubjectKind, _r.SubjectID, _r.AccessRight)
+			r.put(_r.Kind, _r.ID, _r.AccessRight)
 		default:
 			log.Printf(
 				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
-				_r.SubjectKind,
-				_r.SubjectID,
+				_r.Kind,
+				_r.ID,
 				_r.AccessRight,
 			)
 		}
@@ -199,7 +201,7 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap Policy, r *Rost
 		return ap, r, errors.Wrap(err, "failed to insert access policy")
 	}
 
-	// obtaining newly generated SubjectID
+	// obtaining newly generated ID
 	id64, err := result.LastInsertId()
 	if err != nil {
 		return ap, r, err
@@ -283,18 +285,18 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Rost
 	return nil
 }
 
-// FetchPolicyByID fetches access policy by SubjectID
+// FetchPolicyByID fetches access policy by ID
 func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (Policy, error) {
 	return s.get(ctx, "SELECT * FROM access WHERE id = ? LIMIT 1", policyID)
 }
 
 // PolicyByKey retrieving a access policy by a key
-func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (Policy, error) {
+func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key Key) (Policy, error) {
 	return s.get(ctx, "SELECT * FROM access WHERE `key` = ? LIMIT 1", key)
 }
 
 // PolicyByObject retrieving a access policy by a kind and its respective id
-func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (Policy, error) {
+func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType ObjectName) (Policy, error) {
 	return s.get(ctx, "SELECT * FROM access WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
@@ -361,7 +363,7 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	return nil
 }
 
-// FetchRosterByPolicyID fetches access policy roster by policy SubjectID
+// FetchRosterByPolicyID fetches access policy roster by policy ID
 func (s *DefaultMySQLStore) FetchRosterByPolicyID(ctx context.Context, policyID uint32) (_ *Roster, err error) {
 	records := make([]RosterDatabaseRecord, 0)
 

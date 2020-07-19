@@ -18,37 +18,43 @@ const (
 )
 
 type Object struct {
-	Name TObjectName
+	Name ObjectName
 	ID   uuid.UUID
 }
 
+func NewObject(id uuid.UUID, name ObjectName) Object {
+	return Object{
+		Name: name,
+		ID:   id,
+	}
+}
+
 type (
-	TKey        [32]byte
-	TObjectName [32]byte
+	Key        [32]byte
+	ObjectName [32]byte
 )
 
-func NewKey(s string) (v TKey) {
+func NewKey(s string) (v Key) {
 	copy(v[:], strings.ToLower(strings.TrimSpace(s)))
 	return v
 }
 
-func NewObjectName(s string) (v TObjectName) {
+func NewObjectName(s string) (v ObjectName) {
 	copy(v[:], strings.TrimSpace(s))
 	return v
 }
 
 // everyone, user, group, role_group, etc...
-type SubjectKind uint8
+type ActorKind uint8
 
 const (
-	SKNone     SubjectKind = 0
-	SKEveryone SubjectKind = 1 << (iota - SubjectKind(1))
+	SKEveryone ActorKind = 1 << iota
 	SKUser
 	SKGroup
 	SKRoleGroup
 )
 
-func (k SubjectKind) String() string {
+func (k ActorKind) String() string {
 	switch k {
 	case SKEveryone:
 		return "everyone"
@@ -59,7 +65,7 @@ func (k SubjectKind) String() string {
 	case SKRoleGroup:
 		return "role group"
 	default:
-		return "unrecognized subject kind"
+		return "unrecognized actor kind"
 	}
 }
 
@@ -84,11 +90,10 @@ func (a RAction) String() string {
 // Right is a single permission set
 type Right uint32
 
-type change struct {
+type rosterChange struct {
 	// denotes an action that occurred: -1 deleted, 0 updated, 1 created
 	action      RAction
-	subjectKind SubjectKind
-	subjectID   uint32
+	key         Actor
 	accessRight Right
 }
 
@@ -125,7 +130,7 @@ func (r Right) Translate() string {
 	case APCreate:
 		return "create"
 	case APChange:
-		return "change"
+		return "rosterChange"
 	case APDelete:
 		return "delete"
 	case APRestoreDeleted:
@@ -183,59 +188,59 @@ func (r Right) String() string {
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
 // NOTE: an access policy can have only one object identifier set, either ObjectID or a Key
-// TODO: store object rights rosters, name and object type in separate maps
-// TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each change
+// TODO: store object rights rosters, name and object name in separate maps
+// TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each rosterChange
 // TODO: add caching mechanism to skip rights summarization
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
 type Policy struct {
-	Key        TKey        `db:"key" json:"key"`
-	ObjectName TObjectName `db:"object_type" json:"object_type"`
-	ID         uint32      `db:"id" json:"id"`
-	ParentID   uint32      `db:"parent_id" json:"parent_id"`
-	OwnerID    uint32      `db:"owner_id" json:"owner_id"`
-	ObjectID   uint32      `db:"object_id" json:"object_id"`
-	Flags      uint8       `db:"flags" json:"flags"`
+	Key        Key        `db:"key" json:"key"`
+	ObjectName ObjectName `db:"object_name" json:"object_name"`
+	ID         uuid.UUID  `db:"id" json:"id"`
+	ParentID   uuid.UUID  `db:"parent_id" json:"parent_id"`
+	OwnerID    uuid.UUID  `db:"owner_id" json:"owner_id"`
+	ObjectID   uuid.UUID  `db:"object_id" json:"object_id"`
+	Flags      uint8      `db:"flags" json:"flags"`
 	_          struct{}
 }
 
-// NewAccessPolicy create a new Policy object
-func NewAccessPolicy(key TKey, ownerID, parentID, objectID uint32, objectType TObjectName, flags uint8) (ap Policy, err error) {
+// NewPolicy create a new Policy object
+func NewPolicy(key Key, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
 	// initializing new policy
 	// NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 	// because this allows to create independent policies in the middle of a chain and still
 	// benefit from using parent's rights as default with it's own corrections/exclusions
-	ap = Policy{
+	p = Policy{
 		OwnerID:    ownerID,
 		ParentID:   parentID,
 		Key:        key,
-		ObjectID:   objectID,
-		ObjectName: objectType,
+		ObjectID:   obj.ID,
+		ObjectName: obj.Name,
 		Flags:      flags,
 	}
 
 	// NOTE: key may be optional
 	if key[0] != 0 {
-		if err = ap.SetKey(key, 32); err != nil {
-			return ap, errors.Wrap(err, "failed to set initial key")
+		if err = p.SetKey(key, 32); err != nil {
+			return p, errors.Wrap(err, "failed to set initial key")
 		}
 	}
 
-	if err = ap.SetObjectName(objectType, 32); err != nil {
-		return ap, errors.Wrap(err, "failed to set initial object type")
+	if err = p.SetObjectName(obj.Name, 32); err != nil {
+		return p, errors.Wrap(err, "failed to set initial object name")
 	}
 
-	if err = ap.Validate(); err != nil {
-		return ap, errors.Wrap(err, "validation failed")
+	if err = p.Validate(); err != nil {
+		return p, errors.Wrap(err, "validation failed")
 	}
 
-	return ap, nil
+	return p, nil
 }
 
 // IsOwner checks whether a given user is the owner of this policy
 // NOTE: owner of the policy (meaning: the main entity) has full rights on it
 // WARNING: *** DO NOT remove owner zero check, to reduce the risk of abuse or mistake ***
-func (ap Policy) IsOwner(userID uint32) bool {
-	return ap.OwnerID != 0 && (ap.OwnerID == userID)
+func (ap Policy) IsOwner(id uuid.UUID) bool {
+	return ap.OwnerID != uuid.Nil && (ap.OwnerID == id)
 }
 
 // ApplyChangelog applies changes described by a diff.Diff()'s changelog
@@ -249,15 +254,15 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "ParentID":
-			ap.ParentID = change.To.(uint32)
+			ap.ParentID = change.To.(uuid.UUID)
 		case "OwnerID":
-			ap.OwnerID = change.To.(uint32)
+			ap.OwnerID = change.To.(uuid.UUID)
 		case "Key":
-			ap.Key = change.To.(TKey)
+			ap.Key = change.To.(Key)
 		case "ObjectName":
-			ap.ObjectName = change.To.(TObjectName)
+			ap.ObjectName = change.To.(ObjectName)
 		case "ObjectID":
-			ap.ObjectID = change.To.(uint32)
+			ap.ObjectID = change.To.(uuid.UUID)
 		case "Flags":
 			ap.Flags = change.To.(uint8)
 		}
@@ -270,18 +275,18 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 func (ap Policy) Validate() error {
 	// policy must have some designators
 	if ap.Key[0] == 0 && ap.ObjectName[0] == 0 {
-		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object type empty")
+		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object name empty")
 	}
 
-	// making sure that both the object type and SubjectID are set,
+	// making sure that both the object name and ID are set,
 	// if either one of them is provided
-	if ap.ObjectName[0] == 0 && ap.ObjectID != 0 {
-		return errors.New("empty object type with a non-zero object id")
+	if ap.ObjectName[0] == 0 && ap.ObjectID != uuid.Nil {
+		return errors.New("empty object name with a non-zero object id")
 	}
 
-	// if object type is set, then ObjectID must also be set
-	if ap.ObjectName[0] != 0 && ap.ObjectID == 0 {
-		return errors.New("zero object id with a non-empty object type")
+	// if object name is set, then ObjectID must also be set
+	if ap.ObjectName[0] != 0 && ap.ObjectID == uuid.Nil {
+		return errors.New("zero object id with a non-empty object name")
 	}
 
 	// inherited means that this is not a standalone policy but simply points
@@ -291,7 +296,7 @@ func (ap Policy) Validate() error {
 	}
 
 	// parent must be set if this policy inherits or extends
-	if ap.ParentID == 0 && (ap.IsInherited() || ap.IsExtended()) {
+	if ap.ParentID == uuid.Nil && (ap.IsInherited() || ap.IsExtended()) {
 		return errors.New("policy cannot inherit or extend without a parent")
 	}
 
@@ -308,7 +313,7 @@ func (ap Policy) IsExtended() bool {
 
 // SetKey sets a key name to the group
 func (ap *Policy) SetKey(key interface{}, maxLen int) error {
-	if ap.ID != 0 {
+	if ap.ID != uuid.Nil {
 		return ErrForbiddenChange
 	}
 
@@ -327,7 +332,7 @@ func (ap *Policy) SetKey(key interface{}, maxLen int) error {
 		}
 
 		copy(ap.Key[:], v)
-	case TKey:
+	case Key:
 		newKey := v[0:maxLen]
 		if len(newKey) == 0 {
 			return ErrEmptyKey
@@ -339,9 +344,9 @@ func (ap *Policy) SetKey(key interface{}, maxLen int) error {
 	return nil
 }
 
-// SetObjectName sets an object type name
+// SetObjectName sets an object name name
 func (ap *Policy) SetObjectName(objectType interface{}, maxLen int) error {
-	if ap.ID != 0 {
+	if ap.ID != uuid.Nil {
 		return ErrForbiddenChange
 	}
 
@@ -360,7 +365,7 @@ func (ap *Policy) SetObjectName(objectType interface{}, maxLen int) error {
 		}
 
 		copy(ap.ObjectName[:], v)
-	case TKey:
+	case Key:
 		newName := v[0:maxLen]
 		if len(newName) == 0 {
 			return ErrEmptyObjectType
@@ -376,7 +381,7 @@ func (ap *Policy) SetObjectName(objectType interface{}, maxLen int) error {
 // conversions
 //---------------------------------------------------------------------------
 
-func (key TKey) Value() (driver.Value, error) {
+func (key Key) Value() (driver.Value, error) {
 	if key[0] == 0 {
 		return "", nil
 	}
@@ -389,12 +394,12 @@ func (key TKey) Value() (driver.Value, error) {
 	return key[0:zeroPos], nil
 }
 
-func (key *TKey) Scan(v interface{}) error {
+func (key *Key) Scan(v interface{}) error {
 	copy(key[:], v.([]byte))
 	return nil
 }
 
-func (typ TObjectName) Value() (driver.Value, error) {
+func (typ ObjectName) Value() (driver.Value, error) {
 	// a little hack to store an empty string instead of zeroes
 	if typ[0] == 0 {
 		return "", nil
@@ -408,7 +413,7 @@ func (typ TObjectName) Value() (driver.Value, error) {
 	return typ[0:zeroPos], nil
 }
 
-func (typ *TObjectName) Scan(v interface{}) error {
+func (typ *ObjectName) Scan(v interface{}) error {
 	copy(typ[:], v.([]byte))
 	return nil
 }

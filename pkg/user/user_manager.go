@@ -129,7 +129,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 				IsPrimary: true,
 			},
 
-			// email owner SubjectID
+			// email owner ID
 			UserID: u.ID,
 
 			// this email hasn't been confirmed yet
@@ -157,7 +157,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 					IsPrimary: true,
 				},
 
-				// email owner SubjectID
+				// email owner ID
 				UserID: u.ID,
 
 				// this phone hasn't been confirmed yet
