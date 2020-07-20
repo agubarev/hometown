@@ -669,7 +669,7 @@ func (a *Authenticator) claimsFromToken(tok string) (claims Claims, err error) {
 	return claims, nil
 }
 
-// UserIDFromToken parses access token and returns user ID
+// UserIDFromToken parses access token and returns user ActorID
 func (a *Authenticator) UserIDFromToken(tok string) (_ uint32, err error) {
 	claims, err := a.claimsFromToken(tok)
 	if err != nil {

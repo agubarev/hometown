@@ -278,7 +278,7 @@ func (ap Policy) Validate() error {
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object name empty")
 	}
 
-	// making sure that both the object name and ID are set,
+	// making sure that both the object name and ActorID are set,
 	// if either one of them is provided
 	if ap.ObjectName[0] == 0 && ap.ObjectID != uuid.Nil {
 		return errors.New("empty object name with a non-zero object id")

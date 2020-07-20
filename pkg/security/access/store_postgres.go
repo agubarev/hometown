@@ -9,11 +9,11 @@ import (
 	"github.com/pkg/errors"
 )
 
-type RosterDatabaseRecord struct {
+type RosterEntry struct {
 	PolicyID        uuid.UUID `db:"policy_id"`
-	ID              uuid.UUID `db:"actor_id"`
-	Kind            ActorKind `db:"actor_kind"`
-	AccessRight     Right     `db:"access"`
+	ActorID         uuid.UUID `db:"actor_id"`
+	ActorKind       ActorKind `db:"actor_kind"`
+	Access          Right     `db:"access"`
 	AccessExplained string    `db:"access_explained"`
 }
 
@@ -61,14 +61,14 @@ func (s *PostgreSQLStore) withTransaction(ctx context.Context, fn func(tx *pgx.T
 }
 
 // breakdownRoster decomposes roster entries into usable database records
-func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []RosterDatabaseRecord) {
-	records = make([]RosterDatabaseRecord, len(r.Registry))
+func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []RosterEntry) {
+	records = make([]RosterEntry, len(r.Registry))
 
 	// for everyone
-	records = append(records, RosterDatabaseRecord{
+	records = append(records, RosterEntry{
 		PolicyID:        pid,
-		Kind:            SKEveryone,
-		AccessRight:     r.Everyone,
+		ActorKind:       SKEveryone,
+		Access:          r.Everyone,
 		AccessExplained: r.Everyone.String(),
 	})
 
@@ -77,11 +77,11 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 	for _, _r := range r.Registry {
 		switch _r.Key.Kind {
 		case SKRoleGroup, SKGroup, SKUser:
-			records = append(records, RosterDatabaseRecord{
+			records = append(records, RosterEntry{
 				PolicyID:        pid,
-				Kind:            _r.Key.Kind,
-				ID:              _r.Key.ID,
-				AccessRight:     _r.Rights,
+				ActorKind:       _r.Key.Kind,
+				ActorID:         _r.Key.ID,
+				Access:          _r.Rights,
 				AccessExplained: _r.Rights.String(),
 			})
 		default:
@@ -99,22 +99,22 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 	return records
 }
 
-func (s *PostgreSQLStore) buildRoster(records []RosterDatabaseRecord) (r *Roster) {
+func (s *PostgreSQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 	r = NewRoster(len(records))
 
 	// transforming database records into the roster object
 	for _, _r := range records {
-		switch _r.Kind {
+		switch _r.ActorKind {
 		case SKEveryone:
-			r.Everyone = _r.AccessRight
+			r.Everyone = _r.Access
 		case SKRoleGroup, SKGroup, SKUser:
-			r.put(NewActor(_r.Kind, _r.ID), _r.AccessRight)
+			r.put(NewActor(_r.ActorKind, _r.ActorID), _r.Access)
 		default:
 			log.Printf(
 				"unrecognized actor kind for access policy (actor_kind=%d, actor_id=%d, access_right=%d)",
-				_r.Kind,
-				_r.ID,
-				_r.AccessRight,
+				_r.ActorKind,
+				_r.ActorID,
+				_r.Access,
 			)
 		}
 	}
@@ -149,7 +149,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 			)
 
 			if err != nil {
-				return errors.Wrap(err, "failed to upsert rights rosters record")
+				return errors.Wrap(err, "failed to upsert policy roster entry")
 			}
 		case RUnset:
 			//---------------------------------------------------------------------------
@@ -163,7 +163,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 			)
 
 			if err != nil {
-				return errors.Wrap(err, "failed to delete rights rosters record")
+				return errors.Wrap(err, "failed to delete policy roster entry")
 			}
 		}
 	}
@@ -255,7 +255,7 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 				ctx,
 				q,
 				nil,
-				_r.ID, _r.PolicyID, _r.Kind, _r.ID, _r.AccessRight, _r.AccessExplained,
+				_r.ActorID, _r.PolicyID, _r.ActorKind, _r.ActorID, _r.Access, _r.AccessExplained,
 			)
 
 			if err != nil {
@@ -282,30 +282,33 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 		//---------------------------------------------------------------------------
 		// updating access policy and its rights rosters (only the changes)
 		//---------------------------------------------------------------------------
-		// listing fields to be updated
-		updates := map[string]interface{}{
-			"parent_id":   p.ParentID,
-			"owner_id":    p.OwnerID,
-			"key":         p.Key,
-			"object_type": p.ObjectName,
-			"object_id":   p.ObjectID,
-			"flags":       p.Flags,
-		}
+		q := `
+		UPDATE "policy"
+		SET
+			parent_id	= $1,
+			owner_id	= $2,
+			flags		= $3
+		WHERE id = $4
+		`
 
-		// applying roster changes to the database
-		if err = s.applyRosterChanges(tx, p.ID, r); err != nil {
-			return errors.Wrap(err, "failed to apply access policy roster changes during policy update")
-		}
+		cmd, err := tx.ExecEx(
+			ctx,
+			q,
+			nil,
+			p.ParentID, p.OwnerID, p.Flags, p.ID,
+		)
 
-		// updating access policy
-		_, err = tx.Update("access").SetMap(updates).Where("id = ?", p.ID).ExecContext(ctx)
 		if err != nil {
-			return errors.Wrap(err, "failed to update access policy")
+			return errors.Wrapf(err, "failed to execute update policy: policy_id=%s", p.ID)
+		}
+
+		if cmd.RowsAffected() == 0 {
+			return ErrNothingChanged
 		}
 
 		// applying roster changes to the database
 		if err = s.applyRosterChanges(tx, p.ID, r); err != nil {
-			return errors.Wrap(err, "failed to apply access policy roster changes during policy update")
+			return errors.Wrapf(err, "failed to apply access policy roster changes during policy update: policy_id=%s", p.ID)
 		}
 
 		return nil
@@ -319,33 +322,143 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 }
 
 func (s *PostgreSQLStore) FetchPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error) {
-	panic("implement me")
+	q := `
+	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
+	FROM "policy"
+	WHERE id = $1
+	LIMIT 1
+	`
+
+	return s.onePolicy(ctx, q, id)
 }
 
 func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key Key) (p Policy, err error) {
-	panic("implement me")
+	q := `
+	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
+	FROM "policy"
+	WHERE key = $1
+	LIMIT 1
+	`
+
+	return s.onePolicy(ctx, q, key)
 }
 
 func (s *PostgreSQLStore) FetchPolicyByObject(ctx context.Context, obj Object) (p Policy, err error) {
-	panic("implement me")
+	q := `
+	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
+	FROM "policy"
+	WHERE 
+		object_name		= $1 
+		AND object_id	= $2
+	LIMIT 1
+	`
+
+	return s.onePolicy(ctx, q, obj.Name, obj.ID)
 }
 
 func (s *PostgreSQLStore) DeletePolicy(ctx context.Context, p Policy) error {
-	panic("implement me")
+	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
+		cmd, err := tx.ExecEx(ctx, `DELETE FROM "policy" WHERE id = $1`, nil, p.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete policy")
+		}
+
+		if cmd.RowsAffected() == 0 {
+			return ErrNothingChanged
+		}
+
+		_, err = tx.ExecEx(ctx, `DELETE FROM policy_roster WHERE policy_id = ?`, nil, p.ID)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete policy roster")
+		}
+
+		return nil
+	})
 }
 
-func (s *PostgreSQLStore) CreateRoster(ctx context.Context, policyID uuid.UUID, r *Roster) (err error) {
-	panic("implement me")
+func (s *PostgreSQLStore) CreateRoster(ctx context.Context, policyID uuid.UUID, r *Roster) error {
+	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
+		// looping over rights rosters to be created
+		// TODO: squash into a single insert statement
+		for _, _r := range s.breakdownRoster(policyID, r) {
+			q := `
+			INSERT INTO "policy_roster"(policy_id, actor_kind, actor_id, access, access_explained) 
+			VALUES($1, $2, $3, $4, $5)
+			ON CONFLICT ON CONSTRAINT policy_roster_policy_id_subject_kind_subject_id_uindex
+			DO NOTHING
+			`
+
+			_, err := tx.ExecEx(
+				ctx,
+				q,
+				nil,
+				_r.ActorID, _r.PolicyID, _r.ActorKind, _r.ActorID, _r.Access, _r.AccessExplained,
+			)
+
+			if err != nil {
+				return errors.Wrap(err, "failed to execute insert roster entry")
+			}
+		}
+
+		return nil
+	})
 }
 
-func (s *PostgreSQLStore) FetchRosterByPolicyID(ctx context.Context, pid uuid.UUID) (r *Roster, err error) {
-	panic("implement me")
+func (s *PostgreSQLStore) FetchRosterByPolicyID(ctx context.Context, pid uuid.UUID) (*Roster, error) {
+	q := `
+	SELECT policy_id, actor_kind, actor_id, access, access_explained
+	FROM "policy_roster"
+	WHERE policy_id = $1
+	`
+
+	rows, err := s.db.QueryEx(ctx, q, nil, pid)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to fetch policy roster")
+	}
+
+	// container
+	entries := make([]RosterEntry, 0)
+
+	count := 0
+	for rows.Next() {
+		var re RosterEntry
+
+		if err = rows.Scan(&re.PolicyID, &re.ActorKind, &re.ActorID, &re.Access, &re.AccessExplained); err != nil {
+			return nil, errors.Wrap(err, "failed to scan policy roster")
+		}
+
+		entries = append(entries, re)
+		count++
+	}
+
+	if count == 0 {
+		return nil, ErrEmptyRoster
+	}
+
+	return s.buildRoster(entries), nil
 }
 
 func (s *PostgreSQLStore) UpdateRoster(ctx context.Context, pid uuid.UUID, r *Roster) (err error) {
-	panic("implement me")
+	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
+		if err = s.applyRosterChanges(tx, pid, r); err != nil {
+			return errors.Wrap(err, "failed to apply access policy roster changes during roster update")
+		}
+
+		return nil
+	})
 }
 
 func (s *PostgreSQLStore) DeleteRoster(ctx context.Context, pid uuid.UUID) (err error) {
-	panic("implement me")
+	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
+		cmd, err := tx.ExecEx(ctx, `DELETE FROM "policy_roster" WHERE policy_id = $1`, nil, pid)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete policy")
+		}
+
+		if cmd.RowsAffected() == 0 {
+			return ErrNothingChanged
+		}
+
+		return nil
+	})
 }

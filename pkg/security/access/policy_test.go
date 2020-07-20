@@ -44,9 +44,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	p, err := m.Create(
 		ctx,
 		access.NewKey("test_key"), // key
-		0,                         // owner ID
-		0,                         // parent ID
-		0,                         // object ID
+		0,                         // owner ActorID
+		0,                         // parent ActorID
+		0,                         // object ActorID
 		access.ObjectName{},       // object type
 		0,                         // flags
 	)
@@ -62,9 +62,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	p, err = m.Create(
 		ctx,
 		access.NewKey("test_key2"), // key
-		1,                          // owner ID
-		0,                          // parent ID
-		0,                          // object ID
+		1,                          // owner ActorID
+		0,                          // parent ActorID
+		0,                          // object ActorID
 		access.ObjectName{},        // object type
 		0,                          // flags
 	)
@@ -81,9 +81,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	pWithParent, err := m.Create(
 		ctx,
 		access.NewKey("test_key3"), // key
-		1,                          // owner ID
-		p.ID,                       // parent ID
-		0,                          // object ID
+		1,                          // owner ActorID
+		p.ID,                       // parent ActorID
+		0,                          // object ActorID
 		access.ObjectName{},        // object type
 		0,                          // flags
 	)
@@ -99,9 +99,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	_, err = m.Create(
 		ctx,
 		access.NewKey("test_key4"),          // key
-		1,                                   // owner ID
-		0,                                   // parent ID
-		1,                                   // object ID
+		1,                                   // owner ActorID
+		0,                                   // parent ActorID
+		1,                                   // object ActorID
 		access.NewObjectName("test object"), // object type
 		access.FInherit,                     // flags
 	)
@@ -111,9 +111,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	_, err = m.Create(
 		ctx,
 		access.NewKey("test_key5"),          // key
-		1,                                   // owner ID
-		0,                                   // parent ID
-		1,                                   // object ID
+		1,                                   // owner ActorID
+		0,                                   // parent ActorID
+		1,                                   // object ActorID
 		access.NewObjectName("test object"), // object type
 		access.FExtend,                      // flags
 	)
@@ -123,9 +123,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	pInheritedWithParent, err := m.Create(
 		ctx,
 		access.NewKey("test_key6"),          // key
-		1,                                   // owner ID
-		p.ID,                                // parent ID
-		1,                                   // object ID
+		1,                                   // owner ActorID
+		p.ID,                                // parent ActorID
+		1,                                   // object ActorID
 		access.NewObjectName("test object"), // object type
 		access.FInherit,                     // flags
 	)
@@ -136,9 +136,9 @@ func TestNewAccessPolicy(t *testing.T) {
 	pExtendedWithParent, err := m.Create(
 		ctx,
 		access.NewKey("test_key7"), // key
-		1,                          // owner ID
-		p.ID,                       // parent ID
-		1,                          // object ID
+		1,                          // owner ActorID
+		p.ID,                       // parent ActorID
+		1,                          // object ActorID
 		access.NewObjectName("another test object"), // object type
 		access.FExtend, // flags
 	)
@@ -188,9 +188,9 @@ func TestSetPublicRights(t *testing.T) {
 	p, err := m.Create(
 		ctx,
 		access.NewKey("test_key"), // key
-		1,                         // owner ID
-		0,                         // parent ID
-		0,                         // object ID
+		1,                         // owner ActorID
+		0,                         // parent ActorID
+		0,                         // object ActorID
 		access.ObjectName{},       // object type
 		0,                         // flags
 	)
@@ -212,9 +212,9 @@ func TestSetPublicRights(t *testing.T) {
 	pWithInheritance, err := m.Create(
 		ctx,
 		access.NewKey("test_key_w_inheritance"), // key
-		1,                                       // owner ID
-		p.ID,                                    // parent ID
-		0,                                       // object ID
+		1,                                       // owner ActorID
+		p.ID,                                    // parent ActorID
+		0,                                       // object ActorID
 		access.ObjectName{},                     // object type
 		access.FInherit,                         // flags
 	)
@@ -236,9 +236,9 @@ func TestSetPublicRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		access.Key{},                        // key
-		0,                                   // owner ID
-		parent.ID,                           // parent ID
-		1,                                   // object ID
+		0,                                   // owner ActorID
+		parent.ID,                           // parent ActorID
+		1,                                   // object ActorID
 		access.NewObjectName("some object"), // object type
 		access.FExtend,                      // flags
 	)
@@ -262,9 +262,9 @@ func TestSetPublicRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		access.Key{}, // key
-		1,            // owner ID
-		parent.ID,    // parent ID
-		1,            // object ID
+		1,            // owner ActorID
+		parent.ID,    // parent ActorID
+		1,            // object ActorID
 		access.NewObjectName("and another object"), // object type
 		access.FExtend, // flags
 	)
@@ -330,9 +330,9 @@ func TestSetGroupRights(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		access.NewKey("parent"), // key
-		1,                       // owner ID
-		0,                       // parent ID
-		0,                       // object ID
+		1,                       // owner ActorID
+		0,                       // parent ActorID
+		0,                       // object ActorID
 		access.ObjectName{},     // object type
 		0,                       // flags
 	)
@@ -365,9 +365,9 @@ func TestSetGroupRights(t *testing.T) {
 	pWithInherit, err := m.Create(
 		ctx,
 		access.NewKey("with inherit"), // key
-		0,                             // owner ID
-		basePolicy.ID,                 // parent ID
-		0,                             // object ID
+		0,                             // owner ActorID
+		basePolicy.ID,                 // parent ActorID
+		0,                             // object ActorID
 		access.ObjectName{},           // object type
 		access.FInherit,               // flags
 	)
@@ -386,9 +386,9 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		access.NewKey("with extend, no own rights"), // key
-		0,                   // owner ID
-		basePolicy.ID,       // parent ID
-		0,                   // object ID
+		0,                   // owner ActorID
+		basePolicy.ID,       // parent ActorID
+		0,                   // object ActorID
 		access.ObjectName{}, // object type
 		access.FExtend,      // flags
 	)
@@ -406,9 +406,9 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		access.NewKey("with extend and own rights"), // key
-		0,                   // owner ID
-		basePolicy.ID,       // parent ID
-		0,                   // object ID
+		0,                   // owner ActorID
+		basePolicy.ID,       // parent ActorID
+		0,                   // object ActorID
 		access.ObjectName{}, // object type
 		access.FExtend,      // flags
 	)
@@ -466,9 +466,9 @@ func TestSetRoleRights(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		access.NewKey("parent"), // key
-		1,                       // owner ID
-		0,                       // parent ID
-		0,                       // object ID
+		1,                       // owner ActorID
+		0,                       // parent ActorID
+		0,                       // object ActorID
 		access.ObjectName{},     // object type
 		0,                       // flags
 	)
@@ -501,9 +501,9 @@ func TestSetRoleRights(t *testing.T) {
 	pWithInherit, err := m.Create(
 		ctx,
 		access.NewKey("with inherit"), // key
-		1,                             // owner ID
-		basePolicy.ID,                 // parent ID
-		0,                             // object ID
+		1,                             // owner ActorID
+		basePolicy.ID,                 // parent ActorID
+		0,                             // object ActorID
 		access.ObjectName{},           // object type
 		access.FInherit,               // flags
 	)
@@ -522,9 +522,9 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		access.NewKey("with extend, no own rights"), // key
-		1,                   // owner ID
-		basePolicy.ID,       // parent ID
-		0,                   // object ID
+		1,                   // owner ActorID
+		basePolicy.ID,       // parent ActorID
+		0,                   // object ActorID
 		access.ObjectName{}, // object type
 		access.FExtend,      // flags
 	)
@@ -542,9 +542,9 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		access.NewKey("with extend and own rights"), // key
-		1,                   // owner ID
-		basePolicy.ID,       // parent ID
-		0,                   // object ID
+		1,                   // owner ActorID
+		basePolicy.ID,       // parent ActorID
+		0,                   // object ActorID
 		access.ObjectName{}, // object type
 		access.FExtend,      // flags
 	)
@@ -602,9 +602,9 @@ func TestSetUserRights(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		access.NewKey("base policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)
@@ -621,9 +621,9 @@ func TestSetUserRights(t *testing.T) {
 	pWithInheritance, err := m.Create(
 		ctx,
 		access.NewKey("inheritance only"), // key
-		0,                                 // owner ID
-		basePolicy.ID,                     // parent ID
-		0,                                 // object ID
+		0,                                 // owner ActorID
+		basePolicy.ID,                     // parent ActorID
+		0,                                 // object ActorID
 		access.ObjectName{},               // object type
 		access.FInherit,                   // flags
 	)
@@ -639,9 +639,9 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		access.NewKey("extension only"), // key
-		0,                               // owner ID
-		basePolicy.ID,                   // parent ID
-		0,                               // object ID
+		0,                               // owner ActorID
+		basePolicy.ID,                   // parent ActorID
+		0,                               // object ActorID
 		access.ObjectName{},             // object type
 		access.FExtend,                  // flags
 	)
@@ -658,9 +658,9 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		access.NewKey("extension with own rights"), // key
-		0,                   // owner ID
-		basePolicy.ID,       // parent ID
-		0,                   // object ID
+		0,                   // owner ActorID
+		basePolicy.ID,       // parent ActorID
+		0,                   // object ActorID
 		access.ObjectName{}, // object type
 		access.FExtend,      // flags
 	)
@@ -713,9 +713,9 @@ func TestIsOwner(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		access.NewKey("test policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)
@@ -781,9 +781,9 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		access.NewKey("test policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)
@@ -901,9 +901,9 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		access.NewKey("test policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)
@@ -1037,9 +1037,9 @@ func TestHasGroupRights(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		access.NewKey("test policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)
@@ -1059,9 +1059,9 @@ func TestHasGroupRights(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		access.NewKey("test policy 2"), // key
-		1,                              // owner ID
-		0,                              // parent ID
-		0,                              // object ID
+		1,                              // owner ActorID
+		0,                              // parent ActorID
+		0,                              // object ActorID
 		access.ObjectName{},            // object type
 		0,                              // flags
 	)
@@ -1081,9 +1081,9 @@ func TestHasGroupRights(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		access.NewKey("test policy 3"), // key
-		1,                              // owner ID
-		0,                              // parent ID
-		0,                              // object ID
+		1,                              // owner ActorID
+		0,                              // parent ActorID
+		0,                              // object ActorID
 		access.ObjectName{},            // object type
 		0,                              // flags
 	)
@@ -1103,9 +1103,9 @@ func TestHasGroupRights(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		access.NewKey("test policy 4"), // key
-		1,                              // owner ID
-		0,                              // parent ID
-		0,                              // object ID
+		1,                              // owner ActorID
+		0,                              // parent ActorID
+		0,                              // object ActorID
 		access.ObjectName{},            // object type
 		0,                              // flags
 	)
@@ -1135,9 +1135,9 @@ func TestHasGroupRights(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		access.NewKey("test policy 5"), // key
-		1,                              // owner ID
-		0,                              // parent ID
-		0,                              // object ID
+		1,                              // owner ActorID
+		0,                              // parent ActorID
+		0,                              // object ActorID
 		access.ObjectName{},            // object type
 		0,                              // flags
 	)

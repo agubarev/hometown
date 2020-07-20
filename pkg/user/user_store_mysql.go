@@ -63,7 +63,7 @@ func (s *MySQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...in
 
 // CreateUser creates a new entry in the storage backend
 func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error) {
-	// if object ID is not 0, then it's not considered as new
+	// if object ActorID is not 0, then it's not considered as new
 	if u.ID != 0 {
 		return u, ErrNonZeroID
 	}
@@ -83,7 +83,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error)
 		return u, err
 	}
 
-	// setting newly generated ID
+	// setting newly generated ActorID
 	u.ID = uint32(newID)
 
 	return u, nil

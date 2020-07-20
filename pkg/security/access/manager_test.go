@@ -19,17 +19,17 @@ func TestNewAccessPolicyManager(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewDefaultMySQLStore(db)
+	s, err := access.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewMySQLStore(db)
+	gs, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -54,17 +54,17 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewDefaultMySQLStore(db)
+	s, err := access.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewMySQLStore(db)
+	gs, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -80,7 +80,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 
 	//---------------------------------------------------------------------------
 	// proceeding with the test
-	// creating a normal policy with type name and ID set, no key
+	// creating a normal policy with type name and ActorID set, no key
 	//---------------------------------------------------------------------------
 	key := access.Key{}
 	typeName := access.NewObjectName("with type and id, no key")
@@ -89,9 +89,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -120,9 +120,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		0,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		0,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -142,7 +142,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	a.Equal(access.APNoAccess, roster.Everyone)
 
 	//---------------------------------------------------------------------------
-	// creating a policy with a key, object type and ID set
+	// creating a policy with a key, object type and ActorID set
 	//---------------------------------------------------------------------------
 	key = access.NewKey("test key")
 	typeName = access.NewObjectName("with type, id and key")
@@ -151,9 +151,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -176,9 +176,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -196,9 +196,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -211,7 +211,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	a.Nil(roster)
 
 	//---------------------------------------------------------------------------
-	// attempting to create a policy with an object name without object ID
+	// attempting to create a policy with an object name without object ActorID
 	//---------------------------------------------------------------------------
 	key = access.NewKey("with name but without id")
 	typeName = access.NewObjectName("test object")
@@ -220,9 +220,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -234,7 +234,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	a.Nil(roster)
 
 	//---------------------------------------------------------------------------
-	// attempting to create a policy without an object name but with object ID set
+	// attempting to create a policy without an object name but with object ActorID set
 	//---------------------------------------------------------------------------
 	key = access.NewKey("without name but with id")
 	typeName = access.ObjectName{}
@@ -243,9 +243,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -265,9 +265,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -290,9 +290,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		123321,   // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		123321,   // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -308,9 +308,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,             // key
-		1,               // owner ID
-		123321,          // parent ID
-		objectID,        // object ID
+		1,               // owner ActorID
+		123321,          // parent ActorID
+		objectID,        // object ActorID
 		typeName,        // object type
 		access.FInherit, // flags
 	)
@@ -326,9 +326,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,            // key
-		1,              // owner ID
-		123321,         // parent ID
-		objectID,       // object ID
+		1,              // owner ActorID
+		123321,         // parent ActorID
+		objectID,       // object ActorID
 		typeName,       // object type
 		access.FExtend, // flags
 	)
@@ -345,9 +345,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,                            // key
-		1,                              // owner ID
-		basePolicy.ID,                  // parent ID
-		objectID,                       // object ID
+		1,                              // owner ActorID
+		basePolicy.ID,                  // parent ActorID
+		objectID,                       // object ActorID
 		typeName,                       // object type
 		access.FInherit|access.FExtend, // flags
 	)
@@ -363,9 +363,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,             // key
-		1,               // owner ID
-		basePolicy.ID,   // parent ID
-		objectID,        // object ID
+		1,               // owner ActorID
+		basePolicy.ID,   // parent ActorID
+		objectID,        // object ActorID
 		typeName,        // object type
 		access.FInherit, // flags
 	)
@@ -388,9 +388,9 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ap, err = m.Create(
 		ctx,
 		key,            // key
-		1,              // owner ID
-		basePolicy.ID,  // parent ID
-		objectID,       // object ID
+		1,              // owner ActorID
+		basePolicy.ID,  // parent ActorID
+		objectID,       // object ActorID
 		typeName,       // object type
 		access.FExtend, // flags
 	)
@@ -414,17 +414,17 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewDefaultMySQLStore(db)
+	s, err := access.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewMySQLStore(db)
+	gs, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -448,9 +448,9 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -479,9 +479,9 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		key,      // key
-		1,        // owner ID
-		0,        // parent ID
-		objectID, // object ID
+		1,        // owner ActorID
+		0,        // parent ActorID
+		objectID, // object ActorID
 		typeName, // object type
 		0,        // flags
 	)
@@ -552,17 +552,17 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewDefaultMySQLStore(db)
+	s, err := access.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewMySQLStore(db)
+	gs, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -597,9 +597,9 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		access.NewKey("test policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)
@@ -635,17 +635,17 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewDefaultMySQLStore(db)
+	s, err := access.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
 	// group store
-	gs, err := group.NewMySQLStore(db)
+	gs, err := group.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(gs)
 
@@ -680,9 +680,9 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	ap, err := m.Create(
 		ctx,
 		access.NewKey("test policy"), // key
-		1,                            // owner ID
-		0,                            // parent ID
-		0,                            // object ID
+		1,                            // owner ActorID
+		0,                            // parent ActorID
+		0,                            // object ActorID
 		access.ObjectName{},          // object type
 		0,                            // flags
 	)

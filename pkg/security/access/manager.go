@@ -146,7 +146,7 @@ func (m *Manager) Create(ctx context.Context, key Key, ownerID, parentID uuid.UU
 		}
 	}
 
-	// checking by an object type and ID
+	// checking by an object type and ActorID
 	if ap.ObjectName[0] != 0 && ap.ObjectID != uuid.Nil {
 		_, err = m.PolicyByObject(ctx, obj)
 		if err == nil {
@@ -192,7 +192,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	}
 
 	//-!!!-[ WARNING ]-----------------------------------------------------------
-	// !!! KEY, OBJECT NAME AND ID ARE NOT ALLOWED TO BE CHANGED BECAUSE CURRENT
+	// !!! KEY, OBJECT NAME AND ActorID ARE NOT ALLOWED TO BE CHANGED BECAUSE CURRENT
 	// !!! VALUES ARE/COULD BE RELIED UPON ELSEWHERE AND MUST REMAIN THE SAME
 	//-!!!-----------------------------------------------------------------------
 	if p.Key != currentPolicy.Key {
@@ -523,7 +523,7 @@ func (m *Manager) SetParent(ctx context.Context, policyID, parentID uuid.UUID) (
 
 	// disabling inheritance and extension to avoid unexpected behaviour
 	if parentID == uuid.Nil {
-		// since parent ID is zero, thus disabling inheritance and extension
+		// since parent ActorID is zero, thus disabling inheritance and extension
 		p.Flags &^= FInherit | FExtend
 		p.ParentID = uuid.Nil
 	} else {
@@ -577,7 +577,7 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 		return APFullAccess
 	}
 
-	// calculating parents access if parent ID is set
+	// calculating parents access if parent ActorID is set
 	if ap.ParentID != uuid.Nil {
 		// obtaining parent object
 		parent, err := m.PolicyByID(ctx, ap.ParentID)

@@ -49,7 +49,7 @@ func (s *MySQLStore) getMany(ctx context.Context, q string, args ...interface{})
 func (s *MySQLStore) UpsertGroup(ctx context.Context, g Group) (Group, error) {
 	// if an object has object id other than nil, then it's considered
 	// as being already created, thus requiring an update
-	if g.ID != uuid.Nil {
+	if g.ActorID != uuid.Nil {
 		return s.Update(ctx, g)
 	}
 
@@ -59,7 +59,7 @@ func (s *MySQLStore) UpsertGroup(ctx context.Context, g Group) (Group, error) {
 // Upsert creates a new database record
 func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 	// if object id is not nil, then it's not considered as new
-	if g.ID != uuid.Nil {
+	if g.ActorID != uuid.Nil {
 		return g, ErrNonZeroID
 	}
 
@@ -79,7 +79,7 @@ func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 
 // UpdatePolicy updates an existing group
 func (s *MySQLStore) Update(ctx context.Context, g Group) (Group, error) {
-	if g.ID == uuid.Nil {
+	if g.ActorID == uuid.Nil {
 		return g, ErrZeroID
 	}
 
@@ -89,7 +89,7 @@ func (s *MySQLStore) Update(ctx context.Context, g Group) (Group, error) {
 	}
 
 	// just executing query but not refetching the updated version
-	res, err := s.db.NewSession(nil).Update("group").SetMap(updates).Where("id = ?", g.ID).ExecContext(ctx)
+	res, err := s.db.NewSession(nil).Update("group").SetMap(updates).Where("id = ?", g.ActorID).ExecContext(ctx)
 	if err != nil {
 		return g, err
 	}
@@ -154,7 +154,7 @@ func (s *MySQLStore) DeleteByID(ctx context.Context, id uuid.UUID) (err error) {
 	defer tx.RollbackUnlessCommitted()
 
 	// deleting the actual group
-	_, err = sess.DeleteFrom("group").Where("id = ?", g.ID).ExecContext(ctx)
+	_, err = sess.DeleteFrom("group").Where("id = ?", g.ActorID).ExecContext(ctx)
 	if err != nil {
 		return err
 	}
