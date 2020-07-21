@@ -1,4 +1,4 @@
-package access
+package accesspolicy
 
 import (
 	"bytes"
@@ -120,8 +120,8 @@ const (
 	APManageAccess
 	APFullAccess = ^Right(0)
 
-	// this flag is used for access bits without translation
-	APUnrecognizedFlag = "unrecognized access flag"
+	// this flag is used for accesspolicy bits without translation
+	APUnrecognizedFlag = "unrecognized accesspolicy flag"
 )
 
 func (r Right) Translate() string {
@@ -171,7 +171,7 @@ func Dictionary() map[uint32]string {
 }
 
 // AccessExplained returns a human-readable conjunction of comma-separated
-// access names for this given context namespace
+// accesspolicy names for this given context namespace
 func (r Right) String() string {
 	s := make([]string, 0)
 
@@ -194,7 +194,7 @@ func (r Right) String() string {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
-// NOTE: an access policy can have only one object identifier set, either ObjectID or a TKey
+// NOTE: an accesspolicy policy can have only one object identifier set, either ObjectID or a TKey
 // TODO: store object rights rosters, name and object name in separate maps
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each rosterChange
 // TODO: add caching mechanism to skip rights summarization
@@ -278,7 +278,7 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 	return nil
 }
 
-// SanitizeAndValidate validates access policy by performing basic self-check
+// SanitizeAndValidate validates accesspolicy policy by performing basic self-check
 func (ap Policy) Validate() error {
 	// policy must have some designators
 	if ap.Key[0] == 0 && ap.ObjectName[0] == 0 {
@@ -390,7 +390,7 @@ func (ap *Policy) SetObjectName(objectType interface{}, maxLen int) error {
 
 func (key TKey) Value() (driver.Value, error) {
 	if key[0] == 0 {
-		return "", nil
+		return nil, nil
 	}
 
 	zeroPos := bytes.IndexByte(key[:], byte(0))
@@ -401,15 +401,17 @@ func (key TKey) Value() (driver.Value, error) {
 	return key[0:zeroPos], nil
 }
 
+/*
 func (key *TKey) Scan(v interface{}) error {
 	copy(key[:], v.([]byte))
 	return nil
 }
+*/
 
 func (typ TObjectName) Value() (driver.Value, error) {
 	// a little hack to store an empty string instead of zeroes
 	if typ[0] == 0 {
-		return "", nil
+		return nil, nil
 	}
 
 	zeroPos := bytes.IndexByte(typ[:], byte(0))
@@ -420,7 +422,9 @@ func (typ TObjectName) Value() (driver.Value, error) {
 	return typ[0:zeroPos], nil
 }
 
+/*
 func (typ *TObjectName) Scan(v interface{}) error {
 	copy(typ[:], v.([]byte))
 	return nil
 }
+*/

@@ -22,13 +22,13 @@ type Backend interface {
 
 // DefaultBackend is a default in-memory implementation
 type DefaultBackend struct {
-	// blacklist is a map of revoked access token IDs
+	// blacklist is a map of revoked accesspolicy token IDs
 	blacklist map[string]RevokedAccessToken
 
 	// session token map, token to session
 	stokenMap map[string]Session
 
-	// access token map, token ObjectID (jti) to session
+	// accesspolicy token map, token ObjectID (jti) to session
 	jtiMap map[string]Session
 
 	// refresh token map, token to session
@@ -196,7 +196,7 @@ func (b *DefaultBackend) DeleteSession(sess Session) error {
 	return nil
 }
 
-// GetSessionByAccessToken retrieves session by an access token ObjectID (JTI: JWT Token ObjectID)
+// GetSessionByAccessToken retrieves session by an accesspolicy token ObjectID (JTI: JWT Token ObjectID)
 func (b *DefaultBackend) GetSessionByAccessToken(jti string) (sess Session, err error) {
 	b.RLock()
 	sess, ok := b.jtiMap[jti]

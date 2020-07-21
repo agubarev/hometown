@@ -13,7 +13,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-// HandleRefreshToken returns a new access token given the supplied
+// HandleRefreshToken returns a new accesspolicy token given the supplied
 // refresh token is valid
 func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	rbody, err := ioutil.ReadAll(r.Body)
@@ -67,7 +67,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// generating new access token
+	// generating new accesspolicy token
 	atok, jti, err := a.GenerateAccessToken(r.Context(), u)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", err, http.StatusUnauthorized)
@@ -81,7 +81,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// constructing a new trinity by combining a new session and access tokens,
+	// constructing a new trinity by combining a new session and accesspolicy tokens,
 	// along with an existing refresh token
 	response, err := json.Marshal(auth.TokenTrinity{
 		SessionToken: s.Token,

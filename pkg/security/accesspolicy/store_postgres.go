@@ -1,4 +1,4 @@
-package access
+package accesspolicy
 
 import (
 	"context"
@@ -13,7 +13,7 @@ type RosterEntry struct {
 	PolicyID        uuid.UUID `db:"policy_id"`
 	ActorID         uuid.UUID `db:"actor_id"`
 	ActorKind       ActorKind `db:"actor_kind"`
-	Access          Right     `db:"access"`
+	Access          Right     `db:"accesspolicy"`
 	AccessExplained string    `db:"access_explained"`
 }
 
@@ -86,7 +86,7 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 			})
 		default:
 			log.Printf(
-				"unrecognized actor kind for access policy: actor(kind=%s, id=%s), access=(%s; %s)",
+				"unrecognized actor kind for accesspolicy policy: actor(kind=%s, id=%s), accesspolicy=(%s; %s)",
 				_r.Key.Kind,
 				_r.Key.ID,
 				_r.Rights,
@@ -111,7 +111,7 @@ func (s *PostgreSQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 			r.put(NewActor(_r.ActorKind, _r.ActorID), _r.Access)
 		default:
 			log.Printf(
-				"unrecognized actor kind for access policy (actor_kind=%d, actor_id=%d, access_right=%d)",
+				"unrecognized actor kind for accesspolicy policy (actor_kind=%d, actor_id=%d, access_right=%d)",
 				_r.ActorKind,
 				_r.ActorID,
 				_r.Access,
@@ -126,16 +126,21 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 	// checking whether the rights rosters has any changes
 	// TODO: optimize by squashing inserts and deletes into single queries
 	for _, c := range r.changes {
+		// actor ID must not be NIL for any other than Public actor kind
+		if c.key.Kind != AEveryone && c.key.ID == uuid.Nil {
+			return ErrNilActorID
+		}
+
 		switch c.action {
 		case RSet:
 			//---------------------------------------------------------------------------
 			// creating
 			//---------------------------------------------------------------------------
 			q := `
-			INSERT INTO policy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
+			INSERT INTO accesspolicy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
 			VALUES ($1, $2, $3, $4, $5) 
-			ON CONFLICT ON CONSTRAINT policy_roster_policy_id_subject_kind_subject_id_uindex
-			DO UPDATE access = $6
+			ON CONFLICT ON CONSTRAINT policy_roster_pk
+			DO UPDATE SET access = $6
 			`
 
 			_, err = tx.Exec(
@@ -156,7 +161,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 			// deleting
 			//---------------------------------------------------------------------------
 			_, err = tx.Exec(
-				"DELETE FROM policy_roster WHERE policy_id = ? AND actor_kind = ? AND actor_id = ?",
+				"DELETE FROM accesspolicy_roster WHERE policy_id = ? AND actor_kind = ? AND actor_id = ?",
 				pid,
 				c.key.Kind,
 				c.key.ID,
@@ -215,9 +220,9 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 		// creating policy
 		//---------------------------------------------------------------------------
 		q := `
-		INSERT INTO "policy"(id, parent_id, owner_id, key, object_name, object_id, flags) 
+		INSERT INTO  accesspolicy(id, parent_id, owner_id, key, object_name, object_id, flags) 
 		VALUES($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (id)
+		ON CONFLICT ON CONSTRAINT policy_pk
 		DO NOTHING
 		`
 
@@ -237,7 +242,7 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 		}
 
 		//---------------------------------------------------------------------------
-		// creating access roster
+		// creating accesspolicy roster
 		//---------------------------------------------------------------------------
 		if r == nil {
 			r = NewRoster(0)
@@ -245,9 +250,9 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 
 		for _, _r := range s.breakdownRoster(p.ID, r) {
 			q := `
-			INSERT INTO "policy_roster"(policy_id, actor_kind, actor_id, access, access_explained) 
+			INSERT INTO accesspolicy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
 			VALUES($1, $2, $3, $4, $5)
-			ON CONFLICT ON CONSTRAINT policy_roster_policy_id_subject_kind_subject_id_uindex
+			ON CONFLICT ON CONSTRAINT policy_roster_pk_2
 			DO NOTHING
 			`
 
@@ -255,7 +260,7 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 				ctx,
 				q,
 				nil,
-				_r.ActorID, _r.PolicyID, _r.ActorKind, _r.ActorID, _r.Access, _r.AccessExplained,
+				_r.PolicyID, _r.ActorKind, _r.ActorID, _r.Access, _r.AccessExplained,
 			)
 
 			if err != nil {
@@ -280,10 +285,10 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 
 	err = s.withTransaction(ctx, func(tx *pgx.Tx) error {
 		//---------------------------------------------------------------------------
-		// updating access policy and its rights rosters (only the changes)
+		// updating accesspolicy policy and its rights rosters (only the changes)
 		//---------------------------------------------------------------------------
 		q := `
-		UPDATE "policy"
+		UPDATE accesspolicy 
 		SET
 			parent_id	= $1,
 			owner_id	= $2,
@@ -308,7 +313,7 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 
 		// applying roster changes to the database
 		if err = s.applyRosterChanges(tx, p.ID, r); err != nil {
-			return errors.Wrapf(err, "failed to apply access policy roster changes during policy update: policy_id=%s", p.ID)
+			return errors.Wrapf(err, "failed to apply accesspolicy policy roster changes during policy update: policy_id=%s", p.ID)
 		}
 
 		return nil
@@ -324,7 +329,7 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 func (s *PostgreSQLStore) FetchPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error) {
 	q := `
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
-	FROM "policy"
+	FROM accesspolicy 
 	WHERE id = $1
 	LIMIT 1
 	`
@@ -335,7 +340,7 @@ func (s *PostgreSQLStore) FetchPolicyByID(ctx context.Context, id uuid.UUID) (Po
 func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (p Policy, err error) {
 	q := `
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
-	FROM "policy"
+	FROM accesspolicy 
 	WHERE key = $1
 	LIMIT 1
 	`
@@ -346,7 +351,7 @@ func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (p Pol
 func (s *PostgreSQLStore) FetchPolicyByObject(ctx context.Context, obj Object) (p Policy, err error) {
 	q := `
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
-	FROM "policy"
+	FROM accesspolicy 
 	WHERE 
 		object_name		= $1 
 		AND object_id	= $2
@@ -358,7 +363,7 @@ func (s *PostgreSQLStore) FetchPolicyByObject(ctx context.Context, obj Object) (
 
 func (s *PostgreSQLStore) DeletePolicy(ctx context.Context, p Policy) error {
 	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
-		cmd, err := tx.ExecEx(ctx, `DELETE FROM "policy" WHERE id = $1`, nil, p.ID)
+		cmd, err := tx.ExecEx(ctx, `DELETE FROM accesspolicy WHERE id = $1`, nil, p.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete policy")
 		}
@@ -367,7 +372,7 @@ func (s *PostgreSQLStore) DeletePolicy(ctx context.Context, p Policy) error {
 			return ErrNothingChanged
 		}
 
-		_, err = tx.ExecEx(ctx, `DELETE FROM policy_roster WHERE policy_id = ?`, nil, p.ID)
+		_, err = tx.ExecEx(ctx, `DELETE FROM accesspolicy_roster WHERE policy_id = $1`, nil, p.ID)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete policy roster")
 		}
@@ -382,7 +387,7 @@ func (s *PostgreSQLStore) CreateRoster(ctx context.Context, policyID uuid.UUID, 
 		// TODO: squash into a single insert statement
 		for _, _r := range s.breakdownRoster(policyID, r) {
 			q := `
-			INSERT INTO "policy_roster"(policy_id, actor_kind, actor_id, access, access_explained) 
+			INSERT INTO accesspolicy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
 			VALUES($1, $2, $3, $4, $5)
 			ON CONFLICT ON CONSTRAINT policy_roster_policy_id_subject_kind_subject_id_uindex
 			DO NOTHING
@@ -407,7 +412,7 @@ func (s *PostgreSQLStore) CreateRoster(ctx context.Context, policyID uuid.UUID, 
 func (s *PostgreSQLStore) FetchRosterByPolicyID(ctx context.Context, pid uuid.UUID) (*Roster, error) {
 	q := `
 	SELECT policy_id, actor_kind, actor_id, access, access_explained
-	FROM "policy_roster"
+	FROM accesspolicy_roster 
 	WHERE policy_id = $1
 	`
 
@@ -441,7 +446,7 @@ func (s *PostgreSQLStore) FetchRosterByPolicyID(ctx context.Context, pid uuid.UU
 func (s *PostgreSQLStore) UpdateRoster(ctx context.Context, pid uuid.UUID, r *Roster) (err error) {
 	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
 		if err = s.applyRosterChanges(tx, pid, r); err != nil {
-			return errors.Wrap(err, "failed to apply access policy roster changes during roster update")
+			return errors.Wrap(err, "failed to apply accesspolicy policy roster changes during roster update")
 		}
 
 		return nil
@@ -450,7 +455,7 @@ func (s *PostgreSQLStore) UpdateRoster(ctx context.Context, pid uuid.UUID, r *Ro
 
 func (s *PostgreSQLStore) DeleteRoster(ctx context.Context, pid uuid.UUID) (err error) {
 	return s.withTransaction(ctx, func(tx *pgx.Tx) error {
-		cmd, err := tx.ExecEx(ctx, `DELETE FROM "policy_roster" WHERE policy_id = $1`, nil, pid)
+		cmd, err := tx.ExecEx(ctx, `DELETE FROM accesspolicy_roster WHERE policy_id = $1`, nil, pid)
 		if err != nil {
 			return errors.Wrap(err, "failed to delete policy")
 		}

@@ -1,4 +1,4 @@
-package access
+package accesspolicy
 
 import (
 	"context"
@@ -15,9 +15,9 @@ var (
 	ErrNilDatabase                  = errors.New("database is nil")
 	ErrZeroPolicyID                 = errors.New("id is zero")
 	ErrNonZeroID                    = errors.New("id is not zero")
-	ErrNilStore                     = errors.New("access policy store is nil")
-	ErrNilAccessPolicyManager       = errors.New("access policy container is nil")
-	ErrPolicyNotFound               = errors.New("access policy not found")
+	ErrNilStore                     = errors.New("accesspolicy policy store is nil")
+	ErrNilAccessPolicyManager       = errors.New("accesspolicy policy container is nil")
+	ErrPolicyNotFound               = errors.New("accesspolicy policy not found")
 	ErrAccessPolicyEmptyDesignators = errors.New("both key and kind with id are empty")
 	ErrPolicyKeyTaken               = errors.New("policy name is taken")
 	ErrPolicyObjectConflict         = errors.New("id of a kind is taken")
@@ -26,13 +26,13 @@ var (
 	ErrNilRoster                    = errors.New("rights rosters is nil")
 	ErrCacheMiss                    = errors.New("roster cache miss")
 	ErrEmptyRoster                  = errors.New("rights rosters is empty")
-	ErrNilAccessPolicy              = errors.New("access policy is nil")
-	ErrAccessDenied                 = errors.New("access denied")
+	ErrNilAccessPolicy              = errors.New("accesspolicy policy is nil")
+	ErrAccessDenied                 = errors.New("accesspolicy denied")
 	ErrNoViewRight                  = errors.New("user is not allowed to view this")
-	ErrZeroAssignorID               = errors.New("assignor user id is zero")
-	ErrZeroAssigneeID               = errors.New("assignee user id is zero")
-	ErrExcessOfRights               = errors.New("assignor is attempting to set the rights that excess his own")
-	ErrSameActor                    = errors.New("assignor and assignee is the same user")
+	ErrZeroGrantorID                = errors.New("grantor user id is zero")
+	ErrZeroAssigneeID               = errors.New("grantee user id is zero")
+	ErrExcessOfRights               = errors.New("grantor is attempting to set the rights that excess his own")
+	ErrSameActor                    = errors.New("grantor and grantee is the same user")
 	ErrInvalidParentPolicy          = errors.New("parent policy is invalid")
 	ErrNoParent                     = errors.New("parent policy is nil")
 	ErrNoBackup                     = errors.New("roster has no backup")
@@ -41,12 +41,13 @@ var (
 	ErrUnrecognizedRosterAction     = errors.New("unrecognized roster action")
 	ErrKeyTooLong                   = errors.New("key is too long")
 	ErrObjectNameTooLong            = errors.New("object name is too long")
-	ErrForbiddenChange              = errors.New("access policy key, object name or id is not allowed to rosterChange")
+	ErrForbiddenChange              = errors.New("accesspolicy policy key, object name or id is not allowed to rosterChange")
 	ErrNilPolicyID                  = errors.New("policy id is nil")
 	ErrNothingChanged               = errors.New("nothing changed")
+	ErrNilActorID                   = errors.New("actor id is nil")
 )
 
-// Manager is the access policy registry
+// Manager is the accesspolicy policy registry
 type Manager struct {
 	policies   map[uuid.UUID]Policy
 	keyMap     map[TKey]uuid.UUID
@@ -57,7 +58,7 @@ type Manager struct {
 	sync.RWMutex
 }
 
-// NewManager initializes a new access policy container
+// NewManager initializes a new accesspolicy policy container
 func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	if store == nil {
 		return nil, ErrNilStore
@@ -122,68 +123,71 @@ func (m *Manager) removePolicy(policyID uuid.UUID) (err error) {
 	return nil
 }
 
-// Upsert creates a new access policy
-func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID uuid.UUID, obj Object, flags uint8) (ap Policy, err error) {
-	ap, err = NewPolicy(key, ownerID, parentID, obj, flags)
+// Upsert creates a new accesspolicy policy
+func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
+	p, err = NewPolicy(key, ownerID, parentID, obj, flags)
 	if err != nil {
-		return ap, errors.Wrap(err, "failed to initialize new access policy")
+		return p, errors.Wrap(err, "failed to initialize new accesspolicy policy")
 	}
 
 	// validating new policy object
-	if err = ap.Validate(); err != nil {
-		return ap, errors.Wrap(err, "new policy validation failed")
+	if err = p.Validate(); err != nil {
+		return p, errors.Wrap(err, "new policy validation failed")
 	}
 
 	// checking whether the key is available in general
-	if ap.Key[0] != 0 {
-		_, err = m.PolicyByKey(ctx, ap.Key)
+	if p.Key[0] != 0 {
+		_, err = m.PolicyByKey(ctx, p.Key)
 		if err == nil {
-			return ap, ErrPolicyKeyTaken
+			return p, ErrPolicyKeyTaken
 		}
 
 		if err != ErrPolicyNotFound {
-			return ap, err
+			return p, err
 		}
 	}
 
 	// checking by an object type and ActorID
-	if ap.ObjectName[0] != 0 && ap.ObjectID != uuid.Nil {
+	if p.ObjectName[0] != 0 && p.ObjectID != uuid.Nil {
 		_, err = m.PolicyByObject(ctx, obj)
 		if err == nil {
-			return ap, ErrPolicyObjectConflict
+			return p, ErrPolicyObjectConflict
 		}
 
 		if err != ErrPolicyNotFound {
-			return ap, err
+			return p, err
 		}
 	}
 
 	// initializing or re-using rights rosters, depending
 	// on whether this policy has a parent from which it inherits
 	if parentID != uuid.Nil {
-		if _, err = m.PolicyByID(ctx, ap.ParentID); err != nil {
-			return ap, errors.Wrapf(err, "failed to obtain parent policy despite having parent id")
+		if _, err = m.PolicyByID(ctx, p.ParentID); err != nil {
+			return p, errors.Wrapf(err, "failed to obtain parent policy despite having parent id")
 		}
 	}
 
+	// generating ID for the new policy
+	p.ID = uuid.New()
+
 	// creating in the store
-	ap, r, err := m.store.CreatePolicy(ctx, ap, NewRoster(0))
+	p, r, err := m.store.CreatePolicy(ctx, p, NewRoster(0))
 	if err != nil {
-		return ap, errors.Wrap(err, "failed to create new access policy")
+		return p, errors.Wrap(err, "failed to create new accesspolicy policy")
 	}
 
 	// adding new policy to internal registry
-	if err = m.putPolicy(ap, r); err != nil {
-		return ap, errors.Wrap(err, "failed to add access policy to container registry")
+	if err = m.putPolicy(p, r); err != nil {
+		return p, errors.Wrap(err, "failed to add accesspolicy policy to container registry")
 	}
 
-	return ap, nil
+	return p, nil
 }
 
-// Update updates given access policy
+// Update updates given accesspolicy policy
 func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	if err = p.Validate(); err != nil {
-		return errors.Wrap(err, "failed to validate access policy before updating")
+		return errors.Wrap(err, "failed to validate accesspolicy policy before updating")
 	}
 
 	currentPolicy, err := m.PolicyByID(ctx, p.ID)
@@ -208,7 +212,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	}
 
 	// checking whether name is available, and if it already
-	// exists and doesn't belong to this access policy, then
+	// exists and doesn't belong to this accesspolicy policy, then
 	// returning an error
 	if p.Key[0] != 0 {
 		existingPolicy, err := m.PolicyByKey(ctx, p.Key)
@@ -224,7 +228,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	}
 
 	// checking by an object, just in case kind and id changes,
-	// and new kind and object is already attached to a different access policy
+	// and new kind and object is already attached to a different accesspolicy policy
 	if p.ObjectName[0] != 0 && p.ObjectID != uuid.Nil {
 		existingPolicy, err := m.PolicyByObject(ctx, NewObject(p.ObjectID, p.ObjectName))
 		if err != nil {
@@ -245,7 +249,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 
 	// making changes to the store backend
 	if err = m.store.UpdatePolicy(ctx, p, r); err != nil {
-		return errors.Wrap(err, "failed to save updated access policy")
+		return errors.Wrap(err, "failed to save updated accesspolicy policy")
 	}
 
 	// clearing roster changes and backup because the policy update was successful
@@ -254,10 +258,10 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	return m.putPolicy(p, r)
 }
 
-// PolicyByID returns an access policy by its ObjectID
+// PolicyByID returns an accesspolicy policy by its ObjectID
 func (m *Manager) PolicyByID(ctx context.Context, id uuid.UUID) (p Policy, err error) {
 	if id == uuid.Nil {
-		return p, ErrZeroPolicyID
+		return p, ErrNilPolicyID
 	}
 
 	// checking cache first
@@ -273,7 +277,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uuid.UUID) (p Policy, err e
 	// attempting to obtain policy from the store
 	p, err = m.store.FetchPolicyByID(ctx, id)
 	if err != nil {
-		return p, errors.Wrapf(err, "failed to fetch access policy: %d", id)
+		return p, errors.Wrapf(err, "failed to fetch accesspolicy policy: %d", id)
 	}
 
 	// fetching roster
@@ -285,7 +289,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uuid.UUID) (p Policy, err e
 	return p, m.putPolicy(p, r)
 }
 
-// PolicyByKey returns an access policy by its key
+// PolicyByKey returns an accesspolicy policy by its key
 func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (p Policy, err error) {
 	m.RLock()
 	p, ok := m.policies[m.keyMap[name]]
@@ -316,7 +320,7 @@ func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (p Policy, err err
 	return p, nil
 }
 
-// PolicyByObject returns an access policy by its kind and id
+// PolicyByObject returns an accesspolicy policy by its kind and id
 func (m *Manager) PolicyByObject(ctx context.Context, obj Object) (p Policy, err error) {
 	// attempting to obtain policy from the store
 	p, err = m.store.FetchPolicyByObject(ctx, obj)
@@ -338,10 +342,10 @@ func (m *Manager) PolicyByObject(ctx context.Context, obj Object) (p Policy, err
 	return p, nil
 }
 
-// DeletePolicy returns an access policy by its ObjectID
+// DeletePolicy returns an accesspolicy policy by its ObjectID
 func (m *Manager) DeletePolicy(ctx context.Context, p Policy) (err error) {
 	if err = p.Validate(); err != nil {
-		return errors.Wrap(err, "failed to delete access policy")
+		return errors.Wrap(err, "failed to delete accesspolicy policy")
 	}
 
 	// deleting policy from the store
@@ -362,7 +366,7 @@ func (m *Manager) DeletePolicy(ctx context.Context, p Policy) (err error) {
 	return nil
 }
 
-// RosterByPolicy returns the rights roster by its access policy
+// RosterByPolicy returns the rights roster by its accesspolicy policy
 func (m *Manager) RosterByPolicyID(ctx context.Context, id uuid.UUID) (r *Roster, err error) {
 	if id == uuid.Nil {
 		return nil, ErrZeroPolicyID
@@ -425,7 +429,7 @@ func (m *Manager) HasRights(ctx context.Context, pid uuid.UUID, actor Actor, rig
 	return false
 }
 
-// GrantAccess grants access rights on a given policy, by grantor to grantee
+// GrantAccess grants accesspolicy rights on a given policy, by grantor to grantee
 // NOTE: can be called multiple times before policy changes are persisted
 // NOTE: rights rosters changes are not persisted unless explicitly saved
 // NOTE: changes made with this function will be cancelled and backup restored
@@ -433,7 +437,7 @@ func (m *Manager) HasRights(ctx context.Context, pid uuid.UUID, actor Actor, rig
 func (m *Manager) GrantAccess(ctx context.Context, pid uuid.UUID, grantor, grantee Actor, access Right) (err error) {
 	p, err := m.PolicyByID(ctx, pid)
 	if err != nil {
-		return errors.Wrap(err, "failed to obtain access policy")
+		return errors.Wrap(err, "failed to obtain accesspolicy policy")
 	}
 
 	r, err := m.RosterByPolicyID(ctx, p.ID)
@@ -462,11 +466,11 @@ func (m *Manager) GrantAccess(ctx context.Context, pid uuid.UUID, grantor, grant
 }
 
 // RevokeAccess takes away current rights of a kind on this policy,
-// from an assignee, as an assignor
-// NOTE: this function only removes exclusive rights of this assignee,
-// but the assignee still retains its public level rights to whatver
+// from an grantee, as angrantor
+// NOTE: this function only removes exclusive rights of this grantee,
+// but the grantee still retains its public level rights to whatver
 // that this policy protects
-// NOTE: if you wish to completely deny somebody an access through
+// NOTE: if you wish to completely deny somebody an accesspolicy through
 // this policy, then set exclusive rights explicitly (i.e. APNoAccess, 0)
 func (m *Manager) RevokeAccess(ctx context.Context, pid uuid.UUID, grantor, grantee Actor) (err error) {
 	// safety fuse
@@ -474,7 +478,7 @@ func (m *Manager) RevokeAccess(ctx context.Context, pid uuid.UUID, grantor, gran
 
 	p, err := m.PolicyByID(ctx, pid)
 	if err != nil {
-		return errors.Wrapf(err, "failed to obtain access policy: policy_id=%d", pid)
+		return errors.Wrapf(err, "failed to obtain accesspolicy policy: policy_id=%d", pid)
 	}
 
 	r, err := m.RosterByPolicyID(ctx, pid)
@@ -490,10 +494,10 @@ func (m *Manager) RevokeAccess(ctx context.Context, pid uuid.UUID, grantor, gran
 	}()
 
 	if grantor.ID == uuid.Nil {
-		return ErrZeroAssignorID
+		return ErrZeroGrantorID
 	}
 
-	// the grantor must have a right to manage access rights (APManageAccess) and have all the
+	// the grantor must have a right to manage accesspolicy rights (APManageAccess) and have all the
 	// rights himself that he's attempting to assign to others
 	// TODO: consider weighting the rights of who strips whose rights
 	if !m.HasRights(ctx, pid, grantor, APManageAccess) {
@@ -559,7 +563,7 @@ func (m *Manager) SetParent(ctx context.Context, policyID, parentID uuid.UUID) (
 	return nil
 }
 
-// Access returns a summarized access bitmask for a given actor
+// Access returns a summarized accesspolicy bitmask for a given actor
 func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (access Right) {
 	if userID == uuid.Nil {
 		return APNoAccess
@@ -577,12 +581,12 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 		return APFullAccess
 	}
 
-	// calculating parents access if parent ActorID is set
+	// calculating parents accesspolicy if parent ActorID is set
 	if ap.ParentID != uuid.Nil {
 		// obtaining parent object
 		parent, err := m.PolicyByID(ctx, ap.ParentID)
 		if err != nil {
-			panic(errors.Wrap(err, "access policy has parent id set, but failed to obtain parent policy object"))
+			panic(errors.Wrap(err, "accesspolicy policy has parent id set, but failed to obtain parent policy object"))
 		}
 
 		// if this policy is flagged as inherited, then
@@ -590,7 +594,7 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 		if ap.IsInherited() {
 			access = m.Access(ctx, ap.ParentID, userID)
 		} else {
-			// if extend is true and parent exists, then using parent's access as a base value
+			// if extend is true and parent exists, then using parent's accesspolicy as a base value
 			if parent.ID != uuid.Nil && ap.IsExtended() {
 				// addressing the parent because it traces back until it finds
 				// the first uninherited, actual policy
@@ -604,7 +608,7 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 	return access
 }
 
-// GrantPublicAccess setting base access rights for everyone
+// GrantPublicAccess setting base accesspolicy rights for everyone
 func (m *Manager) GrantPublicAccess(ctx context.Context, pid uuid.UUID, grantor Actor, rights Right) error {
 	// safety fuse
 	restoreBackup := true
@@ -622,7 +626,7 @@ func (m *Manager) GrantPublicAccess(ctx context.Context, pid uuid.UUID, grantor 
 	}()
 
 	if grantor.ID == uuid.Nil {
-		return ErrZeroAssignorID
+		return ErrZeroGrantorID
 	}
 
 	// checking whether the assignorID has at least the assigned rights
@@ -639,7 +643,7 @@ func (m *Manager) GrantPublicAccess(ctx context.Context, pid uuid.UUID, grantor 
 	return nil
 }
 
-// GrantRoleAccess grants access rights to the role
+// GrantRoleAccess grants accesspolicy rights to the role
 func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Actor, roleID uuid.UUID, rights Right) error {
 	// safety fuse
 	restoreBackup := true
@@ -657,7 +661,7 @@ func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}()
 
 	if grantor.ID == uuid.Nil {
-		return ErrZeroAssignorID
+		return ErrZeroGrantorID
 	}
 
 	if roleID == uuid.Nil {
@@ -678,7 +682,7 @@ func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 		)
 	}
 
-	// checking whether assignor has the right to manage,
+	// checking whether grantor has the right to manage,
 	// and has at least the assigned rights itself
 	if !m.HasRights(ctx, pid, grantor, APManageAccess|rights) {
 		return ErrExcessOfRights
@@ -693,7 +697,7 @@ func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	return nil
 }
 
-// GrantGroupAccess grants access rights to a specific group
+// GrantGroupAccess grants accesspolicy rights to a specific group
 func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor Actor, groupID uuid.UUID, rights Right) (err error) {
 	// safety fuse
 	restoreBackup := true
@@ -711,7 +715,7 @@ func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor A
 	}()
 
 	if grantor.ID == uuid.Nil {
-		return ErrZeroAssignorID
+		return ErrZeroGrantorID
 	}
 
 	if groupID == uuid.Nil {
@@ -732,7 +736,7 @@ func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor A
 		)
 	}
 
-	// checking whether assignor has the right to manage,
+	// checking whether grantor has the right to manage,
 	// and has at least the assigned rights itself
 	if !m.HasRights(ctx, pid, grantor, APManageAccess|rights) {
 		return ErrExcessOfRights
@@ -747,8 +751,8 @@ func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor A
 	return nil
 }
 
-// GrantUserAccess grants access rights to a specific user actor
-// TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each access policy instance
+// GrantUserAccess grants accesspolicy rights to a specific user actor
+// TODO: consider whether it's right to turn off inheritance (if enabled) when setting/changing anything on each accesspolicy policy instance
 func (m *Manager) GrantUserAccess(ctx context.Context, pid uuid.UUID, grantor Actor, userID uuid.UUID, rights Right) (err error) {
 	// safety fuse
 	restoreBackup := true
@@ -766,14 +770,14 @@ func (m *Manager) GrantUserAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}()
 
 	if grantor.ID == uuid.Nil {
-		return ErrZeroAssignorID
+		return ErrZeroGrantorID
 	}
 
 	if userID == uuid.Nil {
 		return ErrZeroAssigneeID
 	}
 
-	// checking whether assignor has the right to manage,
+	// checking whether grantor has the right to manage,
 	// and has at least the assigned rights itself
 	if !m.HasRights(ctx, pid, grantor, APManageAccess|rights) {
 		return ErrExcessOfRights
@@ -850,7 +854,7 @@ func (m *Manager) HasRoleRights(ctx context.Context, policyID, groupID uuid.UUID
 	return (m.GroupAccess(ctx, policyID, groupID) & rights) == rights
 }
 
-// SummarizedUserAccess summarizing the resulting access rights of a given user
+// SummarizedUserAccess summarizing the resulting accesspolicy rights of a given user
 func (m *Manager) SummarizedUserAccess(ctx context.Context, policyID, userID uuid.UUID) (access Right) {
 	p, err := m.PolicyByID(ctx, policyID)
 	if err != nil {
@@ -862,7 +866,7 @@ func (m *Manager) SummarizedUserAccess(ctx context.Context, policyID, userID uui
 		return APNoAccess
 	}
 
-	// public access is the base right
+	// public accesspolicy is the base right
 	access = r.Everyone
 
 	// calculating group rights only if policy manager has a reference
@@ -925,12 +929,12 @@ func (m *Manager) GroupAccess(ctx context.Context, pid, groupID uuid.UUID) (acce
 		access = r.lookup(NewActor(ARoleGroup, g.ID))
 	}
 
-	// returning if any positive access right is found
+	// returning if any positive accesspolicy right is found
 	if access != APNoAccess {
 		return access
 	}
 
-	// otherwise, looking for the first set access by tracing back
+	// otherwise, looking for the first set accesspolicy by tracing back
 	// through its parents
 	if g.ParentID != uuid.Nil {
 		return m.GroupAccess(ctx, pid, g.ParentID)

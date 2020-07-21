@@ -6,7 +6,7 @@ import (
 	"log"
 
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/security/access"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
@@ -64,12 +64,12 @@ func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
 	//---------------------------------------------------------------------------
 	// initializing policy manager
 	//---------------------------------------------------------------------------
-	aps, err := access.NewDefaultMySQLStore(db)
+	aps, err := accesspolicy.NewDefaultMySQLStore(db)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	apm, err := access.NewManager(aps, gm)
+	apm, err := accesspolicy.NewManager(aps, gm)
 	if err != nil {
 		return nil, nil, err
 	}

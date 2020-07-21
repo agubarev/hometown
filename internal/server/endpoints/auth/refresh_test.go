@@ -32,7 +32,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(um)
 
-	// initializing access manager
+	// initializing accesspolicy manager
 	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)

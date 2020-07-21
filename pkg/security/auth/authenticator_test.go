@@ -27,7 +27,7 @@ func TestAuthenticate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(um)
 
-	// initializing access manager
+	// initializing accesspolicy manager
 	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
@@ -81,7 +81,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(um)
 
-	// initializing access manager
+	// initializing accesspolicy manager
 	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
@@ -135,7 +135,7 @@ func TestDestroySession(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(um)
 
-	// initializing access manager
+	// initializing accesspolicy manager
 	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
 	a.NoError(err)
 	a.NotNil(am)
@@ -223,12 +223,12 @@ func TestDestroySession(t *testing.T) {
 
 	// ====================================================================================
 	// making sure that session doesn't exist anymore and its
-	// corresponding access token is revoked properly
+	// corresponding accesspolicy token is revoked properly
 	// ====================================================================================
 	s, err := am.GetSession(bs.Token)
 	a.EqualError(err, auth.ErrSessionNotFound.Error())
 	a.Nil(s)
 
-	// checking whether the access token is revoked
+	// checking whether the accesspolicy token is revoked
 	a.True(am.IsRevoked(s.AccessTokenID))
 }

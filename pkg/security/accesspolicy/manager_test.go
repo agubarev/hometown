@@ -1,4 +1,4 @@
-package access_test
+package accesspolicy_test
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/security/access"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -25,7 +25,7 @@ func TestNewAccessPolicyManager(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -40,7 +40,7 @@ func TestNewAccessPolicyManager(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 }
@@ -60,7 +60,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -75,7 +75,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -83,17 +83,17 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	// proceeding with the test
 	// creating a normal policy with type name and ActorID set, no key
 	//---------------------------------------------------------------------------
-	key := access.TKey{}
-	objectName := access.ObjectName("with type and id, no key")
+	key := accesspolicy.TKey{}
+	objectName := accesspolicy.ObjectName("with type and id, no key")
 	objectID := uuid.New()
 
 	p, err := m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotZero(p.ID)
@@ -108,22 +108,22 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	roster, err := m.RosterByPolicyID(ctx, p.ID)
 	a.NoError(err)
 	a.NotNil(roster)
-	a.Equal(access.APNoAccess, roster.Everyone)
+	a.Equal(accesspolicy.APNoAccess, roster.Everyone)
 
 	//---------------------------------------------------------------------------
 	// policy without an owner
 	//---------------------------------------------------------------------------
-	key = access.TKey{}
-	objectName = access.ObjectName("policy without an owner")
+	key = accesspolicy.TKey{}
+	objectName = accesspolicy.ObjectName("policy without an owner")
 	objectID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.Nil,                               // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,      // key
+		uuid.Nil, // owner
+		uuid.Nil, // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotZero(p.ID)
@@ -138,22 +138,22 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	roster, err = m.RosterByPolicyID(ctx, p.ID)
 	a.NoError(err)
 	a.NotNil(roster)
-	a.Equal(access.APNoAccess, roster.Everyone)
+	a.Equal(accesspolicy.APNoAccess, roster.Everyone)
 
 	//---------------------------------------------------------------------------
 	// creating a policy with a key,  object name and ActorID set
 	//---------------------------------------------------------------------------
-	key = access.Key("test key")
-	objectName = access.ObjectName("with type, id and key")
+	key = accesspolicy.Key("test key")
+	objectName = accesspolicy.ObjectName("with type, id and key")
 	objectID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
@@ -167,17 +167,17 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating the same policy with the same  object name and id
 	//---------------------------------------------------------------------------
-	key = access.Key("test key (to attempt duplication)")
-	objectName = access.ObjectName("with type and id (to attempt duplication)")
+	key = accesspolicy.Key("test key (to attempt duplication)")
+	objectName = accesspolicy.ObjectName("with type and id (to attempt duplication)")
 	objectID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
@@ -192,14 +192,14 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	// NOTE: must fail
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.Error(err)
-	a.EqualError(access.ErrPolicyKeyTaken, err.Error())
+	a.EqualError(accesspolicy.ErrPolicyKeyTaken, err.Error())
 
 	// checking rights roster
 	roster, err = m.RosterByPolicyID(ctx, p.ID)
@@ -209,17 +209,17 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// attempting to create a policy with an object name without object
 	//---------------------------------------------------------------------------
-	key = access.Key("with name but without id")
-	objectName = access.ObjectName("test object")
+	key = accesspolicy.Key("with name but without id")
+	objectName = accesspolicy.ObjectName("test object")
 	objectID = uuid.Nil
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.Error(err)
 
@@ -231,17 +231,17 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// attempting to create a policy without an object name but with  objectset
 	//---------------------------------------------------------------------------
-	key = access.Key("without name but with id")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("without name but with id")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.Error(err)
 
@@ -252,17 +252,17 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating a re-usable parent policy
 	//---------------------------------------------------------------------------
-	key = access.Key("re-usable parent policy")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("re-usable parent policy")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 
 	basePolicy, err := m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(basePolicy)
@@ -276,53 +276,53 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// attempting to create a proper policy but with a non-existing parent
 	//---------------------------------------------------------------------------
-	key = access.Key("policy with non-existing parent")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("policy with non-existing parent")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.New(),                             // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,        // key
+		uuid.New(), // owner
+		uuid.New(), // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.Error(err)
 
 	//---------------------------------------------------------------------------
 	// inheritance without a parent
 	//---------------------------------------------------------------------------
-	key = access.Key("policy inherits with no parent")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("policy inherits with no parent")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 	ownerID := uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		ownerID,                                // owner
-		uuid.New(),                             // parent
-		access.NewObject(objectID, objectName), // object
-		access.FInherit,                        // flags
+		key,        // key
+		ownerID,    // owner
+		uuid.New(), // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		accesspolicy.FInherit,                        // flags
 	)
 	a.Error(err)
 
 	//---------------------------------------------------------------------------
 	// extension without a parent
 	//---------------------------------------------------------------------------
-	key = access.Key("policy extends with no parent")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("policy extends with no parent")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 	ownerID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		ownerID,                                // owner
-		uuid.New(),                             // parent
-		access.NewObject(objectID, objectName), // object
-		access.FExtend,                         // flags
+		key,        // key
+		ownerID,    // owner
+		uuid.New(), // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		accesspolicy.FExtend,                         // flags
 	)
 	a.Error(err)
 
@@ -330,36 +330,36 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	// proper but inherits and extends at the same time
 	// NOTE: must fail
 	//---------------------------------------------------------------------------
-	key = access.Key("policy inherits and extends (must not be created)")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("policy inherits and extends (must not be created)")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 	ownerID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		ownerID,                                // owner
-		basePolicy.ID,                          // parent
-		access.NewObject(objectID, objectName), // object
-		access.FInherit|access.FExtend,         // flags
+		key,           // key
+		ownerID,       // owner
+		basePolicy.ID, // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		accesspolicy.FInherit|accesspolicy.FExtend,   // flags
 	)
 	a.Error(err)
 
 	//---------------------------------------------------------------------------
 	// proper creation with inheritance only
 	//---------------------------------------------------------------------------
-	key = access.Key("proper policy with inheritance")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("proper policy with inheritance")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 	ownerID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		ownerID,                                // owner
-		basePolicy.ID,                          // parent
-		access.NewObject(objectID, objectName), // object
-		access.FInherit,                        // flags
+		key,           // key
+		ownerID,       // owner
+		basePolicy.ID, // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		accesspolicy.FInherit,                        // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
@@ -373,18 +373,18 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// proper creation with extension only
 	//---------------------------------------------------------------------------
-	key = access.Key("proper policy with extension")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("proper policy with extension")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 	ownerID = uuid.New()
 
 	p, err = m.Create(
 		ctx,
-		key,                                    // key
-		ownerID,                                // owner
-		basePolicy.ID,                          // parent
-		access.NewObject(objectID, objectName), // object
-		access.FExtend,                         // flags
+		key,           // key
+		ownerID,       // owner
+		basePolicy.ID, // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		accesspolicy.FExtend,                         // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
@@ -411,7 +411,7 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -426,24 +426,27 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
+
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// test policy
 	//---------------------------------------------------------------------------
-	key := access.Key("test policy")
-	objectName := access.TObjectName{}
+	key := accesspolicy.Key("test policy")
+	objectName := accesspolicy.TObjectName{}
 	objectID := uuid.Nil
 
 	p, err := m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,      // key
+		act1.ID,  // owner
+		uuid.Nil, // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotZero(p.ID)
@@ -458,22 +461,22 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	roster, err := m.RosterByPolicyID(ctx, p.ID)
 	a.NoError(err)
 	a.NotNil(roster)
-	a.Equal(access.APNoAccess, roster.Everyone)
+	a.Equal(accesspolicy.APNoAccess, roster.Everyone)
 
 	//---------------------------------------------------------------------------
 	// creating base policy (to be used as a parent)
 	//---------------------------------------------------------------------------
-	key = access.Key("base policy")
-	objectName = access.TObjectName{}
+	key = accesspolicy.Key("base policy")
+	objectName = accesspolicy.TObjectName{}
 	objectID = uuid.Nil
 
 	basePolicy, err := m.Create(
 		ctx,
-		key,                                    // key
-		uuid.New(),                             // owner
-		uuid.Nil,                               // parent
-		access.NewObject(objectID, objectName), // object
-		0,                                      // flags
+		key,      // key
+		act1.ID,  // owner
+		uuid.Nil, // parent
+		accesspolicy.NewObject(objectID, objectName), // object
+		0, // flags
 	)
 	a.NoError(err)
 	a.NotZero(basePolicy.ID)
@@ -510,29 +513,26 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	a.Zero(p.ParentID)
 
 	// key, object name and id must not be changeable
-	a.Error(p.SetKey(access.Key("new key"), 32))
-	a.Error(p.SetObjectName(access.ObjectName("new object name"), 32))
+	a.Error(p.SetKey(accesspolicy.Key("new key"), 32))
+	a.Error(p.SetObjectName(accesspolicy.ObjectName("new object name"), 32))
 
 	// attempting to rosterChange object id and save
-	p.ObjectName = access.ObjectName("doesn't matter")
+	p.ObjectName = accesspolicy.ObjectName("doesn't matter")
 	p.ObjectID = uuid.New()
-	a.EqualError(access.ErrForbiddenChange, m.Update(ctx, p).Error())
+	a.EqualError(accesspolicy.ErrForbiddenChange, m.Update(ctx, p).Error())
 
 	// re-obtaining policy
 	p, err = m.PolicyByID(ctx, p.ID)
 	a.NoError(err)
 
-	act1 := access.NewActor(access.AUser, uuid.New())
-	act2 := access.NewActor(access.AUser, uuid.New())
-
 	// set assignor rights
-	a.NoError(m.GrantAccess(ctx, p.ID, act1, act2, access.APView))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, act2, accesspolicy.APView))
 	a.NoError(m.Update(ctx, p))
-	a.True(m.HasRights(ctx, p.ID, act2, access.APView))
-	a.False(m.HasRights(ctx, p.ID, act2, access.APChange))
-	a.False(m.HasRights(ctx, p.ID, act2, access.APMove))
-	a.False(m.HasRights(ctx, p.ID, act2, access.APDelete))
-	a.False(m.HasRights(ctx, p.ID, act2, access.APCreate))
+	a.True(m.HasRights(ctx, p.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APMove))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APDelete))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APCreate))
 }
 
 func TestAccessPolicyManagerSetRights(t *testing.T) {
@@ -550,7 +550,7 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -565,7 +565,7 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -582,22 +582,22 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NoError(err)
 
 	// expected rights
-	wantedRights := access.APCreate | access.APView | access.APDelete
+	wantedRights := accesspolicy.APCreate | accesspolicy.APView | accesspolicy.APDelete
 
-	act1 := access.NewActor(access.AUser, uuid.New())
-	act2 := access.NewActor(access.AUser, uuid.New())
-	act3 := access.NewActor(access.AUser, uuid.New())
-	act4 := access.NewActor(access.AUser, uuid.New())
+	act1 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act2 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act3 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act4 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
 
 	//---------------------------------------------------------------------------
 	// proceeding with the test
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		access.Key("test policy"), // key
-		act1.ID,                   // owner
-		uuid.Nil,                  // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
+		accesspolicy.Key("test policy"), // key
+		act1.ID,                         // owner
+		uuid.Nil,                        // parent
+		accesspolicy.NewObject(uuid.Nil, accesspolicy.TObjectName{}),
 		0, // flags
 	)
 	a.NoError(err)
@@ -611,12 +611,12 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act4, wantedRights))
 
 	// roles
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, r1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, r2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r2.ID), wantedRights))
 
 	// groups
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, g1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, g2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g2.ID), wantedRights))
 
 	// persisting changes
 	a.NoError(m.Update(ctx, ap))
@@ -637,7 +637,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -652,7 +652,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
@@ -669,30 +669,29 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NoError(err)
 
 	// expected rights
-	wantedRights := access.APView | access.APChange | access.APDelete | access.APCopy
+	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APDelete | accesspolicy.APCopy
 
-	ownerID := uuid.New()
-
-	act1 := access.NewActor(access.AUser, uuid.New())
-	act2 := access.NewActor(access.AUser, uuid.New())
-	act3 := access.NewActor(access.AUser, uuid.New())
-	act4 := access.NewActor(access.AUser, uuid.New())
+	act1 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act2 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act3 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act4 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	obj := accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("test object name"))
 
 	//---------------------------------------------------------------------------
 	// creating policy and setting rights
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		access.Key("test policy"), // key
-		ownerID,                   // owner
-		uuid.Nil,                  // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
+		accesspolicy.Key("test policy"), // key
+		act1.ID,                         // owner
+		uuid.Nil,                        // parent
+		obj,
 		0, // flags
 	)
 	a.NoError(err)
 
 	// public
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act2, wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.PublicActor(), wantedRights))
 
 	// users
 	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act2, wantedRights))
@@ -700,12 +699,12 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act4, wantedRights))
 
 	// roles
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, r1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, r2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r2.ID), wantedRights))
 
 	// groups
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, g1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, access.NewActor(access.ARoleGroup, g2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g2.ID), wantedRights))
 
 	// persisting changes
 	a.NoError(m.Update(ctx, ap))
@@ -722,7 +721,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NotNil(fetchedPolicy)
 	a.True(reflect.DeepEqual(ap, fetchedPolicy))
 
-	fetchedPolicy, err = m.PolicyByObject(ctx, access.NewObject(ap.ObjectID, ap.ObjectName))
+	fetchedPolicy, err = m.PolicyByObject(ctx, accesspolicy.NewObject(ap.ObjectID, ap.ObjectName))
 	a.NoError(err)
 	a.NotNil(fetchedPolicy)
 	a.True(reflect.DeepEqual(ap, fetchedPolicy))
@@ -737,16 +736,16 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	//---------------------------------------------------------------------------
 	fetchedPolicy, err = m.PolicyByID(ctx, ap.ID)
 	a.Error(err)
-	a.EqualError(access.ErrPolicyNotFound, errors.Cause(err).Error())
+	a.EqualError(accesspolicy.ErrPolicyNotFound, errors.Cause(err).Error())
 	a.Zero(fetchedPolicy.ID)
 
 	fetchedPolicy, err = m.PolicyByKey(ctx, ap.Key)
 	a.Error(err)
-	a.EqualError(access.ErrPolicyNotFound, err.Error())
+	a.EqualError(accesspolicy.ErrPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
 
-	fetchedPolicy, err = m.PolicyByObject(ctx, access.NewObject(ap.ObjectID, ap.ObjectName))
+	fetchedPolicy, err = m.PolicyByObject(ctx, accesspolicy.NewObject(ap.ObjectID, ap.ObjectName))
 	a.Error(err)
-	a.EqualError(access.ErrPolicyNotFound, err.Error())
+	a.EqualError(accesspolicy.ErrPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
 }

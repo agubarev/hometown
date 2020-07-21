@@ -14,7 +14,7 @@ var (
 	ErrEmptyUsername              = errors.New("username is empty")
 	ErrEmptyPassword              = errors.New("password is empty")
 	ErrUserSuspended              = errors.New("user is suspended")
-	ErrInvalidAccessToken         = errors.New("invalid access token")
+	ErrInvalidAccessToken         = errors.New("invalid accesspolicy token")
 	ErrInvalidRefreshToken        = errors.New("invalid refresh token")
 	ErrInvalidExpirationTime      = errors.New("invalid expiration time")
 	ErrTokenExpired               = errors.New("token has expired")

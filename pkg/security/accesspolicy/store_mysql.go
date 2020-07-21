@@ -1,4 +1,4 @@
-package access
+package accesspolicy
 
 /*
 // RosterEntry represents a single database row
@@ -6,11 +6,11 @@ type RosterEntry struct {
 	PolicyID        uint32      `db:"policy_id"`
 	ActorID       uint32      `db:"subject_id"`
 	ActorKind     ActorKind `db:"subject_kind"`
-	Access     Right       `db:"access"`
+	Access     Right       `db:"accesspolicy"`
 	AccessExplained string      `db:"access_explained"`
 }
 
-// DefaultMySQLStore is a default access policy store implementation
+// DefaultMySQLStore is a default accesspolicy policy store implementation
 type DefaultMySQLStore struct {
 	db *dbr.Connection
 }
@@ -79,7 +79,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 			})
 		default:
 			log.Printf(
-				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
+				"unrecognized subject kind for accesspolicy policy (subject_kind=%d, subject_id=%d, access_right=%d)",
 				_r.ActorKind,
 				_r.ActorID,
 				_r.Rights,
@@ -103,7 +103,7 @@ func (s *DefaultMySQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 			r.put(_r.ActorKind, _r.ActorID, _r.Access)
 		default:
 			log.Printf(
-				"unrecognized subject kind for access policy (subject_kind=%d, subject_id=%d, access_right=%d)",
+				"unrecognized subject kind for accesspolicy policy (subject_kind=%d, subject_id=%d, access_right=%d)",
 				_r.ActorKind,
 				_r.ActorID,
 				_r.Access,
@@ -124,7 +124,7 @@ func (s *DefaultMySQLStore) applyRosterChanges(tx *dbr.Tx, policyID uint32, r *R
 			// creating
 			//---------------------------------------------------------------------------
 			_, err = tx.Exec(
-				"INSERT INTO accesspolicy_roster (policy_id, subject_kind, subject_id, access, access_explained) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE access = ?",
+				"INSERT INTO accesspolicy_roster (policy_id, subject_kind, subject_id, accesspolicy, access_explained) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE accesspolicy = ?",
 				policyID,
 				c.subjectKind,
 				c.subjectID,
@@ -156,7 +156,7 @@ func (s *DefaultMySQLStore) applyRosterChanges(tx *dbr.Tx, policyID uint32, r *R
 	return nil
 }
 
-// Upsert creating access policy
+// Upsert creating accesspolicy policy
 func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap Policy, r *Roster) (Policy, *Roster, error) {
 	if ap.ActorID != 0 {
 		return ap, r, ErrNonZeroID
@@ -169,15 +169,15 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap Policy, r *Rost
 	defer tx.RollbackUnlessCommitted()
 
 	//---------------------------------------------------------------------------
-	// creating access policy
+	// creating accesspolicy policy
 	//---------------------------------------------------------------------------
-	result, err := tx.InsertInto("access").
+	result, err := tx.InsertInto("accesspolicy").
 		Columns(guard.DBColumnsFrom(&ap)...).
 		Record(&ap).
 		ExecContext(ctx)
 
 	if err != nil {
-		return ap, r, errors.Wrap(err, "failed to insert access policy")
+		return ap, r, errors.Wrap(err, "failed to insert accesspolicy policy")
 	}
 
 	// obtaining newly generated ActorID
@@ -189,7 +189,7 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap Policy, r *Rost
 	ap.ActorID = uint32(id64)
 
 	//---------------------------------------------------------------------------
-	// creating access roster
+	// creating accesspolicy roster
 	//---------------------------------------------------------------------------
 	if r == nil {
 		r = NewRoster(0)
@@ -216,7 +216,7 @@ func (s *DefaultMySQLStore) CreatePolicy(ctx context.Context, ap Policy, r *Rost
 	return ap, r, nil
 }
 
-// UpdatePolicy updates an existing access policy along with its rights rosters
+// UpdatePolicy updates an existing accesspolicy policy along with its rights rosters
 // NOTE: rights rosters keeps track of its changes, thus, update will
 // only affect changes mentioned by the respective Roster object
 func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Roster) (err error) {
@@ -231,7 +231,7 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Rost
 	defer tx.RollbackUnlessCommitted()
 
 	//---------------------------------------------------------------------------
-	// updating access policy and its rights rosters (only the changes)
+	// updating accesspolicy policy and its rights rosters (only the changes)
 	//---------------------------------------------------------------------------
 	// listing fields to be updated
 	updates := map[string]interface{}{
@@ -243,15 +243,15 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Rost
 		"flags":       ap.Flags,
 	}
 
-	// updating access policy
-	_, err = tx.Update("access").SetMap(updates).Where("id = ?", ap.ActorID).ExecContext(ctx)
+	// updating accesspolicy policy
+	_, err = tx.Update("accesspolicy").SetMap(updates).Where("id = ?", ap.ActorID).ExecContext(ctx)
 	if err != nil {
-		return errors.Wrap(err, "failed to update access policy")
+		return errors.Wrap(err, "failed to update accesspolicy policy")
 	}
 
 	// applying roster changes to the database
 	if err = s.applyRosterChanges(tx, ap.ActorID, r); err != nil {
-		return errors.Wrap(err, "failed to apply access policy roster changes during policy update")
+		return errors.Wrap(err, "failed to apply accesspolicy policy roster changes during policy update")
 	}
 
 	//---------------------------------------------------------------------------
@@ -264,22 +264,22 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Rost
 	return nil
 }
 
-// FetchPolicyByID fetches access policy by ActorID
+// FetchPolicyByID fetches accesspolicy policy by ActorID
 func (s *DefaultMySQLStore) FetchPolicyByID(ctx context.Context, policyID uint32) (Policy, error) {
-	return s.get(ctx, "SELECT * FROM access WHERE id = ? LIMIT 1", policyID)
+	return s.get(ctx, "SELECT * FROM accesspolicy WHERE id = ? LIMIT 1", policyID)
 }
 
-// PolicyByKey retrieving a access policy by a key
+// PolicyByKey retrieving a accesspolicy policy by a key
 func (s *DefaultMySQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (Policy, error) {
-	return s.get(ctx, "SELECT * FROM access WHERE `key` = ? LIMIT 1", key)
+	return s.get(ctx, "SELECT * FROM accesspolicy WHERE `key` = ? LIMIT 1", key)
 }
 
-// PolicyByObject retrieving a access policy by a kind and its respective id
+// PolicyByObject retrieving a accesspolicy policy by a kind and its respective id
 func (s *DefaultMySQLStore) FetchPolicyByObject(ctx context.Context, id uint32, objectType TObjectName) (Policy, error) {
-	return s.get(ctx, "SELECT * FROM access WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
+	return s.get(ctx, "SELECT * FROM accesspolicy WHERE object_type = ? AND object_id = ? LIMIT 1", objectType, id)
 }
 
-// DeletePolicy deletes access policy and its corresponding roster
+// DeletePolicy deletes accesspolicy policy and its corresponding roster
 func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap Policy) (err error) {
 	if ap.ActorID == 0 {
 		return ErrZeroPolicyID
@@ -291,9 +291,9 @@ func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap Policy) (err er
 	}
 	defer tx.RollbackUnlessCommitted()
 
-	// deleting access policy
-	if _, err = tx.ExecContext(ctx, "DELETE FROM access WHERE id = ?", ap.ActorID); err != nil {
-		return errors.Wrapf(err, "failed to delete access policy: policy_id=%d", ap.ActorID)
+	// deleting accesspolicy policy
+	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy WHERE id = ?", ap.ActorID); err != nil {
+		return errors.Wrapf(err, "failed to delete accesspolicy policy: policy_id=%d", ap.ActorID)
 	}
 
 	// deleting roster
@@ -342,7 +342,7 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	return nil
 }
 
-// FetchRosterByPolicyID fetches access policy roster by policy ActorID
+// FetchRosterByPolicyID fetches accesspolicy policy roster by policy ActorID
 func (s *DefaultMySQLStore) FetchRosterByPolicyID(ctx context.Context, policyID uint32) (_ *Roster, err error) {
 	records := make([]RosterEntry, 0)
 
@@ -373,7 +373,7 @@ func (s *DefaultMySQLStore) UpdateRoster(ctx context.Context, policyID uint32, r
 
 	// applying roster changes to the database
 	if err = s.applyRosterChanges(tx, policyID, r); err != nil {
-		return errors.Wrap(err, "failed to apply access policy roster changes during roster update")
+		return errors.Wrap(err, "failed to apply accesspolicy policy roster changes during roster update")
 	}
 
 	//---------------------------------------------------------------------------
@@ -399,7 +399,7 @@ func (s *DefaultMySQLStore) DeleteRoster(ctx context.Context, policyID uint32) (
 
 	// deleting the roster
 	if _, err = tx.ExecContext(ctx, "DELETE FROM accesspolicy_roster WHERE policy_id = ?", policyID); err != nil {
-		return errors.Wrapf(err, "failed to delete access policy roster: %d", policyID)
+		return errors.Wrapf(err, "failed to delete accesspolicy policy roster: %d", policyID)
 	}
 
 	if err := tx.Commit(); err != nil {

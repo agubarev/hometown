@@ -426,15 +426,15 @@ func (m *Manager) GroupByKey(ctx context.Context, key TKey) (g Group, err error)
 	return g, ErrGroupNotFound
 }
 
-// GroupByName returns an access policy by its key
+// GroupByName returns an accesspolicy policy by its key
 // TODO: add expirable caching
 func (m *Manager) GroupByName(ctx context.Context, name TName) (g Group, err error) {
 	return m.store.FetchGroupByName(ctx, name)
 }
 
-// DeletePolicy returns an access policy by its ObjectID
+// DeletePolicy returns an accesspolicy policy by its ObjectID
 // NOTE: also deletes all relations and nested groups (should asset have
-// sufficient access rights to do that)
+// sufficient accesspolicy rights to do that)
 // TODO: implement recursive deletion
 func (m *Manager) DeleteGroup(ctx context.Context, groupID uuid.UUID) (err error) {
 	g, err := m.GroupByID(ctx, groupID)

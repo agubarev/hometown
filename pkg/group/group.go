@@ -39,7 +39,7 @@ func (flags Flags) Translate() string {
 }
 
 // AccessExplained returns a human-readable conjunction of comma-separated
-// access names for this given context namespace
+// accesspolicy names for this given context namespace
 func (flags Flags) String() string {
 	s := make([]string, 0)
 

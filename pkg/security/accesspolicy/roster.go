@@ -1,4 +1,4 @@
-package access
+package accesspolicy
 
 import (
 	"sync"
@@ -24,7 +24,7 @@ type Roster struct {
 	changeLock   sync.RWMutex
 	backup       *Roster
 
-	// represents the base public access rights
+	// represents the base public accesspolicy rights
 	Everyone Right `json:"everyone"`
 }
 
@@ -68,7 +68,7 @@ func RoleActor(id uuid.UUID) Actor {
 	}
 }
 
-// Cell represents a single access registry cell
+// Cell represents a single accesspolicy registry cell
 type Cell struct {
 	Key    Actor `json:"key"`
 	Rights Right `json:"rights"`
@@ -83,7 +83,7 @@ func NewRoster(regsize int) *Roster {
 	}
 }
 
-// put adds a new or alters an existing access cell
+// put adds a new or alters an existing accesspolicy cell
 func (r *Roster) put(key Actor, rights Right) {
 	r.registryLock.Lock()
 
@@ -110,7 +110,7 @@ func (r *Roster) put(key Actor, rights Right) {
 }
 
 // lookup looks up the isolated rights of a specific subject of a kind
-// NOTE: does not summarize any rights, nor includes public access rights
+// NOTE: does not summarize any rights, nor includes public accesspolicy rights
 func (r *Roster) lookup(key Actor) (access Right) {
 	access, err := r.lookupCache(key)
 	if err != nil && err != ErrCacheMiss {
@@ -118,7 +118,7 @@ func (r *Roster) lookup(key Actor) (access Right) {
 		return access
 	}
 
-	// finding access rights
+	// finding accesspolicy rights
 	r.registryLock.RLock()
 	for _, cell := range r.Registry {
 		if cell.Key == key {
@@ -134,14 +134,14 @@ func (r *Roster) lookup(key Actor) (access Right) {
 	return access
 }
 
-// hasRights tests whether a given subject of a kind has specific access rights
+// hasRights tests whether a given subject of a kind has specific accesspolicy rights
 // NOTE: does not summarize anything, only tests a concrete subject of a kind
 func (r *Roster) hasRights(key Actor, rights Right) bool {
 	return r.lookup(key)&rights == rights
 }
 
 func (r *Roster) delete(key Actor) {
-	// searching and removing registry access cell
+	// searching and removing registry accesspolicy cell
 	r.registryLock.Lock()
 	for i, cell := range r.Registry {
 		if cell.Key == key {
@@ -155,7 +155,7 @@ func (r *Roster) delete(key Actor) {
 	r.deleteCache(key)
 }
 
-// putCache caches calculated access for user or a group/role
+// putCache caches calculated accesspolicy for user or a group/role
 // NOTE: this cache is cleared whenever any relevant policy are changed
 func (r *Roster) putCache(key Actor, rights Right) {
 	r.cacheLock.Lock()
@@ -163,7 +163,7 @@ func (r *Roster) putCache(key Actor, rights Right) {
 	r.cacheLock.Unlock()
 }
 
-// lookupCache returns a cached, calculated access for a given user or group
+// lookupCache returns a cached, calculated accesspolicy for a given user or group
 func (r *Roster) lookupCache(key Actor) (Right, error) {
 	r.cacheLock.RLock()
 	right, ok := r.calculatedCache[key]
@@ -176,7 +176,7 @@ func (r *Roster) lookupCache(key Actor) (Right, error) {
 	return right, nil
 }
 
-// deleteCache removes calculated access cache
+// deleteCache removes calculated accesspolicy cache
 // NOTE: it must be used for any subject whose rights were altered
 // directly or indirectly
 func (r *Roster) deleteCache(key Actor) {
@@ -240,7 +240,7 @@ func (r *Roster) clearChanges() {
 	r.changeLock.Unlock()
 }
 
-// createBackup returns a snapshot copy of the access rights roster for this policy
+// createBackup returns a snapshot copy of the accesspolicy rights roster for this policy
 func (r *Roster) createBackup() {
 	// it's fine if this roster already has a backup set,
 	// thus doing nothing, allowing roster changes to be accumulated
@@ -259,7 +259,7 @@ func (r *Roster) createBackup() {
 	// copying public rights
 	backup.Everyone = r.Everyone
 
-	// access registry
+	// accesspolicy registry
 	for i := range r.Registry {
 		backup.Registry[i] = r.Registry[i]
 	}
@@ -295,7 +295,7 @@ func (r *Roster) restoreBackup() {
 	// restoring public rights
 	r.Everyone = r.backup.Everyone
 
-	// access registry
+	// accesspolicy registry
 	for i := range r.backup.Registry {
 		r.Registry[i] = r.backup.Registry[i]
 	}

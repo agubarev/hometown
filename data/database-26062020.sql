@@ -11,7 +11,7 @@
 /*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
 /*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
 
--- Dumping structure for table hometown.access
+-- Dumping structure for table hometown.accesspolicy
 CREATE TABLE IF NOT EXISTS `accesspolicy` (
   `id` int unsigned NOT NULL AUTO_INCREMENT,
   `parent_id` int unsigned NOT NULL,
@@ -37,8 +37,8 @@ CREATE TABLE IF NOT EXISTS `accesspolicy_roster` (
   `policy_id` int unsigned NOT NULL,
   `subject_kind` tinyint unsigned NOT NULL COMMENT 'typical kinds: everyone, user, group, role_group, etc...',
   `subject_id` int unsigned NOT NULL COMMENT 'represents an ID of a user, group, role_group, etc...; 0 if not required',
-  `access` bigint unsigned NOT NULL COMMENT 'bitmask which represents the access rights to a policy for the subject of its kind',
-  `access_explained` text NOT NULL COMMENT 'a human-readable conjunction of comma-separated access names for this given context namespace',
+  `access` bigint unsigned NOT NULL COMMENT 'bitmask which represents the accesspolicy rights to a policy for the subject of its kind',
+  `access_explained` text NOT NULL COMMENT 'a human-readable conjunction of comma-separated accesspolicy names for this given context namespace',
   PRIMARY KEY (`policy_id`,`subject_kind`,`subject_id`),
   KEY `access_right` (`access`),
   KEY `policy_id` (`policy_id`),

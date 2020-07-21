@@ -1,4 +1,4 @@
-package access_test
+package accesspolicy_test
 
 import (
 	"context"
@@ -6,10 +6,9 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/security/access"
+	"github.com/agubarev/hometown/pkg/security/accesspolicy"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
-	"golang.org/x/tools/refactor/rename"
 )
 
 func TestNewAccessPolicy(t *testing.T) {
@@ -24,7 +23,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -39,21 +38,21 @@ func TestNewAccessPolicy(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
 	p, err := m.Create(
 		ctx,
-		access.Key("test_key"), // key
-		uuid.Nil,               // owner
-		uuid.Nil,               // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
+		accesspolicy.Key("test_key"), // key
+		uuid.Nil,                     // owner
+		uuid.Nil,                     // parent
+		accesspolicy.NewObject(uuid.Nil, accesspolicy.TObjectName{}),
 		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(access.Key("test_key"), p.Key)
+	a.Equal(accesspolicy.Key("test_key"), p.Key)
 	a.Zero(p.OwnerID)
 	a.Zero(p.ParentID)
 	a.Zero(p.ObjectID)
@@ -64,15 +63,15 @@ func TestNewAccessPolicy(t *testing.T) {
 
 	p, err = m.Create(
 		ctx,
-		access.Key("test_key2"), // key
-		ownerID,                 // owner
-		uuid.Nil,                // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
+		accesspolicy.Key("test_key2"), // key
+		ownerID,                       // owner
+		uuid.Nil,                      // parent
+		accesspolicy.NewObject(uuid.Nil, accesspolicy.TObjectName{}),
 		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(access.Key("test_key2"), p.Key)
+	a.Equal(accesspolicy.Key("test_key2"), p.Key)
 	a.Equal(ownerID, p.OwnerID)
 	a.Zero(p.ParentID)
 	a.Zero(p.ObjectID)
@@ -82,52 +81,50 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with parent
 	pWithParent, err := m.Create(
 		ctx,
-		access.Key("test_key3"), // key
-		ownerID,                 // owner
-		p.ID,                    // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
+		accesspolicy.Key("test_key3"), // key
+		ownerID,                       // owner
+		p.ID,                          // parent
+		accesspolicy.NewObject(uuid.Nil, accesspolicy.TObjectName{}),
 		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(pWithParent)
-	a.Equal(access.Key("test_key3"), pWithParent.Key)
+	a.Equal(accesspolicy.Key("test_key3"), pWithParent.Key)
 	a.Equal(ownerID, pWithParent.OwnerID)
 	a.Equal(p.ID, pWithParent.ParentID)
 	a.False(pWithParent.IsInherited())
 	a.False(pWithParent.IsExtended())
 
-	objectID := uuid.Nil
-
 	// with inheritance (without a parent)
 	_, err = m.Create(
 		ctx,
-		access.Key("test_key4"), // key
-		ownerID,                 // owner
-		uuid.Nil,                // parent
-		access.NewObject(objectID, access.ObjectName("test object")),
-		access.FInherit, // flags
+		accesspolicy.Key("test_key4"), // key
+		ownerID,                       // owner
+		uuid.Nil,                      // parent
+		accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("test object")),
+		accesspolicy.FInherit, // flags
 	)
 	a.Error(err)
 
 	// with extension (without a parent)
 	_, err = m.Create(
 		ctx,
-		access.Key("test_key5"), // key
-		ownerID,                 // owner
-		uuid.Nil,                // parent
-		access.NewObject(objectID, access.ObjectName("test object")),
-		access.FExtend, // flags
+		accesspolicy.Key("test_key5"), // key
+		ownerID,                       // owner
+		uuid.Nil,                      // parent
+		accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("test object")),
+		accesspolicy.FExtend, // flags
 	)
 	a.Error(err)
 
 	// with inheritance (with a parent)
 	pInheritedWithParent, err := m.Create(
 		ctx,
-		access.Key("test_key6"), // key
-		ownerID,                 // owner
-		p.ID,                    // parent
-		access.NewObject(objectID, access.ObjectName("test object")),
-		access.FInherit, // flags
+		accesspolicy.Key("test_key6"), // key
+		ownerID,                       // owner
+		p.ID,                          // parent
+		accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("test object")),
+		accesspolicy.FInherit, // flags
 	)
 	a.NoError(err)
 	a.NotNil(pInheritedWithParent)
@@ -135,11 +132,11 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with extension (with a parent)
 	pExtendedWithParent, err := m.Create(
 		ctx,
-		access.Key("test_key7"), // key
-		ownerID,                 // owner
-		p.ID,                    // parent
-		access.NewObject(objectID, access.ObjectName("another test object")),
-		access.FExtend, // flags
+		accesspolicy.Key("test_key7"), // key
+		ownerID,                       // owner
+		p.ID,                          // parent
+		accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("another test object")),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
 	a.NotNil(pExtendedWithParent)
@@ -160,7 +157,7 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -175,25 +172,25 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := access.APView | access.APChange
+	wantedRights := accesspolicy.APView | accesspolicy.APChange
 	ownerID := uuid.Nil
 
-	pact := access.PublicActor()
-	act1 := access.UserActor(uuid.New())
+	pact := accesspolicy.PublicActor()
+	act1 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
 	//---------------------------------------------------------------------------
 	p, err := m.Create(
 		ctx,
-		access.Key("test_key"), // key
-		ownerID,                // owner
-		uuid.Nil,               // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
+		accesspolicy.Key("test_key"), // key
+		act1.ID,                      // owner
+		uuid.Nil,                     // parent
+		accesspolicy.NewObject(uuid.Nil, accesspolicy.TObjectName{}),
 		0, // flags
 	)
 	a.NoError(err)
@@ -214,13 +211,13 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInheritance, err := m.Create(
 		ctx,
-		access.Key("test_key_w_inheritance"), // key
-		ownerID,                              // owner
-		p.ID,                                 // parent
-		access.NewObject(uuid.Nil, access.TObjectName{}),
-		access.FInherit, // flags
+		accesspolicy.Key("test_key_w_inheritance"), // key
+		ownerID, // owner
+		p.ID,    // parent
+		accesspolicy.NewObject(uuid.Nil, accesspolicy.TObjectName{}),
+		accesspolicy.FInherit, // flags
 	)
-	// not setting it's own rights as it must inherit them from a parent
+	// not granting it's own rights as it must inherit them from a parent
 	a.NoError(err)
 
 	// obtaining corresponding policy roster
@@ -237,11 +234,11 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		access.TKey{}, // key
-		uuid.Nil,      // owner
-		parent.ID,     // parent
-		access.NewObject(uuid.New(), access.ObjectName("some object")),
-		access.FExtend, // flags
+		accesspolicy.TKey{}, // key
+		uuid.Nil,            // owner
+		parent.ID,           // parent
+		accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("some object")),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
 
@@ -262,14 +259,14 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		access.TKey{}, // key
-		1,             // owner
-		parent.ID,     // parent
-		access.NewObject(uuid.New(), access.ObjectName("and another object")),
-		access.FExtend, // flags
+		accesspolicy.TKey{}, // key
+		act1.ID,             // owner
+		parent.ID,           // parent
+		accesspolicy.NewObject(uuid.New(), accesspolicy.ObjectName("and another object")),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
-	a.NoError(m.GrantPublicAccess(ctx, pExtendedWithOwn.ID, act1, wantedRights|access.APMove))
+	a.NoError(m.GrantPublicAccess(ctx, pExtendedWithOwn.ID, act1, wantedRights|accesspolicy.APMove))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	parent, err = m.PolicyByID(ctx, pExtendedWithOwn.ParentID)
@@ -284,7 +281,7 @@ func TestSetPublicRights(t *testing.T) {
 	a.NotNil(parentRoster)
 
 	a.Equal(wantedRights, parentRoster.Everyone)
-	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act1, wantedRights|access.APMove))
+	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act1, wantedRights|accesspolicy.APMove))
 }
 
 func TestSetGroupRights(t *testing.T) {
@@ -302,7 +299,7 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -317,16 +314,15 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := access.APView | access.APChange
+	wantedRights := accesspolicy.APView | accesspolicy.APChange
 	ownerID := uuid.New()
 
-	pact := access.PublicActor()
-	act1 := access.UserActor(uuid.New())
-	act2 := access.UserActor(uuid.New())
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
@@ -334,16 +330,16 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		access.Key("parent"), // key
-		ownerID,              // owner
-		uuid.Nil,             // parent
-		access.NilObject(),
+		accesspolicy.Key("parent"), // key
+		ownerID,                    // owner
+		uuid.Nil,                   // parent
+		accesspolicy.NilObject(),
 		0, // flags
 	)
 	a.NoError(err)
 
 	//---------------------------------------------------------------------------
-	// adding the user to 2 groups but setting rights to only one
+	// adding the user to 2 groups but granting rights to only one
 	//---------------------------------------------------------------------------
 	// group 1
 	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, group.Key("test_group_1"), group.Name("test group 1"))
@@ -359,20 +355,20 @@ func TestSetGroupRights(t *testing.T) {
 	// assigning wanted rights to the first group (1)
 	a.NoError(m.GrantGroupAccess(ctx, basePolicy.ID, act1, g1.ID, wantedRights))
 	a.NoError(m.Update(ctx, basePolicy))
-	a.True(m.HasRights(ctx, basePolicy.ID, access.GroupActor(g1.ID), wantedRights))
+	a.True(m.HasRights(ctx, basePolicy.ID, accesspolicy.GroupActor(g1.ID), wantedRights))
 
 	//---------------------------------------------------------------------------
 	// now with parent, using inheritance only, no extension
 	// NOTE: using previously created policy "p" as a parent here
-	// NOTE: not setting it's own rights as it must inherit them from a parent
+	// NOTE: not granting it's own rights as it must inherit them from a parent
 	//---------------------------------------------------------------------------
 	pWithInherit, err := m.Create(
 		ctx,
-		access.Key("with inherit"), // key
-		uuid.Nil,                   // owner
-		basePolicy.ID,              // parent
-		access.NilObject(),
-		access.FInherit, // flags
+		accesspolicy.Key("with inherit"), // key
+		uuid.Nil,                         // owner
+		basePolicy.ID,                    // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FInherit, // flags
 	)
 	a.NoError(err)
 
@@ -388,11 +384,11 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		access.Key("with extend, no own rights"), // key
-		uuid.Nil,                                 // owner
-		basePolicy.ID,                            // parent
-		access.NilObject(),
-		access.FExtend, // flags
+		accesspolicy.Key("with extend, no own rights"), // key
+		uuid.Nil,      // owner
+		basePolicy.ID, // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
 
@@ -407,16 +403,16 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		access.Key("with extend and own rights"), // key
-		uuid.Nil,                                 // owner
-		basePolicy.ID,                            // parent
-		access.NilObject(),
-		access.FExtend, // flags
+		accesspolicy.Key("with extend and own rights"), // key
+		uuid.Nil,      // owner
+		basePolicy.ID, // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
 
-	// setting own rights for this policy
-	a.NoError(m.GrantUserAccess(ctx, pExtendedWithOwn.ID, act1, act2.ID, access.APMove))
+	// granting own rights for this policy
+	a.NoError(m.GrantUserAccess(ctx, pExtendedWithOwn.ID, act1, act2.ID, accesspolicy.APMove))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	// expecting a proper blend with parent rights
@@ -439,7 +435,7 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -454,15 +450,15 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := access.APChange | access.APDelete
+	wantedRights := accesspolicy.APChange | accesspolicy.APDelete
 	ownerID := uuid.New()
 
-	act1 := access.UserActor(uuid.New())
-	act2 := access.UserActor(uuid.New())
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
@@ -470,16 +466,16 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		access.Key("parent"), // key
-		ownerID,              // owner
-		uuid.Nil,             // parent
-		access.NilObject(),
+		accesspolicy.Key("parent"), // key
+		ownerID,                    // owner
+		uuid.Nil,                   // parent
+		accesspolicy.NilObject(),
 		0, // flags
 	)
 	a.NoError(err)
 
 	//---------------------------------------------------------------------------
-	// adding the user to 2 groups but setting rights to only one
+	// adding the user to 2 groups but granting rights to only one
 	//---------------------------------------------------------------------------
 	// role 1
 	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, group.Key("test_group_1"), group.Name("test group 1"))
@@ -495,20 +491,20 @@ func TestSetRoleRights(t *testing.T) {
 	// assigning wanted rights to the first role (1)
 	a.NoError(m.GrantRoleAccess(ctx, basePolicy.ID, act1, r1.ID, wantedRights))
 	a.NoError(m.Update(ctx, basePolicy))
-	a.True(m.HasRights(ctx, basePolicy.ID, access.RoleActor(r1.ID), wantedRights))
+	a.True(m.HasRights(ctx, basePolicy.ID, accesspolicy.RoleActor(r1.ID), wantedRights))
 
 	//---------------------------------------------------------------------------
 	// now with parent, using inheritance only, no extension
 	// NOTE: using previously created policy "p" as a parent here
-	// NOTE: not setting it's own rights as it must inherit them from a parent
+	// NOTE: not granting it's own rights as it must inherit them from a parent
 	//---------------------------------------------------------------------------
 	pWithInherit, err := m.Create(
 		ctx,
-		access.Key("with inherit"), // key
-		ownerID,                    // owner
-		basePolicy.ID,              // parent
-		access.NilObject(),
-		access.FInherit, // flags
+		accesspolicy.Key("with inherit"), // key
+		ownerID,                          // owner
+		basePolicy.ID,                    // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FInherit, // flags
 	)
 	a.NoError(err)
 
@@ -524,11 +520,11 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		access.Key("with extend, no own rights"), // key
-		ownerID,                                  // owner
-		basePolicy.ID,                            // parent
-		access.NilObject(),
-		access.FExtend, // flags
+		accesspolicy.Key("with extend, no own rights"), // key
+		ownerID,       // owner
+		basePolicy.ID, // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
 
@@ -543,21 +539,21 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		access.Key("with extend and own rights"), // key
-		ownerID,                                  // owner
-		basePolicy.ID,                            // parent
-		access.NilObject(),
-		access.FExtend, // flags
+		accesspolicy.Key("with extend and own rights"), // key
+		ownerID,       // owner
+		basePolicy.ID, // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
 
-	// setting own rights for this policy
-	a.NoError(m.GrantUserAccess(ctx, pExtendedWithOwn.ID, act1, act2.ID, access.APCopy))
+	// granting own rights for this policy
+	a.NoError(m.GrantUserAccess(ctx, pExtendedWithOwn.ID, act1, act2.ID, accesspolicy.APCopy))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	// expecting a proper blend with parent rights
-	a.True(m.HasRights(ctx, basePolicy.ID, act2, access.APCopy))
-	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act2, access.APCopy))
+	a.True(m.HasRights(ctx, basePolicy.ID, act2, accesspolicy.APCopy))
+	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act2, accesspolicy.APCopy))
 }
 
 func TestSetUserRights(t *testing.T) {
@@ -575,7 +571,7 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(db)
 
 	// policy store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -590,11 +586,16 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	wantedRights := access.APChange | access.APDelete
+	wantedRights := accesspolicy.APChange | accesspolicy.APDelete
+	ownerID := uuid.New()
+
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
+	act3 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// no parent, not inheriting and not extending
@@ -602,36 +603,34 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		access.Key("base policy"), // key
-		1,                         // owner
-		0,                         // parent
-		0,                         // object ActorID
-		access.TObjectName{},      // object type
-		0,                         // flags
+		accesspolicy.Key("base policy"), // key
+		ownerID,                         // owner
+		uuid.Nil,                        // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
-	a.NoError(m.GrantUserAccess(ctx, basePolicy.ID, 1, 2, wantedRights))
+	a.NoError(m.GrantUserAccess(ctx, basePolicy.ID, act1, act2.ID, wantedRights))
 	a.NoError(m.Update(ctx, basePolicy))
-	a.True(m.HasRights(ctx, basePolicy.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, basePolicy.ID, access.AUser, 2))
+	a.True(m.HasRights(ctx, basePolicy.ID, act1, wantedRights))
+	a.True(m.HasRights(ctx, basePolicy.ID, act2, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, using inheritance only
-	// not setting it's own rights as it must inherit them from a parent
+	// not granting it's own rights as it must inherit them from a parent
 	//---------------------------------------------------------------------------
 	pWithInheritance, err := m.Create(
 		ctx,
-		access.Key("inheritance only"), // key
-		0,                              // owner
-		basePolicy.ID,                  // parent
-		0,                              // object ActorID
-		access.TObjectName{},           // object type
-		access.FInherit,                // flags
+		accesspolicy.Key("inheritance only"), // key
+		uuid.Nil,                             // owner
+		basePolicy.ID,                        // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FInherit, // flags
 	)
 	a.NoError(err)
-	a.True(m.HasRights(ctx, basePolicy.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, pWithInheritance.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, pWithInheritance.ID, access.AUser, 3))
+	a.True(m.HasRights(ctx, basePolicy.ID, act1, wantedRights))
+	a.True(m.HasRights(ctx, pWithInheritance.ID, act2, wantedRights))
+	a.False(m.HasRights(ctx, pWithInheritance.ID, act3, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, legacy false, extend true; using parent's rights through
@@ -639,17 +638,16 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		access.Key("extension only"), // key
-		0,                            // owner
-		basePolicy.ID,                // parent
-		0,                            // object ActorID
-		access.TObjectName{},         // object type
-		access.FExtend,               // flags
+		accesspolicy.Key("extension only"), // key
+		uuid.Nil,                           // owner
+		basePolicy.ID,                      // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
-	a.True(m.HasRights(ctx, basePolicy.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, pExtendedNoOwn.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, pExtendedNoOwn.ID, access.AUser, 3))
+	a.True(m.HasRights(ctx, basePolicy.ID, act1, wantedRights))
+	a.True(m.HasRights(ctx, pExtendedNoOwn.ID, act2, wantedRights))
+	a.False(m.HasRights(ctx, pExtendedNoOwn.ID, act3, wantedRights))
 
 	//---------------------------------------------------------------------------
 	// with parent, no inherit, extend true; using parent's rights with it's own
@@ -658,20 +656,19 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		access.Key("extension with own rights"), // key
-		0,                                       // owner
-		basePolicy.ID,                           // parent
-		0,                                       // object ActorID
-		access.TObjectName{},                    // object type
-		access.FExtend,                          // flags
+		accesspolicy.Key("extension with own rights"), // key
+		uuid.Nil,      // owner
+		basePolicy.ID, // parent
+		accesspolicy.NilObject(),
+		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
-	a.NoError(m.GrantUserAccess(ctx, pExtendedWithOwn.ID, 1, 2, wantedRights|access.APMove))
+	a.NoError(m.GrantUserAccess(ctx, pExtendedWithOwn.ID, act1, act2.ID, wantedRights|accesspolicy.APMove))
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
-	a.True(m.HasRights(ctx, basePolicy.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, pExtendedWithOwn.ID, access.AUser, 3))
-	a.False(m.HasRights(ctx, pExtendedWithOwn.ID, access.AUser, 3))
+	a.True(m.HasRights(ctx, basePolicy.ID, act1, wantedRights|accesspolicy.APMove))
+	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act2, wantedRights|accesspolicy.APMove))
+	a.False(m.HasRights(ctx, pExtendedWithOwn.ID, act3, wantedRights))
+	a.False(m.HasRights(ctx, pExtendedWithOwn.ID, act3, accesspolicy.APMove))
 }
 
 func TestIsOwner(t *testing.T) {
@@ -689,7 +686,7 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -704,42 +701,44 @@ func TestIsOwner(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
+
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// test policy
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		access.Key("test policy"), // key
-		1,                         // owner
-		0,                         // parent
-		0,                         // object ActorID
-		access.TObjectName{},      // object type
-		0,                         // flags
+		accesspolicy.Key("test policy"), // key
+		act1.ID,                         // owner
+		uuid.Nil,                        // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
 	// testing owner and testuser rights
-	a.NoError(m.GrantUserAccess(ctx, ap.ID, 1, 2, access.APView))
+	a.NoError(m.GrantUserAccess(ctx, ap.ID, act1, act2.ID, accesspolicy.APView))
 	a.NoError(m.Update(ctx, ap))
 
 	// user 1 (owner)
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APView))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APMove))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APDelete))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APFullAccess))
 
 	// user 2
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
 
-	a.True(ap.IsOwner(1))
-	a.False(ap.IsOwner(2))
+	a.True(ap.IsOwner(act1.ID))
+	a.False(ap.IsOwner(act2.ID))
 }
 
 func TestAccessPolicyTestRosterBackup(t *testing.T) {
@@ -757,7 +756,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -772,79 +771,82 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
+
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
+	act3 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// test policy
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		access.Key("test policy"), // key
-		1,                         // owner
-		0,                         // parent
-		0,                         // object ActorID
-		access.TObjectName{},      // object type
-		0,                         // flags
+		accesspolicy.Key("test policy"), // key
+		act1.ID,                         // owner
+		uuid.Nil,                        // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
 	//---------------------------------------------------------------------------
-	// setting base rights and saving them safely
+	// granting base rights and saving them safely
 	//---------------------------------------------------------------------------
-	a.NoError(m.GrantUserAccess(ctx, ap.ID, 1, 2, access.APView|access.APChange))
+	a.NoError(m.GrantUserAccess(ctx, ap.ID, act1, act2.ID, accesspolicy.APView|accesspolicy.APChange))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APChange))
 
 	//---------------------------------------------------------------------------
-	// setting additional rights correctly and incorrectly
+	// granting additional rights correctly and incorrectly
 	// NOTE: any faulty assignment MUST restore backup to the last
 	// safe point of when it was either loaded or safely stored
 	//---------------------------------------------------------------------------
 	// assigning a few rights but not updating the store
-	a.NoError(m.GrantUserAccess(ctx, ap.ID, 1, 2, access.APView|access.APChange|access.APDelete))
+	a.NoError(m.GrantUserAccess(ctx, ap.ID, act1, act2.ID, accesspolicy.APView|accesspolicy.APChange|accesspolicy.APDelete))
 
 	// testing the rights which haven't been persisted yet
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.True(ap.IsOwner(1))
-	a.False(ap.IsOwner(2))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APView))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APDelete))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APFullAccess))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APDelete))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APMove))
+	a.True(ap.IsOwner(act1.ID))
+	a.False(ap.IsOwner(act2.ID))
 
 	// attempting to set rights as a second user to a third
 	// NOTE: must fail and restore backup, clearing out any changes made
 	// WARNING: THIS MUST FAIL AND RESTORE BACKUP, ROLLING BACK ANY CHANGES ON THE POLICY ROSTER
-	a.EqualError(m.GrantUserAccess(ctx, ap.ID, 2, 3, access.APChange), access.ErrExcessOfRights.Error())
+	a.EqualError(m.GrantUserAccess(ctx, ap.ID, act2, act3.ID, accesspolicy.APChange), accesspolicy.ErrExcessOfRights.Error())
 
 	// NOTE: this update must be harmless, because there must be nothing to rosterChange
 	a.NoError(m.Update(ctx, ap))
 
 	// checking whether the rights were returned to its previous state
 	// user 1
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 1))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APView))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APDelete))
+	a.True(m.HasRights(ctx, ap.ID, act1, accesspolicy.APFullAccess))
 
 	// user 2
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APChange))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APDelete))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APMove))
 
 	// user 3 (assignment to this user must've provoked the restoration)
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 3))
+	a.False(m.HasRights(ctx, ap.ID, act3, accesspolicy.APChange))
 
 	// just in case
-	a.True(ap.IsOwner(1))
-	a.False(ap.IsOwner(2))
-	a.False(ap.IsOwner(3))
+	a.True(ap.IsOwner(act1.ID))
+	a.False(ap.IsOwner(act2.ID))
+	a.False(ap.IsOwner(act3.ID))
 }
 
 func TestAccessPolicyUnsetRights(t *testing.T) {
@@ -861,8 +863,8 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	// ap store
-	s, err := access.NewPostgreSQLStore(db)
+	// p store
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -877,106 +879,108 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
+
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
 
 	//---------------------------------------------------------------------------
 	// creating test role and a group
 	//---------------------------------------------------------------------------
 	// role
-	r, err := gm.Create(ctx, group.FRole, 0, "test_role", "test role")
+	r, err := gm.Create(ctx, group.FRole, uuid.Nil, group.Key("test_role"), group.Name("test role"))
 	a.NoError(err)
-	a.NoError(gm.CreateRelation(ctx, r.ID, 1))
+	a.NoError(gm.CreateRelation(ctx, group.NewRelation(r.ID, group.AKUser, act1.ID)))
 
 	// group
-	g, err := gm.Create(ctx, group.FGroup, 0, "test_group", "test group")
+	g, err := gm.Create(ctx, group.FGroup, uuid.Nil, group.Key("test_group"), group.Name("test group"))
 	a.NoError(err)
-	a.NoError(gm.CreateRelation(ctx, g.ID, 1))
+	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g.ID, group.AKUser, act1.ID)))
 
-	wantedRights := access.APView | access.APChange | access.APCopy | access.APDelete
+	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APCopy | accesspolicy.APDelete
 
 	//---------------------------------------------------------------------------
 	// test policy
 	//---------------------------------------------------------------------------
-	ap, err := m.Create(
+	p, err := m.Create(
 		ctx,
-		access.Key("test policy"), // key
-		1,                         // owner
-		0,                         // parent
-		0,                         // object ActorID
-		access.TObjectName{},      // object type
-		0,                         // flags
+		accesspolicy.Key("test policy"), // key
+		act1.ID,                         // owner
+		uuid.Nil,                        // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
 	//---------------------------------------------------------------------------
-	// public access
+	// public accesspolicy
 	//---------------------------------------------------------------------------
-	// setting
-	a.False(m.HasRights(ctx, ap.ID, access.AEveryone, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AEveryone, 2))
-	a.NoError(m.GrantPublicAccess(ctx, ap.ID, 1, wantedRights))
-	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, ap.ID, access.AEveryone, 2))
-	a.True(m.HasRights(ctx, ap.ID, access.AEveryone, 2))
+	// granting
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.PublicActor(), accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.PublicActor(), accesspolicy.APChange))
+	a.NoError(m.GrantPublicAccess(ctx, p.ID, act1, wantedRights))
+	a.NoError(m.Update(ctx, p))
+	a.True(m.HasRights(ctx, p.ID, accesspolicy.PublicActor(), accesspolicy.APView))
+	a.True(m.HasRights(ctx, p.ID, accesspolicy.PublicActor(), accesspolicy.APChange))
 
-	// unsetting
-	a.NoError(m.RevokeAccess(ctx, access.AEveryone, ap.ID, 1, 2))
-	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, ap.ID, access.AEveryone, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AEveryone, 2))
+	// revoking
+	a.NoError(m.RevokeAccess(ctx, p.ID, act1, accesspolicy.PublicActor()))
+	a.NoError(m.Update(ctx, p))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.PublicActor(), accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.PublicActor(), accesspolicy.APChange))
 
 	//---------------------------------------------------------------------------
 	// user rights
 	//---------------------------------------------------------------------------
-	// setting
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.NoError(m.GrantUserAccess(ctx, ap.ID, 1, 2, wantedRights))
-	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.True(m.HasRights(ctx, ap.ID, access.AUser, 2))
+	// granting
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APChange))
+	a.NoError(m.GrantUserAccess(ctx, p.ID, act1, act2.ID, wantedRights))
+	a.NoError(m.Update(ctx, p))
+	a.True(m.HasRights(ctx, p.ID, act2, accesspolicy.APView))
+	a.True(m.HasRights(ctx, p.ID, act2, accesspolicy.APChange))
 
-	// unsetting
-	a.NoError(m.RevokeAccess(ctx, access.AUser, ap.ID, 1, 2))
-	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
-	a.False(m.HasRights(ctx, ap.ID, access.AUser, 2))
+	// revoking
+	a.NoError(m.RevokeAccess(ctx, p.ID, act1, act2))
+	a.NoError(m.Update(ctx, p))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, act2, accesspolicy.APChange))
 
 	//---------------------------------------------------------------------------
 	// role rights
 	//---------------------------------------------------------------------------
-	// setting
-	a.False(m.HasRights(ctx, ap.ID, access.ARoleGroup, r.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.ARoleGroup, r.ID))
-	a.NoError(m.GrantRoleAccess(ctx, ap.ID, 1, r.ID, wantedRights))
-	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, ap.ID, access.ARoleGroup, r.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.ARoleGroup, r.ID))
+	// granting
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.RoleActor(r.ID), accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.RoleActor(r.ID), accesspolicy.APChange))
+	a.NoError(m.GrantRoleAccess(ctx, p.ID, act1, r.ID, wantedRights))
+	a.NoError(m.Update(ctx, p))
+	a.True(m.HasRights(ctx, p.ID, accesspolicy.RoleActor(r.ID), accesspolicy.APView))
+	a.True(m.HasRights(ctx, p.ID, accesspolicy.RoleActor(r.ID), accesspolicy.APChange))
 
-	// unsetting
-	a.NoError(m.RevokeAccess(ctx, access.ARoleGroup, ap.ID, 1, r.ID))
-	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, ap.ID, access.ARoleGroup, r.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.ARoleGroup, r.ID))
+	// revoking
+	a.NoError(m.RevokeAccess(ctx, p.ID, act1, accesspolicy.RoleActor(r.ID)))
+	a.NoError(m.Update(ctx, p))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.RoleActor(r.ID), accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.RoleActor(r.ID), accesspolicy.APChange))
 
 	//---------------------------------------------------------------------------
 	// group rights
 	//---------------------------------------------------------------------------
-	// setting
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g.ID))
-	a.NoError(m.GrantGroupAccess(ctx, ap.ID, 1, g.ID, wantedRights))
-	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g.ID))
+	// granting
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.GroupActor(g.ID), accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.GroupActor(g.ID), accesspolicy.APChange))
+	a.NoError(m.GrantGroupAccess(ctx, p.ID, act1, g.ID, wantedRights))
+	a.NoError(m.Update(ctx, p))
+	a.True(m.HasRights(ctx, p.ID, accesspolicy.GroupActor(g.ID), accesspolicy.APView))
+	a.True(m.HasRights(ctx, p.ID, accesspolicy.GroupActor(g.ID), accesspolicy.APChange))
 
-	// unsetting
-	a.NoError(m.RevokeAccess(ctx, access.AGroup, ap.ID, 1, g.ID))
-	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g.ID))
+	// revoking
+	a.NoError(m.RevokeAccess(ctx, p.ID, act1, accesspolicy.GroupActor(g.ID)))
+	a.NoError(m.Update(ctx, p))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.GroupActor(g.ID), accesspolicy.APView))
+	a.False(m.HasRights(ctx, p.ID, accesspolicy.GroupActor(g.ID), accesspolicy.APChange))
 }
 
 func TestHasGroupRights(t *testing.T) {
@@ -994,7 +998,7 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(db)
 
 	// ap store
-	s, err := access.NewPostgreSQLStore(db)
+	s, err := accesspolicy.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -1009,146 +1013,144 @@ func TestHasGroupRights(t *testing.T) {
 	a.NotNil(gm)
 
 	// policy manager
-	m, err := access.NewManager(s, gm)
+	m, err := accesspolicy.NewManager(s, gm)
 	a.NoError(err)
 	a.NotNil(m)
 
-	//---------------------------------------------------------------------------
-	// adding the user to 2 groups but setting rights to only one
-	//---------------------------------------------------------------------------
-	g1, err := gm.Create(ctx, group.FGroup, 0, "test group 1", "test group 1")
-	a.NoError(err)
-	a.NoError(gm.CreateRelation(ctx, g1.ID, 2))
+	act1 := accesspolicy.UserActor(uuid.New())
+	act2 := accesspolicy.UserActor(uuid.New())
 
-	g2, err := gm.Create(ctx, group.FGroup, g1.ID, "test group 2", "test group 2")
+	//---------------------------------------------------------------------------
+	// adding the user to 2 groups but granting rights to only one
+	//---------------------------------------------------------------------------
+	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, group.Key("test group 1"), group.Name("test group 1"))
 	a.NoError(err)
-	a.NoError(gm.CreateRelation(ctx, g2.ID, 2))
+	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g1.ID, group.AKUser, act2.ID)))
 
-	g3, err := gm.Create(ctx, group.FGroup, g2.ID, "test group 3", "test group 3")
+	g2, err := gm.Create(ctx, group.FGroup, g1.ID, group.Key("test group 2"), group.Name("test group 2"))
 	a.NoError(err)
-	a.NoError(gm.CreateRelation(ctx, g3.ID, 2))
+	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g2.ID, group.AKUser, act2.ID)))
+
+	g3, err := gm.Create(ctx, group.FGroup, g2.ID, group.Key("test group 3"), group.Name("test group 3"))
+	a.NoError(err)
+	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g3.ID, group.AKUser, act2.ID)))
 
 	// expected rights
-	wantedRights := access.APCreate | access.APView
+	wantedRights := accesspolicy.APCreate | accesspolicy.APView
 
 	//---------------------------------------------------------------------------
-	// setting rights only for the g1, thus g3 must inherit its
+	// granting rights only for the g1, thus g3 must inherit its
 	// rights only from g1
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		access.Key("test policy"), // key
-		1,                         // owner
-		0,                         // parent
-		0,                         // object ActorID
-		access.TObjectName{},      // object type
-		0,                         // flags
+		accesspolicy.Key("test policy"), // key
+		act1.ID,                         // owner
+		uuid.Nil,                        // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
-	// setting rights for group 1
-	a.NoError(m.GrantGroupAccess(ctx, ap.ID, 1, g1.ID, wantedRights))
+	// granting rights for group 1
+	a.NoError(m.GrantGroupAccess(ctx, ap.ID, act1, g1.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g1.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g2.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g3.ID))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g1.ID), wantedRights))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g2.ID), wantedRights))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g3.ID), wantedRights))
 
 	//---------------------------------------------------------------------------
-	// setting rights only for the second group, thus g3 must inherit its
+	// granting rights only for the second group, thus g3 must inherit its
 	// rights only from group 2, and group 1 must not have the rights of group 2
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		access.Key("test policy 2"), // key
-		1,                           // owner
-		0,                           // parent
-		0,                           // object ActorID
-		access.TObjectName{},        // object type
-		0,                           // flags
+		accesspolicy.Key("test policy 2"), // key
+		act1.ID,                           // owner
+		uuid.Nil,                          // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
-	// setting rights for group 2
-	a.NoError(m.GrantGroupAccess(ctx, ap.ID, 1, g2.ID, wantedRights))
+	// granting rights for group 2
+	a.NoError(m.GrantGroupAccess(ctx, ap.ID, act1, g2.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g1.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g2.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g3.ID))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g1.ID), wantedRights))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g2.ID), wantedRights))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g3.ID), wantedRights))
 
 	//---------------------------------------------------------------------------
-	// setting rights only for the third group, group 1 and group 2 must not have
+	// granting rights only for the third group, group 1 and group 2 must not have
 	// these rights
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		access.Key("test policy 3"), // key
-		1,                           // owner
-		0,                           // parent
-		0,                           // object ActorID
-		access.TObjectName{},        // object type
-		0,                           // flags
+		accesspolicy.Key("test policy 3"), // key
+		act1.ID,                           // owner
+		uuid.Nil,                          // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
-	// setting rights for group 3
-	a.NoError(m.GrantGroupAccess(ctx, ap.ID, 1, g3.ID, wantedRights))
+	// granting rights for group 3
+	a.NoError(m.GrantGroupAccess(ctx, ap.ID, act1, g3.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g1.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g2.ID))
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g3.ID))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g1.ID), wantedRights))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g2.ID), wantedRights))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g3.ID), wantedRights))
 
 	//---------------------------------------------------------------------------
-	// setting rights only for group 1 & 2, group 3 must inherit the rights
+	// granting rights only for group 1 & 2, group 3 must inherit the rights
 	// from its direct ancestor that has its own rights (group 2)
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		access.Key("test policy 4"), // key
-		1,                           // owner
-		0,                           // parent
-		0,                           // object ActorID
-		access.TObjectName{},        // object type
-		0,                           // flags
+		accesspolicy.Key("test policy 4"), // key
+		act1.ID,                           // owner
+		uuid.Nil,                          // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
 	// rights to be used
-	group1Rights := access.APView | access.APCreate
-	wantedRights = access.APDelete | access.APCopy
+	group1Rights := accesspolicy.APView | accesspolicy.APCreate
+	wantedRights = accesspolicy.APDelete | accesspolicy.APCopy
 
-	// setting rights for group 1 and 2
-	a.NoError(m.GrantGroupAccess(ctx, ap.ID, 1, g1.ID, group1Rights))
-	a.NoError(m.GrantGroupAccess(ctx, ap.ID, 1, g2.ID, wantedRights))
+	// granting rights for group 1 and 2
+	a.NoError(m.GrantGroupAccess(ctx, ap.ID, act1, g1.ID, group1Rights))
+	a.NoError(m.GrantGroupAccess(ctx, ap.ID, act1, g2.ID, wantedRights))
 	a.NoError(m.Update(ctx, ap))
 
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g1.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g1.ID))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g1.ID), group1Rights))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g1.ID), wantedRights))
 
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g2.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g2.ID))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g2.ID), wantedRights))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g2.ID), group1Rights))
 
-	a.True(m.HasRights(ctx, ap.ID, access.AGroup, g3.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g3.ID))
+	a.True(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g3.ID), wantedRights))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g3.ID), group1Rights))
 
 	//---------------------------------------------------------------------------
-	// not setting any rights, only checking
+	// not granting any rights, only checking
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		access.Key("test policy 5"), // key
-		1,                           // owner
-		0,                           // parent
-		0,                           // object ActorID
-		access.TObjectName{},        // object type
-		0,                           // flags
+		accesspolicy.Key("test policy 5"), // key
+		act1.ID,                           // owner
+		uuid.Nil,                          // parent
+		accesspolicy.NilObject(),
+		0, // flags
 	)
 	a.NoError(err)
 
 	// test rights
-	wantedRights = access.APCreate | access.APView
+	wantedRights = accesspolicy.APCreate | accesspolicy.APView
 
 	// all check results must be false
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g1.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g2.ID))
-	a.False(m.HasRights(ctx, ap.ID, access.AGroup, g3.ID))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g1.ID), wantedRights))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g2.ID), wantedRights))
+	a.False(m.HasRights(ctx, ap.ID, accesspolicy.GroupActor(g3.ID), wantedRights))
 }

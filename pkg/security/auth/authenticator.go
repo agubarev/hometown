@@ -30,7 +30,7 @@ type Context struct {
 	Domain
 }
 
-// Domain represents an access domain
+// Domain represents an accesspolicy domain
 type Domain uint8
 
 const (
@@ -163,7 +163,7 @@ func (c *UserCredentials) SanitizeAndValidate() error {
 	return nil
 }
 
-// RevokedAccessToken represents a blacklisted access token
+// RevokedAccessToken represents a blacklisted accesspolicy token
 type RevokedAccessToken struct {
 	TokenID  string
 	ExpireAt time.Time
@@ -497,7 +497,7 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32
 
 	// verifying refresh token ownership
 
-	// revoking a corresponding access token
+	// revoking a corresponding accesspolicy token
 	err = a.RevokeAccessToken(s.AccessTokenID, s.ExpireAt)
 	if err != nil {
 		return err
@@ -506,7 +506,7 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32
 	return a.backend.DeleteSession(s)
 }
 
-// GenerateAccessToken generates access token for a given user
+// GenerateAccessToken generates accesspolicy token for a given user
 func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (string, string, error) {
 	if u.ID == 0 {
 		return "", "", user.ErrNilUser
@@ -549,7 +549,7 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 		return "", "", fmt.Errorf("failed to obtain private key: %s", err)
 	}
 
-	// creating an access token
+	// creating an accesspolicy token
 	ss, err := atok.SignedString(pk)
 	if err != nil {
 		return "", "", fmt.Errorf("failed to obtain a signed token string: %s", err)
@@ -613,7 +613,7 @@ func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri *Requ
 	return sess, nil
 }
 
-// GenerateTokenTrinity generates a trinity of tokens: session, access and refresh
+// GenerateTokenTrinity generates a trinity of tokens: session, accesspolicy and refresh
 func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, user user.User, ri *RequestMetadata) (*TokenTrinity, error) {
 	atok, jti, err := a.GenerateAccessToken(ctx, user)
 	if err != nil {
@@ -669,11 +669,11 @@ func (a *Authenticator) claimsFromToken(tok string) (claims Claims, err error) {
 	return claims, nil
 }
 
-// UserIDFromToken parses access token and returns user ActorID
+// UserIDFromToken parses accesspolicy token and returns user ActorID
 func (a *Authenticator) UserIDFromToken(tok string) (_ uint32, err error) {
 	claims, err := a.claimsFromToken(tok)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to obtain user id from access token")
+		return 0, errors.Wrap(err, "failed to obtain user id from accesspolicy token")
 	}
 
 	return claims.UserID, nil
@@ -687,14 +687,14 @@ func (a *Authenticator) UserFromToken(ctx context.Context, tok string) (u user.U
 
 	u, err = a.users.UserByID(ctx, userID)
 	if err != nil {
-		return u, errors.Wrap(err, "failed to obtain user from access token")
+		return u, errors.Wrap(err, "failed to obtain user from accesspolicy token")
 	}
 
 	return u, nil
 }
 
 // RevokeAccessToken adds a given token ObjectID to the blacklist for the duration
-// of an access token expiration time + 1 minute
+// of an accesspolicy token expiration time + 1 minute
 func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
 	return a.backend.PutRevokedAccessToken(RevokedAccessToken{
 		TokenID:  id,
@@ -704,7 +704,7 @@ func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
 
 // IsRevoked checks whether a given token ObjectID is among the blacklisted tokens
 // NOTE: blacklisted token IDs are cleansed from the registry shortly
-// after their respective access tokens expire
+// after their respective accesspolicy tokens expire
 func (a *Authenticator) IsRevoked(tokenID string) bool {
 	return a.backend.IsRevoked(tokenID)
 }
@@ -724,12 +724,12 @@ func (a *Authenticator) GetSession(stok string) (Session, error) {
 	return a.backend.GetSession(stok)
 }
 
-// GetSessionByAccessToken returns a session by access token
+// GetSessionByAccessToken returns a session by accesspolicy token
 func (a *Authenticator) GetSessionByAccessToken(jti string) (Session, error) {
 	return a.backend.GetSessionByAccessToken(jti)
 }
 
-// GetSessionBySessionToken returns a session by access token
+// GetSessionBySessionToken returns a session by accesspolicy token
 func (a *Authenticator) GetSessionBySessionToken(rtok string) (Session, error) {
 	return a.backend.GetSessionByRefreshToken(rtok)
 }

@@ -27,7 +27,7 @@ var (
 	ErrUserPasswordNotEligible   = errors.New("user is not eligible for password assignment")
 	ErrDuplicateProfile          = errors.New("duplicate profile")
 	ErrProfileNotFound           = errors.New("profile not found")
-	ErrNoParentPolicy            = errors.New("no parent access policy")
+	ErrNoParentPolicy            = errors.New("no parent accesspolicy policy")
 	ErrNoPolicyBackup            = errors.New("no policy backup")
 	ErrNoParentGroup             = errors.New("no parent group")
 	ErrZeroGroupID               = errors.New("role group id is zero")

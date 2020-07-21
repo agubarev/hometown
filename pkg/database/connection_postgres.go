@@ -104,14 +104,14 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 	tables := []string{
 		"group",
 		"group_assets",
+		"accesspolicy",
+		"accesspolicy_roster",
+		//"password",
+		//"token",
 		//"user",
 		//"user_email",
 		//"user_phone",
 		//"user_profile",
-		//"password",
-		//"token",
-		//"access",
-		//"accesspolicy_roster",
 	}
 
 	// truncating tables
