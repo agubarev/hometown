@@ -49,7 +49,7 @@ var (
 // Manager is the access policy registry
 type Manager struct {
 	policies   map[uuid.UUID]Policy
-	keyMap     map[Key]uuid.UUID
+	keyMap     map[TKey]uuid.UUID
 	roster     map[uuid.UUID]*Roster
 	groups     *group.Manager
 	store      Store
@@ -66,7 +66,7 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	c := &Manager{
 		policies: make(map[uuid.UUID]Policy),
 		roster:   make(map[uuid.UUID]*Roster),
-		keyMap:   make(map[Key]uuid.UUID),
+		keyMap:   make(map[TKey]uuid.UUID),
 		groups:   gm,
 		store:    store,
 	}
@@ -123,7 +123,7 @@ func (m *Manager) removePolicy(policyID uuid.UUID) (err error) {
 }
 
 // Upsert creates a new access policy
-func (m *Manager) Create(ctx context.Context, key Key, ownerID, parentID uuid.UUID, obj Object, flags uint8) (ap Policy, err error) {
+func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID uuid.UUID, obj Object, flags uint8) (ap Policy, err error) {
 	ap, err = NewPolicy(key, ownerID, parentID, obj, flags)
 	if err != nil {
 		return ap, errors.Wrap(err, "failed to initialize new access policy")
@@ -286,7 +286,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uuid.UUID) (p Policy, err e
 }
 
 // PolicyByKey returns an access policy by its key
-func (m *Manager) PolicyByKey(ctx context.Context, name Key) (p Policy, err error) {
+func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (p Policy, err error) {
 	m.RLock()
 	p, ok := m.policies[m.keyMap[name]]
 	m.RUnlock()
@@ -412,13 +412,13 @@ func (m *Manager) HasRights(ctx context.Context, pid uuid.UUID, actor Actor, rig
 	}
 
 	switch actor.Kind {
-	case SKEveryone:
+	case AEveryone:
 		return m.HasPublicRights(ctx, pid, rights)
-	case SKUser:
+	case AUser:
 		return m.UserHasAccess(ctx, pid, actor.ID, rights)
-	case SKRoleGroup:
+	case ARoleGroup:
 		return m.HasRoleRights(ctx, pid, actor.ID, rights)
-	case SKGroup:
+	case AGroup:
 		return m.HasGroupRights(ctx, pid, actor.ID, rights)
 	}
 
@@ -443,13 +443,13 @@ func (m *Manager) GrantAccess(ctx context.Context, pid uuid.UUID, grantor, grant
 
 	// setting rights depending on the type of a subject
 	switch grantee.Kind {
-	case SKEveryone:
+	case AEveryone:
 		err = m.GrantPublicAccess(ctx, pid, grantor, access)
-	case SKUser:
+	case AUser:
 		err = m.GrantUserAccess(ctx, pid, grantor, grantee.ID, access)
-	case SKRoleGroup:
+	case ARoleGroup:
 		err = m.GrantRoleAccess(ctx, pid, grantor, grantee.ID, access)
-	case SKGroup:
+	case AGroup:
 		err = m.GrantGroupAccess(ctx, pid, grantor, grantee.ID, access)
 	}
 
@@ -502,9 +502,9 @@ func (m *Manager) RevokeAccess(ctx context.Context, pid uuid.UUID, grantor, gran
 
 	// deleting assigneeID from the rosters (depending on its type)
 	switch grantee.Kind {
-	case SKEveryone:
-		r.change(RSet, NewActor(SKEveryone, uuid.Nil), APNoAccess)
-	case SKUser, SKRoleGroup, SKGroup:
+	case AEveryone:
+		r.change(RSet, NewActor(AEveryone, uuid.Nil), APNoAccess)
+	case AUser, ARoleGroup, AGroup:
 		r.change(RUnset, grantee, APNoAccess)
 	}
 
@@ -631,7 +631,7 @@ func (m *Manager) GrantPublicAccess(ctx context.Context, pid uuid.UUID, grantor 
 	}
 
 	// deferred instruction for rosterChange
-	r.change(RSet, NewActor(SKEveryone, uuid.Nil), rights)
+	r.change(RSet, NewActor(AEveryone, uuid.Nil), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -685,7 +685,7 @@ func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}
 
 	// deferred instruction for rosterChange
-	r.change(RSet, NewActor(SKRoleGroup, roleID), rights)
+	r.change(RSet, NewActor(ARoleGroup, roleID), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -739,7 +739,7 @@ func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor A
 	}
 
 	// deferred instruction for rosterChange
-	r.change(RSet, NewActor(SKGroup, groupID), rights)
+	r.change(RSet, NewActor(AGroup, groupID), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -780,7 +780,7 @@ func (m *Manager) GrantUserAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}
 
 	// deferred instruction for change
-	r.change(RSet, NewActor(SKUser, userID), rights)
+	r.change(RSet, NewActor(AUser, userID), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -888,7 +888,7 @@ func (m *Manager) SummarizedUserAccess(ctx context.Context, policyID, userID uui
 	}
 
 	// user-specific rights
-	return access | r.lookup(NewActor(SKUser, userID))
+	return access | r.lookup(NewActor(AUser, userID))
 }
 
 // GroupAccess returns the rights of a given group if set explicitly,
@@ -920,9 +920,9 @@ func (m *Manager) GroupAccess(ctx context.Context, pid, groupID uuid.UUID) (acce
 
 	switch true {
 	case g.IsGroup():
-		access = r.lookup(NewActor(SKGroup, g.ID))
+		access = r.lookup(NewActor(AGroup, g.ID))
 	case g.IsRole():
-		access = r.lookup(NewActor(SKRoleGroup, g.ID))
+		access = r.lookup(NewActor(ARoleGroup, g.ID))
 	}
 
 	// returning if any positive access right is found

@@ -84,7 +84,7 @@ func (s *MySQLStore) Update(ctx context.Context, g Group) (Group, error) {
 	}
 
 	updates := map[string]interface{}{
-		"key":  g.Key,
+		"key":  g.TKey,
 		"name": g.DisplayName,
 	}
 

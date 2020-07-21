@@ -27,8 +27,8 @@ func TestPostgreSQLStore_UpsertGroup(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_key"),
-		DisplayName: group.NewName("test name"),
+		Key:         group.Key("test_key"),
+		DisplayName: group.Name("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -53,8 +53,8 @@ func TestPostgreSQLStore_FetchGroupByID(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_key"),
-		DisplayName: group.NewName("test name"),
+		Key:         group.Key("test_key"),
+		DisplayName: group.Name("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -87,24 +87,24 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_key"),
-		DisplayName: group.NewName("test name"),
+		Key:         group.Key("test_key"),
+		DisplayName: group.Name("test name"),
 	}
 
 	g2 := group.Group{
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FRole,
-		Key:         group.NewKey("test_role"),
-		DisplayName: group.NewName("test role"),
+		Key:         group.Key("test_role"),
+		DisplayName: group.Name("test role"),
 	}
 
 	g3 := group.Group{
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_group123"),
-		DisplayName: group.NewName("test group 123"),
+		Key:         group.Key("test_group123"),
+		DisplayName: group.Name("test group 123"),
 	}
 
 	g1, err = s.UpsertGroup(ctx, g1)
@@ -153,8 +153,8 @@ func TestPostgreSQLStore_DeleteByID(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_group"),
-		DisplayName: group.NewName("test group"),
+		Key:         group.Key("test_group"),
+		DisplayName: group.Name("test group"),
 	}
 
 	// creating test group
@@ -190,8 +190,8 @@ func TestPostgreSQLStore_DeleteRelation(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_group"),
-		DisplayName: group.NewName("test group"),
+		Key:         group.Key("test_group"),
+		DisplayName: group.Name("test group"),
 	}
 
 	// creating test group

@@ -75,12 +75,12 @@ type (
 	TName [128]byte
 )
 
-func NewKey(skey string) (key TKey) {
+func Key(skey string) (key TKey) {
 	copy(key[:], strings.ToLower(strings.TrimSpace(skey)))
 	return key
 }
 
-func NewName(sname string) (name TName) {
+func Name(sname string) (name TName) {
 	copy(name[:], strings.TrimSpace(sname))
 	return name
 }

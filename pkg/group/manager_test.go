@@ -32,23 +32,23 @@ func TestManager_Create(t *testing.T) {
 	// creating test groups and roles
 	//---------------------------------------------------------------------------
 
-	g1, err := m.Create(ctx, group.FGroup, uuid.Nil, group.NewKey("group_1"), group.NewName("Group 1"))
+	g1, err := m.Create(ctx, group.FGroup, uuid.Nil, group.Key("group_1"), group.Name("Group 1"))
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := m.Create(ctx, group.FGroup, uuid.Nil, group.NewKey("group_2"), group.NewName("Group 2"))
+	g2, err := m.Create(ctx, group.FGroup, uuid.Nil, group.Key("group_2"), group.Name("Group 2"))
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := m.Create(ctx, group.FGroup, g2.ID, group.NewKey("group_3"), group.NewName("Group 3 (sub-group of Group 2)"))
+	g3, err := m.Create(ctx, group.FGroup, g2.ID, group.Key("group_3"), group.Name("Group 3 (sub-group of Group 2)"))
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := m.Create(ctx, group.FRole, uuid.Nil, group.NewKey("role_1"), group.NewName("Role 1"))
+	r1, err := m.Create(ctx, group.FRole, uuid.Nil, group.Key("role_1"), group.Name("Role 1"))
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := m.Create(ctx, group.FRole, uuid.Nil, group.NewKey("role_2"), group.NewName("Role 2"))
+	r2, err := m.Create(ctx, group.FRole, uuid.Nil, group.Key("role_2"), group.Name("Role 2"))
 	a.NoError(err)
 	a.NotNil(g1)
 

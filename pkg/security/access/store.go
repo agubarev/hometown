@@ -12,7 +12,7 @@ type Store interface {
 	CreatePolicy(ctx context.Context, p Policy, r *Roster) (Policy, *Roster, error)
 	UpdatePolicy(ctx context.Context, p Policy, r *Roster) error
 	FetchPolicyByID(ctx context.Context, id uuid.UUID) (Policy, error)
-	FetchPolicyByKey(ctx context.Context, key Key) (p Policy, err error)
+	FetchPolicyByKey(ctx context.Context, key TKey) (p Policy, err error)
 	FetchPolicyByObject(ctx context.Context, obj Object) (p Policy, err error)
 	DeletePolicy(ctx context.Context, p Policy) error
 	CreateRoster(ctx context.Context, policyID uuid.UUID, r *Roster) (err error)

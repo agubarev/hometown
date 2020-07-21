@@ -507,19 +507,19 @@ func (m *Manager) setupDefaultGroups(ctx context.Context) error {
 	//---------------------------------------------------------------------------
 
 	// regular user
-	regularRole, err := m.Create(ctx, FRole, uuid.Nil, NewKey("regular"), NewName("Regular user"))
+	regularRole, err := m.Create(ctx, FRole, uuid.Nil, Key("regular"), Name("Regular user"))
 	if err != nil {
 		return errors.Wrap(err, "failed to create regular user role")
 	}
 
 	// manager
-	managerRole, err := m.Create(ctx, FRole, regularRole.ID, NewKey("manager"), NewName("Manager"))
+	managerRole, err := m.Create(ctx, FRole, regularRole.ID, Key("manager"), Name("Manager"))
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
 
 	// super user
-	_, err = m.Create(ctx, FRole, managerRole.ID, NewKey("superuser"), NewName("Super user"))
+	_, err = m.Create(ctx, FRole, managerRole.ID, Key("superuser"), Name("Super user"))
 	if err != nil {
 		return fmt.Errorf("failed to create superuser role: %s", err)
 	}

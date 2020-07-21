@@ -40,6 +40,34 @@ func NewActor(k ActorKind, id uuid.UUID) Actor {
 	}
 }
 
+func PublicActor() Actor {
+	return Actor{
+		ID:   uuid.Nil,
+		Kind: AEveryone,
+	}
+}
+
+func UserActor(id uuid.UUID) Actor {
+	return Actor{
+		ID:   id,
+		Kind: AUser,
+	}
+}
+
+func GroupActor(id uuid.UUID) Actor {
+	return Actor{
+		ID:   id,
+		Kind: AGroup,
+	}
+}
+
+func RoleActor(id uuid.UUID) Actor {
+	return Actor{
+		ID:   id,
+		Kind: ARoleGroup,
+	}
+}
+
 // Cell represents a single access registry cell
 type Cell struct {
 	Key    Actor `json:"key"`
@@ -175,13 +203,13 @@ func (r *Roster) change(action RAction, key Actor, rights Right) {
 	switch action {
 	case RSet:
 		// if kind is Everyone(public), then there's no need update registry
-		if key.Kind == SKEveryone {
+		if key.Kind == AEveryone {
 			r.Everyone = rights
 		} else {
 			r.put(key, rights)
 		}
 	case RUnset:
-		if key.Kind == SKEveryone {
+		if key.Kind == AEveryone {
 			r.Everyone = APNoAccess
 		} else {
 			r.delete(key)

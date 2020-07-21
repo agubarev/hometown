@@ -18,8 +18,8 @@ func TestGroupStorePut(t *testing.T) {
 		ActorID:          uuid.Nil,
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_key"),
-		DisplayName: group.NewName("test name"),
+		TKey:         group.Key("test_key"),
+		DisplayName: group.Name("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -44,8 +44,8 @@ func TestGroupStoreGet(t *testing.T) {
 		ActorID:          uuid.Nil,
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_key"),
-		DisplayName: group.NewName("test name"),
+		TKey:         group.Key("test_key"),
+		DisplayName: group.Name("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -57,7 +57,7 @@ func TestGroupStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.Equal(g.ActorID, fg.ActorID)
 	a.Equal(g.Flags, fg.Flags)
-	a.Equal(g.Key, fg.Key)
+	a.Equal(g.TKey, fg.TKey)
 	a.Equal(g.DisplayName, fg.DisplayName)
 }
 
@@ -78,24 +78,24 @@ func TestGroupStoreGetAll(t *testing.T) {
 		ActorID:          uuid.Nil,
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_key"),
-		DisplayName: group.NewName("test name"),
+		TKey:         group.Key("test_key"),
+		DisplayName: group.Name("test name"),
 	}
 
 	g2 := group.Group{
 		ActorID:          uuid.Nil,
 		ParentID:    uuid.Nil,
 		Flags:       group.FRole,
-		Key:         group.NewKey("test_role"),
-		DisplayName: group.NewName("test role"),
+		TKey:         group.Key("test_role"),
+		DisplayName: group.Name("test role"),
 	}
 
 	g3 := group.Group{
 		ActorID:          uuid.Nil,
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_group123"),
-		DisplayName: group.NewName("test group 123"),
+		TKey:         group.Key("test_group123"),
+		DisplayName: group.Name("test group 123"),
 	}
 
 	g1, err = s.UpsertGroup(ctx, g1)
@@ -113,17 +113,17 @@ func TestGroupStoreGetAll(t *testing.T) {
 
 	a.Equal(g1.ActorID, gs[0].ActorID)
 	a.Equal(g1.Flags, gs[0].Flags)
-	a.Equal(g1.Key, gs[0].Key)
+	a.Equal(g1.TKey, gs[0].TKey)
 	a.Equal(g1.DisplayName, gs[0].DisplayName)
 
 	a.Equal(g2.ActorID, gs[1].ActorID)
 	a.Equal(g2.Flags, gs[1].Flags)
-	a.Equal(g2.Key, gs[1].Key)
+	a.Equal(g2.TKey, gs[1].TKey)
 	a.Equal(g2.DisplayName, gs[1].DisplayName)
 
 	a.Equal(g3.ActorID, gs[2].ActorID)
 	a.Equal(g3.Flags, gs[2].Flags)
-	a.Equal(g3.Key, gs[2].Key)
+	a.Equal(g3.TKey, gs[2].TKey)
 	a.Equal(g3.DisplayName, gs[2].DisplayName)
 }
 
@@ -144,8 +144,8 @@ func TestGroupStoreDelete(t *testing.T) {
 		ActorID:          0,
 		ParentID:    0,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_group"),
-		DisplayName: group.NewName("test group"),
+		TKey:         group.Key("test_group"),
+		DisplayName: group.Name("test group"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -180,8 +180,8 @@ func TestGroupStoreRelations(t *testing.T) {
 		ActorID:          0,
 		ParentID:    0,
 		Flags:       group.FGroup,
-		Key:         group.NewKey("test_group"),
-		DisplayName: group.NewName("test group"),
+		TKey:         group.Key("test_group"),
+		DisplayName: group.Name("test group"),
 	}
 
 	// making sure there is no previous relation

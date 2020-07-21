@@ -67,7 +67,7 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 	// for everyone
 	records = append(records, RosterEntry{
 		PolicyID:        pid,
-		ActorKind:       SKEveryone,
+		ActorKind:       AEveryone,
 		Access:          r.Everyone,
 		AccessExplained: r.Everyone.String(),
 	})
@@ -76,7 +76,7 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 	r.registryLock.RLock()
 	for _, _r := range r.Registry {
 		switch _r.Key.Kind {
-		case SKRoleGroup, SKGroup, SKUser:
+		case ARoleGroup, AGroup, AUser:
 			records = append(records, RosterEntry{
 				PolicyID:        pid,
 				ActorKind:       _r.Key.Kind,
@@ -105,9 +105,9 @@ func (s *PostgreSQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 	// transforming database records into the roster object
 	for _, _r := range records {
 		switch _r.ActorKind {
-		case SKEveryone:
+		case AEveryone:
 			r.Everyone = _r.Access
-		case SKRoleGroup, SKGroup, SKUser:
+		case ARoleGroup, AGroup, AUser:
 			r.put(NewActor(_r.ActorKind, _r.ActorID), _r.Access)
 		default:
 			log.Printf(
@@ -332,7 +332,7 @@ func (s *PostgreSQLStore) FetchPolicyByID(ctx context.Context, id uuid.UUID) (Po
 	return s.onePolicy(ctx, q, id)
 }
 
-func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key Key) (p Policy, err error) {
+func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (p Policy, err error) {
 	q := `
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
 	FROM "policy"
