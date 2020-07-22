@@ -319,7 +319,6 @@ func TestSetGroupRights(t *testing.T) {
 	a.NotNil(m)
 
 	wantedRights := accesspolicy.APView | accesspolicy.APChange
-	ownerID := uuid.New()
 
 	act1 := accesspolicy.UserActor(uuid.New())
 	act2 := accesspolicy.UserActor(uuid.New())
@@ -331,7 +330,7 @@ func TestSetGroupRights(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		accesspolicy.Key("parent"), // key
-		ownerID,                    // owner
+		act1.ID,                    // owner
 		uuid.Nil,                   // parent
 		accesspolicy.NilObject(),
 		0, // flags
@@ -365,7 +364,7 @@ func TestSetGroupRights(t *testing.T) {
 	pWithInherit, err := m.Create(
 		ctx,
 		accesspolicy.Key("with inherit"), // key
-		uuid.Nil,                         // owner
+		act1.ID,                          // owner
 		basePolicy.ID,                    // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FInherit, // flags
@@ -385,7 +384,7 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		accesspolicy.Key("with extend, no own rights"), // key
-		uuid.Nil,      // owner
+		act1.ID,       // owner
 		basePolicy.ID, // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
@@ -404,7 +403,7 @@ func TestSetGroupRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		accesspolicy.Key("with extend and own rights"), // key
-		uuid.Nil,      // owner
+		act1.ID,       // owner
 		basePolicy.ID, // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
@@ -455,7 +454,6 @@ func TestSetRoleRights(t *testing.T) {
 	a.NotNil(m)
 
 	wantedRights := accesspolicy.APChange | accesspolicy.APDelete
-	ownerID := uuid.New()
 
 	act1 := accesspolicy.UserActor(uuid.New())
 	act2 := accesspolicy.UserActor(uuid.New())
@@ -467,7 +465,7 @@ func TestSetRoleRights(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		accesspolicy.Key("parent"), // key
-		ownerID,                    // owner
+		act1.ID,                    // owner
 		uuid.Nil,                   // parent
 		accesspolicy.NilObject(),
 		0, // flags
@@ -501,7 +499,7 @@ func TestSetRoleRights(t *testing.T) {
 	pWithInherit, err := m.Create(
 		ctx,
 		accesspolicy.Key("with inherit"), // key
-		ownerID,                          // owner
+		act1.ID,                          // owner
 		basePolicy.ID,                    // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FInherit, // flags
@@ -521,7 +519,7 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		accesspolicy.Key("with extend, no own rights"), // key
-		ownerID,       // owner
+		act1.ID,       // owner
 		basePolicy.ID, // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
@@ -540,7 +538,7 @@ func TestSetRoleRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		accesspolicy.Key("with extend and own rights"), // key
-		ownerID,       // owner
+		act1.ID,       // owner
 		basePolicy.ID, // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
@@ -552,8 +550,8 @@ func TestSetRoleRights(t *testing.T) {
 	a.NoError(m.Update(ctx, pExtendedWithOwn))
 
 	// expecting a proper blend with parent rights
-	a.True(m.HasRights(ctx, basePolicy.ID, act2, accesspolicy.APCopy))
-	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act2, accesspolicy.APCopy))
+	a.True(m.HasRights(ctx, basePolicy.ID, act2, accesspolicy.APChange))
+	a.True(m.HasRights(ctx, pExtendedWithOwn.ID, act2, accesspolicy.APDelete))
 }
 
 func TestSetUserRights(t *testing.T) {
@@ -591,7 +589,6 @@ func TestSetUserRights(t *testing.T) {
 	a.NotNil(m)
 
 	wantedRights := accesspolicy.APChange | accesspolicy.APDelete
-	ownerID := uuid.New()
 
 	act1 := accesspolicy.UserActor(uuid.New())
 	act2 := accesspolicy.UserActor(uuid.New())
@@ -604,7 +601,7 @@ func TestSetUserRights(t *testing.T) {
 	basePolicy, err := m.Create(
 		ctx,
 		accesspolicy.Key("base policy"), // key
-		ownerID,                         // owner
+		act1.ID,                         // owner
 		uuid.Nil,                        // parent
 		accesspolicy.NilObject(),
 		0, // flags
@@ -622,7 +619,7 @@ func TestSetUserRights(t *testing.T) {
 	pWithInheritance, err := m.Create(
 		ctx,
 		accesspolicy.Key("inheritance only"), // key
-		uuid.Nil,                             // owner
+		act1.ID,                              // owner
 		basePolicy.ID,                        // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FInherit, // flags
@@ -639,7 +636,7 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedNoOwn, err := m.Create(
 		ctx,
 		accesspolicy.Key("extension only"), // key
-		uuid.Nil,                           // owner
+		act1.ID,                            // owner
 		basePolicy.ID,                      // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
@@ -657,7 +654,7 @@ func TestSetUserRights(t *testing.T) {
 	pExtendedWithOwn, err := m.Create(
 		ctx,
 		accesspolicy.Key("extension with own rights"), // key
-		uuid.Nil,      // owner
+		act1.ID,       // owner
 		basePolicy.ID, // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
@@ -733,9 +730,9 @@ func TestIsOwner(t *testing.T) {
 
 	// user 2
 	a.True(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
-	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APView))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APMove))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APDelete))
+	a.False(m.HasRights(ctx, ap.ID, act2, accesspolicy.APFullAccess))
 
 	a.True(ap.IsOwner(act1.ID))
 	a.False(ap.IsOwner(act2.ID))

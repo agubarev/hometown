@@ -22,7 +22,7 @@ func TestUserManagerNew(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(userStore)
 
-	passwordStore, err := password.NewPasswordStore(db)
+	passwordStore, err := password.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(passwordStore)
 
@@ -42,7 +42,7 @@ func TestUserManagerCreate(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(userStore)
 
-	passwordStore, err := password.NewPasswordStore(db)
+	passwordStore, err := password.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(passwordStore)
 

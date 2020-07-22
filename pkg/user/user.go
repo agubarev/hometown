@@ -9,6 +9,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -35,12 +36,12 @@ type Metadata struct {
 
 	// timestamps
 	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
-	CreatedByID uint32       `db:"created_by_id" json:"created_by_id"`
+	CreatedByID uuid.UUID    `db:"created_by_id" json:"created_by_id"`
 	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
-	UpdatedByID uint32       `db:"updated_by_id" json:"updated_by_id"`
+	UpdatedByID uuid.UUID    `db:"updated_by_id" json:"updated_by_id"`
 	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
 	DeletedAt   dbr.NullTime `db:"deleted_at" json:"deleted_at"`
-	DeletedByID uint32       `db:"deleted_by_id" json:"deleted_by_id"`
+	DeletedByID uuid.UUID    `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
 	LastLoginAt       dbr.NullTime `db:"last_login_at" json:"last_login_at"`
@@ -59,7 +60,7 @@ type Metadata struct {
 // User represents certain users which are custom
 // and are handled by the customer
 type User struct {
-	ID   uint32    `db:"id" json:"id"`
+	ID   uuid.UUID `db:"id" json:"id"`
 	ULID ulid.ULID `db:"ulid" json:"ulid" diff:"-"`
 
 	Essential

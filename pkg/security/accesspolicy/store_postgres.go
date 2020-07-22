@@ -161,7 +161,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 			// deleting
 			//---------------------------------------------------------------------------
 			_, err = tx.Exec(
-				"DELETE FROM accesspolicy_roster WHERE policy_id = ? AND actor_kind = ? AND actor_id = ?",
+				"DELETE FROM accesspolicy_roster WHERE policy_id = $1 AND actor_kind = $2 AND actor_id = $3",
 				pid,
 				c.key.Kind,
 				c.key.ID,
@@ -179,7 +179,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 func (s *PostgreSQLStore) onePolicy(ctx context.Context, q string, args ...interface{}) (p Policy, err error) {
 	row := s.db.QueryRowEx(ctx, q, nil, args...)
 
-	switch row.Scan(&p.ID, &p.ParentID, &p.OwnerID, &p.Key, &p.ObjectName, &p.ObjectID, &p.Flags) {
+	switch err = row.Scan(&p.ID, &p.ParentID, &p.OwnerID, &p.Key, &p.ObjectName, &p.ObjectID, &p.Flags); err {
 	case nil:
 		return p, nil
 	case pgx.ErrNoRows:

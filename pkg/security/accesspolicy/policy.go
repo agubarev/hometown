@@ -3,6 +3,7 @@ package accesspolicy
 import (
 	"bytes"
 	"database/sql/driver"
+	"runtime/debug"
 	"strings"
 
 	"github.com/google/uuid"
@@ -282,6 +283,7 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 func (ap Policy) Validate() error {
 	// policy must have some designators
 	if ap.Key[0] == 0 && ap.ObjectName[0] == 0 {
+		debug.PrintStack()
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object name empty")
 	}
 
@@ -401,30 +403,38 @@ func (key TKey) Value() (driver.Value, error) {
 	return key[0:zeroPos], nil
 }
 
-/*
 func (key *TKey) Scan(v interface{}) error {
+	if v == nil {
+		key[0] = 0
+		return nil
+	}
+
 	copy(key[:], v.([]byte))
+
 	return nil
 }
-*/
 
-func (typ TObjectName) Value() (driver.Value, error) {
+func (name TObjectName) Value() (driver.Value, error) {
 	// a little hack to store an empty string instead of zeroes
-	if typ[0] == 0 {
+	if name[0] == 0 {
 		return nil, nil
 	}
 
-	zeroPos := bytes.IndexByte(typ[:], byte(0))
+	zeroPos := bytes.IndexByte(name[:], byte(0))
 	if zeroPos == -1 {
-		return typ[:], nil
+		return name[:], nil
 	}
 
-	return typ[0:zeroPos], nil
+	return name[0:zeroPos], nil
 }
 
-/*
-func (typ *TObjectName) Scan(v interface{}) error {
-	copy(typ[:], v.([]byte))
+func (name *TObjectName) Scan(v interface{}) error {
+	if v == nil {
+		name[0] = 0
+		return nil
+	}
+
+	copy(name[:], v.([]byte))
+
 	return nil
 }
-*/

@@ -3,12 +3,13 @@ package password
 import (
 	"context"
 
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
 // errors
 var (
-	ErrZeroOwnerID      = errors.New("owner id is zero")
+	ErrNilOwnerID       = errors.New("owner id is zero")
 	ErrZeroKind         = errors.New("password kind is zero")
 	ErrNilPasswordStore = errors.New("password store is nil")
 	ErrEmptyPassword    = errors.New("empty password is forbidden")
@@ -16,6 +17,7 @@ var (
 	ErrShortPassword    = errors.New("password is too short")
 	ErrLongPassword     = errors.New("password is too long")
 	ErrUnsafePassword   = errors.New("password is too unsafe")
+	ErrNothingChanged   = errors.New("nothing changed")
 )
 
 type Kind uint8
@@ -28,8 +30,8 @@ const (
 // userManager describes the behaviour of a user password manager
 type Manager interface {
 	Upsert(ctx context.Context, p Password) error
-	Get(ctx context.Context, kind Kind, ownerID uint32) (Password, error)
-	Delete(ctx context.Context, kind Kind, ownerID uint32) error
+	Get(ctx context.Context, kind Kind, ownerID uuid.UUID) (p Password, err error)
+	Delete(ctx context.Context, kind Kind, ownerID uuid.UUID) error
 }
 
 type defaultManager struct {
@@ -61,23 +63,23 @@ func (m *defaultManager) Upsert(ctx context.Context, p Password) (err error) {
 	return m.store.Upsert(ctx, p)
 }
 
-func (m *defaultManager) Get(ctx context.Context, k Kind, ownerID uint32) (p Password, err error) {
+func (m *defaultManager) Get(ctx context.Context, kind Kind, ownerID uuid.UUID) (p Password, err error) {
 	if m.store == nil {
 		return p, ErrNilPasswordStore
 	}
 
-	if k == 0 {
+	if kind == 0 {
 		return p, ErrZeroKind
 	}
 
-	if ownerID == 0 {
-		return p, ErrZeroOwnerID
+	if ownerID == uuid.Nil {
+		return p, ErrNilOwnerID
 	}
 
-	return m.store.Get(ctx, k, ownerID)
+	return m.store.Get(ctx, kind, ownerID)
 }
 
-func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID uint32) error {
+func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID uuid.UUID) error {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}
@@ -86,8 +88,8 @@ func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID uint32) err
 		return ErrZeroKind
 	}
 
-	if ownerID == 0 {
-		return ErrZeroOwnerID
+	if ownerID == uuid.Nil {
+		return ErrNilOwnerID
 	}
 
 	return m.store.Delete(ctx, k, ownerID)

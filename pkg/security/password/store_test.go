@@ -17,7 +17,7 @@ func TestPasswordStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := password.NewPasswordStore(db)
+	s, err := password.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -36,7 +36,7 @@ func TestPasswordStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := password.NewPasswordStore(db)
+	s, err := password.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 
@@ -63,7 +63,7 @@ func TestPasswordStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(db)
 
-	s, err := password.NewPasswordStore(db)
+	s, err := password.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(s)
 

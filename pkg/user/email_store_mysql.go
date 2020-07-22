@@ -1,17 +1,8 @@
 package user
 
-import (
-	"context"
-	"database/sql"
-
-	"github.com/agubarev/hometown/pkg/util/guard"
-	"github.com/go-sql-driver/mysql"
-	"github.com/pkg/errors"
-	"github.com/r3labs/diff"
-)
-
+/*
 func (s *MySQLStore) fetchEmailByQuery(ctx context.Context, q string, args ...interface{}) (e Email, err error) {
-	err = s.connection.NewSession(nil).
+	err = s.db.NewSession(nil).
 		SelectBySql(q, args).
 		LoadOneContext(ctx, &e)
 
@@ -29,7 +20,7 @@ func (s *MySQLStore) fetchEmailByQuery(ctx context.Context, q string, args ...in
 func (s *MySQLStore) fetchEmailsByQuery(ctx context.Context, q string, args ...interface{}) (es []Email, err error) {
 	es = make([]Email, 0)
 
-	_, err = s.connection.NewSession(nil).
+	_, err = s.db.NewSession(nil).
 		SelectBySql(q, args).
 		LoadContext(ctx, &es)
 
@@ -51,7 +42,7 @@ func (s *MySQLStore) CreateEmail(ctx context.Context, e Email) (_ Email, err err
 		return e, ErrZeroUserID
 	}
 
-	_, err = s.connection.NewSession(nil).
+	_, err = s.db.NewSession(nil).
 		InsertInto("user_email").
 		Columns(guard.DBColumnsFrom(e)...).
 		Record(e).
@@ -78,7 +69,7 @@ func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email
 		return nil, ErrNoInputData
 	}
 
-	tx, err := s.connection.NewSession(nil).Begin()
+	tx, err := s.db.NewSession(nil).Begin()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to initialize database transaction")
 	}
@@ -129,7 +120,7 @@ func (s *MySQLStore) FetchEmailByAddr(ctx context.Context, addr string) (e Email
 }
 
 func (s *MySQLStore) FetchEmailsByWhere(ctx context.Context, order string, limit, offset uint64, where string, args ...interface{}) (es []Email, err error) {
-	_, err = s.connection.NewSession(nil).
+	_, err = s.db.NewSession(nil).
 		Select("*").
 		Where(where, args...).
 		Limit(limit).
@@ -158,7 +149,7 @@ func (s *MySQLStore) UpdateEmail(ctx context.Context, e Email, changelog diff.Ch
 		return e, errors.Wrap(err, "failed to procure changes from a changelog")
 	}
 
-	result, err := s.connection.NewSession(nil).
+	result, err := s.db.NewSession(nil).
 		Update("user_email").
 		Where("user_id = ? AND addr = ?", e.UserID, e.Addr).
 		SetMap(changes).
@@ -183,7 +174,7 @@ func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID uint32, addr 
 		return ErrZeroUserID
 	}
 
-	_, err = s.connection.NewSession(nil).
+	_, err = s.db.NewSession(nil).
 		DeleteFrom("user_email").
 		Where("user_id = ? AND addr = ?", userID, addr).
 		ExecContext(ctx)
@@ -196,7 +187,7 @@ func (s *MySQLStore) DeleteEmailByAddr(ctx context.Context, userID uint32, addr 
 }
 
 func (s *MySQLStore) DeleteEmailsByQuery(ctx context.Context, q string, args ...interface{}) (err error) {
-	_, err = s.connection.NewSession(nil).
+	_, err = s.db.NewSession(nil).
 		DeleteFrom("user_email").
 		Where(q, args...).
 		ExecContext(ctx)
@@ -207,3 +198,4 @@ func (s *MySQLStore) DeleteEmailsByQuery(ctx context.Context, q string, args ...
 
 	return nil
 }
+*/

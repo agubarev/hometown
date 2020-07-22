@@ -18,7 +18,7 @@ var (
 	ErrNilStore                     = errors.New("accesspolicy policy store is nil")
 	ErrNilAccessPolicyManager       = errors.New("accesspolicy policy container is nil")
 	ErrPolicyNotFound               = errors.New("accesspolicy policy not found")
-	ErrAccessPolicyEmptyDesignators = errors.New("both key and kind with id are empty")
+	ErrAccessPolicyEmptyDesignators = errors.New("key, object name and id are empty")
 	ErrPolicyKeyTaken               = errors.New("policy name is taken")
 	ErrPolicyObjectConflict         = errors.New("id of a kind is taken")
 	ErrEmptyKey                     = errors.New("key is empty")
@@ -75,16 +75,16 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	return c, nil
 }
 
-func (m *Manager) putPolicy(ap Policy, r *Roster) (err error) {
-	if err = ap.Validate(); err != nil {
+func (m *Manager) putPolicy(p Policy, r *Roster) (err error) {
+	if err = p.Validate(); err != nil {
 		return err
 	}
 
 	// caching inside container's registry
 	m.Lock()
-	m.policies[ap.ID] = ap
-	m.roster[ap.ID] = r
-	m.keyMap[ap.Key] = ap.ID
+	m.policies[p.ID] = p
+	m.roster[p.ID] = r
+	m.keyMap[p.Key] = p.ID
 	m.Unlock()
 
 	return nil
@@ -196,7 +196,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	}
 
 	//-!!!-[ WARNING ]-----------------------------------------------------------
-	// !!! KEY, OBJECT NAME AND ActorID ARE NOT ALLOWED TO BE CHANGED BECAUSE CURRENT
+	// !!! KEY, OBJECT NAME AND ID ARE NOT ALLOWED TO CHANGE BECAUSE CURRENT
 	// !!! VALUES ARE/COULD BE RELIED UPON ELSEWHERE AND MUST REMAIN THE SAME
 	//-!!!-----------------------------------------------------------------------
 	if p.Key != currentPolicy.Key {
@@ -230,13 +230,13 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	// checking by an object, just in case kind and id changes,
 	// and new kind and object is already attached to a different accesspolicy policy
 	if p.ObjectName[0] != 0 && p.ObjectID != uuid.Nil {
-		existingPolicy, err := m.PolicyByObject(ctx, NewObject(p.ObjectID, p.ObjectName))
+		anotherPolicy, err := m.PolicyByObject(ctx, NewObject(p.ObjectID, p.ObjectName))
 		if err != nil {
 			if err != ErrPolicyNotFound {
-				return errors.Wrapf(err, "failed to obtain policy by object: type=%s, id=%d", p.ObjectName, p.ObjectID)
+				return errors.Wrapf(err, "failed to obtain another policy by object: name=%s, id=%d", p.ObjectName, p.ObjectID)
 			}
 		} else {
-			if existingPolicy.ID != p.ID {
+			if anotherPolicy.ID != p.ID {
 				return ErrPolicyObjectConflict
 			}
 		}

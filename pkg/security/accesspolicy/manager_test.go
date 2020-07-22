@@ -680,7 +680,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating policy and setting rights
 	//---------------------------------------------------------------------------
-	ap, err := m.Create(
+	p, err := m.Create(
 		ctx,
 		accesspolicy.Key("test policy"), // key
 		act1.ID,                         // owner
@@ -691,60 +691,60 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NoError(err)
 
 	// public
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.PublicActor(), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.PublicActor(), wantedRights))
 
 	// users
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act2, wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act3, wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act4, wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, act2, wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, act3, wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, act4, wantedRights))
 
 	// roles
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r2.ID), wantedRights))
 
 	// groups
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AGroup, g1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AGroup, g2.ID), wantedRights))
 
 	// persisting changes
-	a.NoError(m.Update(ctx, ap))
+	a.NoError(m.Update(ctx, p))
 
 	//---------------------------------------------------------------------------
 	// making sure it's inside the container
 	//---------------------------------------------------------------------------
-	fetchedPolicy, err := m.PolicyByID(ctx, ap.ID)
+	fetchedPolicy, err := m.PolicyByID(ctx, p.ID)
 	a.NoError(err)
-	a.True(reflect.DeepEqual(ap, fetchedPolicy))
+	a.True(reflect.DeepEqual(p, fetchedPolicy))
 
-	fetchedPolicy, err = m.PolicyByKey(ctx, ap.Key)
+	fetchedPolicy, err = m.PolicyByKey(ctx, p.Key)
 	a.NoError(err)
 	a.NotNil(fetchedPolicy)
-	a.True(reflect.DeepEqual(ap, fetchedPolicy))
+	a.True(reflect.DeepEqual(p, fetchedPolicy))
 
-	fetchedPolicy, err = m.PolicyByObject(ctx, accesspolicy.NewObject(ap.ObjectID, ap.ObjectName))
+	fetchedPolicy, err = m.PolicyByObject(ctx, accesspolicy.NewObject(p.ObjectID, p.ObjectName))
 	a.NoError(err)
 	a.NotNil(fetchedPolicy)
-	a.True(reflect.DeepEqual(ap, fetchedPolicy))
+	a.True(reflect.DeepEqual(p, fetchedPolicy))
 
 	//---------------------------------------------------------------------------
 	// deleting policy
 	//---------------------------------------------------------------------------
-	a.NoError(m.DeletePolicy(ctx, ap))
+	a.NoError(m.DeletePolicy(ctx, p))
 
 	//---------------------------------------------------------------------------
 	// attempting to get policies after their deletion
 	//---------------------------------------------------------------------------
-	fetchedPolicy, err = m.PolicyByID(ctx, ap.ID)
+	fetchedPolicy, err = m.PolicyByID(ctx, p.ID)
 	a.Error(err)
 	a.EqualError(accesspolicy.ErrPolicyNotFound, errors.Cause(err).Error())
 	a.Zero(fetchedPolicy.ID)
 
-	fetchedPolicy, err = m.PolicyByKey(ctx, ap.Key)
+	fetchedPolicy, err = m.PolicyByKey(ctx, p.Key)
 	a.Error(err)
 	a.EqualError(accesspolicy.ErrPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
 
-	fetchedPolicy, err = m.PolicyByObject(ctx, accesspolicy.NewObject(ap.ObjectID, ap.ObjectName))
+	fetchedPolicy, err = m.PolicyByObject(ctx, accesspolicy.NewObject(p.ObjectID, p.ObjectName))
 	a.Error(err)
 	a.EqualError(accesspolicy.ErrPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)

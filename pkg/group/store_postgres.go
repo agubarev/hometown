@@ -3,7 +3,6 @@ package group
 import (
 	"context"
 
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -64,8 +63,6 @@ func (s *PostgreSQLStore) oneRelation(ctx context.Context, q string, args ...int
 	case pgx.ErrNoRows:
 		return rel, ErrRelationNotFound
 	default:
-		spew.Dump(q)
-		spew.Dump(err)
 		return rel, errors.Wrap(err, "failed to scan relation")
 	}
 }
@@ -99,14 +96,12 @@ func (s *PostgreSQLStore) UpsertGroup(ctx context.Context, g Group) (Group, erro
 	q := `
 	INSERT INTO "group"(id, parent_id, name, key, flags) 
 	VALUES($1, $2, $3, $4, $5)
-
 	ON CONFLICT (id)
 	DO UPDATE 
 		SET parent_id 	= EXCLUDED.parent_id,
 			name		= EXCLUDED.name,
 			key			= EXCLUDED.key,
-			flags		= EXCLUDED.flags
-	`
+			flags		= EXCLUDED.flags`
 
 	cmd, err := s.db.ExecEx(
 		ctx,
@@ -136,7 +131,7 @@ func (s *PostgreSQLStore) CreateRelation(ctx context.Context, rel Relation) (err
 	}
 
 	q := `
-	INSERT INTO "group_assets"(group_id, asset_kind, asset_id) 
+	INSERT INTO group_assets(group_id, asset_kind, asset_id) 
 	VALUES($1, $2, $3)
 	ON CONFLICT ON CONSTRAINT group_assets_pk 
 	DO NOTHING
@@ -185,17 +180,17 @@ func (s *PostgreSQLStore) FetchAllGroups(ctx context.Context) (gs []Group, err e
 }
 
 func (s *PostgreSQLStore) FetchAllRelations(ctx context.Context) (relations []Relation, err error) {
-	return s.manyRelations(ctx, `SELECT group_id, asset_kind, asset_id  FROM "group_assets"`)
+	return s.manyRelations(ctx, `SELECT group_id, asset_kind, asset_id  FROM group_assets`)
 }
 
 func (s *PostgreSQLStore) FetchGroupRelations(ctx context.Context, groupID uuid.UUID) ([]Relation, error) {
-	return s.manyRelations(ctx, `SELECT group_id, asset_kind, asset_id FROM "group_assets" WHERE group_id = $1`, groupID)
+	return s.manyRelations(ctx, `SELECT group_id, asset_kind, asset_id FROM group_assets WHERE group_id = $1`, groupID)
 }
 
 func (s *PostgreSQLStore) HasRelation(ctx context.Context, rel Relation) (bool, error) {
 	q := `
 	SELECT group_id, asset_kind, asset_id 
-	FROM "group_assets"
+	FROM group_assets
 	WHERE 
 		group_id		= $1 
 		AND asset_kind	= $2 
@@ -230,7 +225,7 @@ func (s *PostgreSQLStore) DeleteByID(ctx context.Context, groupID uuid.UUID) err
 
 func (s *PostgreSQLStore) DeleteRelation(ctx context.Context, rel Relation) error {
 	q := `
-	DELETE FROM "group_assets" 
+	DELETE FROM group_assets 
 	WHERE 
 		group_id		= $1 
 		AND asset_kind	= $2 

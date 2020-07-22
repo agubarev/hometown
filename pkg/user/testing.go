@@ -10,12 +10,12 @@ import (
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/gocraft/dbr/v2"
+	"github.com/jackc/pgx"
 )
 
 // GroupManagerForTesting initializes a group container for testing
-func GroupManagerForTesting(db *dbr.Connection) (*group.Manager, error) {
-	s, err := group.NewMySQLStore(db)
+func GroupManagerForTesting(db *pgx.Conn) (*group.Manager, error) {
+	s, err := group.NewPostgreSQLStore(db)
 	if err != nil {
 		return nil, err
 	}
@@ -24,18 +24,18 @@ func GroupManagerForTesting(db *dbr.Connection) (*group.Manager, error) {
 }
 
 // ManagerForTesting returns a fully initialized user manager for testing
-func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
+func ManagerForTesting(db *pgx.Conn) (*Manager, context.Context, error) {
 	ctx := context.Background()
 
 	//---------------------------------------------------------------------------
 	// initializing stores
 	//---------------------------------------------------------------------------
-	us, err := NewMySQLStore(db)
+	us, err := NewPostgreSQLStore(db)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	ps, err := password.NewPasswordStore(db)
+	ps, err := password.NewPostgreSQLStore(db)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -51,7 +51,7 @@ func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
 	//---------------------------------------------------------------------------
 	// initializing group manager
 	//---------------------------------------------------------------------------
-	gs, err := group.NewMySQLStore(db)
+	gs, err := group.NewPostgreSQLStore(db)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -64,7 +64,7 @@ func ManagerForTesting(db *dbr.Connection) (*Manager, context.Context, error) {
 	//---------------------------------------------------------------------------
 	// initializing policy manager
 	//---------------------------------------------------------------------------
-	aps, err := accesspolicy.NewDefaultMySQLStore(db)
+	aps, err := accesspolicy.NewPostgreSQLStore(db)
 	if err != nil {
 		return nil, nil, err
 	}

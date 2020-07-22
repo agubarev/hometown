@@ -1,25 +1,32 @@
 package user
 
-/*
-// UserMySQLStore is a default implementation for the MySQL backend
-type MySQLStore struct {
-	db *dbr.Connection
+import (
+	"context"
+
+	"github.com/agubarev/hometown/pkg/util/guard"
+	"github.com/gocraft/dbr/v2"
+	"github.com/jackc/pgx"
+	"github.com/pkg/errors"
+	"github.com/r3labs/diff"
+)
+
+type PostgreSQLStore struct {
+	db *pgx.Conn
 }
 
-// NewMySQLStore is mostly to be used by tests
-func NewMySQLStore(conn *dbr.Connection) (Store, error) {
+func NewPostgreSQLStore(conn *pgx.Conn) (Store, error) {
 	if conn == nil {
 		return nil, ErrNilUserStore
 	}
 
-	s := &MySQLStore{
+	s := &PostgreSQLStore{
 		db: conn,
 	}
 
 	return s, nil
 }
 
-func (s *MySQLStore) fetchUserByQuery(ctx context.Context, q string, args ...interface{}) (u User, err error) {
+func (s *PostgreSQLStore) fetchUserByQuery(ctx context.Context, q string, args ...interface{}) (u User, err error) {
 	err = s.db.NewSession(nil).
 		SelectBySql(q, args).
 		LoadOneContext(ctx, &u)
@@ -35,7 +42,7 @@ func (s *MySQLStore) fetchUserByQuery(ctx context.Context, q string, args ...int
 	return u, nil
 }
 
-func (s *MySQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...interface{}) (us []User, err error) {
+func (s *PostgreSQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...interface{}) (us []User, err error) {
 	us = make([]User, 0)
 
 	_, err = s.db.NewSession(nil).
@@ -54,7 +61,7 @@ func (s *MySQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...in
 }
 
 // CreateUser creates a new entry in the storage backend
-func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error) {
+func (s *PostgreSQLStore) CreateUser(ctx context.Context, u User) (_ User, err error) {
 	// if object ActorID is not 0, then it's not considered as new
 	if u.ID != 0 {
 		return u, ErrNonZeroID
@@ -82,7 +89,7 @@ func (s *MySQLStore) CreateUser(ctx context.Context, u User) (_ User, err error)
 }
 
 // CreateUser creates a new entry in the storage backend
-func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, err error) {
+func (s *PostgreSQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, err error) {
 	uLen := len(us)
 
 	// there must be something first
@@ -140,23 +147,23 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 	return us, nil
 }
 
-func (s *MySQLStore) FetchUserByID(ctx context.Context, id uint32) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByID(ctx context.Context, id uint32) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE id = ? LIMIT 1", id)
 }
 
-func (s *MySQLStore) FetchUserByUsername(ctx context.Context, username string) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByUsername(ctx context.Context, username string) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` WHERE username = ? LIMIT 1", username)
 }
 
-func (s *MySQLStore) FetchUserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` u LEFT JOIN `user_email` e ON u.id=e.user_id WHERE e.addr = ? LIMIT 1", addr)
 }
 
-func (s *MySQLStore) FetchUserByPhoneNumber(ctx context.Context, number string) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByPhoneNumber(ctx context.Context, number string) (u User, err error) {
 	return s.fetchUserByQuery(ctx, "SELECT * FROM `user` u LEFT JOIN `user_phone` e ON u.id=e.user_id WHERE e.number = ? LIMIT 1", number)
 }
 
-func (s *MySQLStore) UpdateUser(ctx context.Context, u User, changelog diff.Changelog) (_ User, err error) {
+func (s *PostgreSQLStore) UpdateUser(ctx context.Context, u User, changelog diff.Changelog) (_ User, err error) {
 	if len(changelog) == 0 {
 		return u, ErrNothingChanged
 	}
@@ -189,7 +196,7 @@ func (s *MySQLStore) UpdateUser(ctx context.Context, u User, changelog diff.Chan
 	return u, nil
 }
 
-func (s *MySQLStore) DeleteUserByID(ctx context.Context, id uint32) (err error) {
+func (s *PostgreSQLStore) DeleteUserByID(ctx context.Context, id uint32) (err error) {
 	if id == 0 {
 		return ErrZeroID
 	}
@@ -206,7 +213,7 @@ func (s *MySQLStore) DeleteUserByID(ctx context.Context, id uint32) (err error) 
 	return nil
 }
 
-func (s *MySQLStore) DeleteUsersByQuery(ctx context.Context, q string, args ...interface{}) (err error) {
+func (s *PostgreSQLStore) DeleteUsersByQuery(ctx context.Context, q string, args ...interface{}) (err error) {
 	_, err = s.db.NewSession(nil).
 		DeleteFrom("user").
 		Where(q, args...).
@@ -218,4 +225,3 @@ func (s *MySQLStore) DeleteUsersByQuery(ctx context.Context, q string, args ...i
 
 	return nil
 }
-*/

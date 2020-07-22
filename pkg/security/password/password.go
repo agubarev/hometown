@@ -33,7 +33,7 @@ func (p Password) Validate() error {
 	}
 
 	if p.OwnerID == 0 {
-		return ErrZeroOwnerID
+		return ErrNilOwnerID
 	}
 
 	if len(p.Hash) == 0 {
