@@ -1,15 +1,6 @@
 package user
 
-import (
-	"context"
-	"database/sql"
-
-	"github.com/agubarev/hometown/pkg/util/guard"
-	"github.com/go-sql-driver/mysql"
-	"github.com/pkg/errors"
-	"github.com/r3labs/diff"
-)
-
+/*
 func (s *MySQLStore) fetchPhoneByQuery(ctx context.Context, q string, args ...interface{}) (p Phone, err error) {
 	err = s.connection.NewSession(nil).
 		SelectBySql(q, args).
@@ -207,3 +198,4 @@ func (s *MySQLStore) DeletePhonesByQuery(ctx context.Context, q string, args ...
 
 	return nil
 }
+*/

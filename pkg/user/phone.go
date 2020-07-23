@@ -7,6 +7,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -14,7 +15,7 @@ import (
 // NewPhoneObject contains fields sufficient to create a new object
 type NewPhoneObject struct {
 	PhoneEssential
-	UserID      uint32
+	UserID      uuid.UUID
 	IsConfirmed bool
 }
 
@@ -36,7 +37,7 @@ type PhoneMetadata struct {
 // Phone represents certain emails which are custom
 // and are handled by the customer
 type Phone struct {
-	UserID uint32 `db:"user_id" json:"user_id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 
 	PhoneEssential
 	PhoneMetadata
@@ -44,7 +45,7 @@ type Phone struct {
 
 func (p *Phone) hashKey() {
 	// panic if ObjectID is zero or a name is empty
-	if p.UserID == 0 || p.Number[0] == 0 {
+	if p.UserID == uuid.Nil || p.Number[0] == 0 {
 		panic(ErrInsufficientDataToHashKey)
 	}
 
@@ -91,7 +92,7 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			p.UserID = change.To.(uint32)
+			p.UserID = change.To.(uuid.UUID)
 		case "Number":
 			p.Number = change.To.(string)
 		case "CreatedAt":

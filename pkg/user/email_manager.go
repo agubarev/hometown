@@ -11,7 +11,7 @@ import (
 	"go.uber.org/zap"
 )
 
-// CreateEmail creates a new email
+// UpsertEmail creates a new email
 func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) (NewEmailObject, error)) (email Email, err error) {
 	// initializing new object
 	newEmail, err := fn(ctx)
@@ -52,7 +52,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 
 	m.Logger().Debug(
 		"created new email",
-		zap.Uint32("user_id", email.UserID),
+		zap.String("user_id", email.UserID.String()),
 		zap.String("addr", email.Addr),
 	)
 

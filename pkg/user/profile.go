@@ -7,6 +7,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -14,7 +15,7 @@ import (
 // NewProfileObject contains fields sufficient to create a new object
 type NewProfileObject struct {
 	ProfileEssential
-	UserID uint32 `db:"user_id" json:"user_id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 }
 
 // ProfileEssential represents an essential part of the primary object
@@ -37,7 +38,7 @@ type ProfileMetadata struct {
 // Profile represents certain profiles which are custom
 // and are handled by the customer
 type Profile struct {
-	UserID uint32 `db:"user_id" json:"-"`
+	UserID uuid.UUID `db:"user_id" json:"-"`
 
 	ProfileEssential
 	ProfileMetadata
@@ -67,7 +68,7 @@ func (p *Profile) calculateChecksum() uint64 {
 
 func (p *Profile) hashKey() {
 	// panic if ObjectID is zero or a name is empty
-	if p.UserID == 0 {
+	if p.UserID == uuid.Nil {
 		panic(ErrInsufficientDataToHashKey)
 	}
 

@@ -35,8 +35,8 @@ func (s *MySQLStore) fetchEmailsByQuery(ctx context.Context, q string, args ...i
 	return es, nil
 }
 
-// CreateEmail creates a new entry in the storage backend
-func (s *MySQLStore) CreateEmail(ctx context.Context, e Email) (_ Email, err error) {
+// UpsertEmail creates a new entry in the storage backend
+func (s *MySQLStore) UpsertEmail(ctx context.Context, e Email) (_ Email, err error) {
 	// if ObjectID is not 0, then it's not considered as new
 	if e.UserID == 0 {
 		return e, ErrZeroUserID
@@ -62,7 +62,7 @@ func (s *MySQLStore) CreateEmail(ctx context.Context, e Email) (_ Email, err err
 	return e, nil
 }
 
-// CreateEmail creates a new entry in the storage backend
+// UpsertEmail creates a new entry in the storage backend
 func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email, err error) {
 	// there must be something first
 	if len(es) == 0 {

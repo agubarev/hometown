@@ -7,6 +7,7 @@ import (
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -14,7 +15,7 @@ import (
 // EmailNewObject contains fields sufficient to create a new object
 type NewEmailObject struct {
 	EmailEssential
-	UserID      uint32
+	UserID      uuid.UUID
 	IsConfirmed bool
 }
 
@@ -36,7 +37,7 @@ type EmailMetadata struct {
 // Email represents certain emails which are custom
 // and are handled by the customer
 type Email struct {
-	UserID uint32 `db:"user_id" json:"user_id"`
+	UserID uuid.UUID `db:"user_id" json:"user_id"`
 
 	EmailEssential
 	EmailMetadata
@@ -44,7 +45,7 @@ type Email struct {
 
 func (email *Email) hashKey() {
 	// panic if ObjectID is zero or a name is empty
-	if email.UserID == 0 || email.Addr == "" {
+	if email.UserID == uuid.Nil || email.Addr == "" {
 		panic(ErrInsufficientDataToHashKey)
 	}
 
@@ -91,7 +92,7 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "UserID":
-			email.UserID = change.To.(uint32)
+			email.UserID = change.To.(uuid.UUID)
 		case "Addr":
 			email.Addr = change.To.(string)
 		case "CreatedAt":
