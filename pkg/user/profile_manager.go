@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 	"go.uber.org/zap"
@@ -42,51 +43,22 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 	profile.Checksum = profile.calculateChecksum()
 
 	// saving to the store
-	profile, err = store.CreateProfile(ctx, profile)
+	profile, err = store.UpsertProfile(ctx, profile)
 	if err != nil {
 		return profile, err
 	}
 
 	m.Logger().Debug(
 		"created new profile",
-		zap.Uint32("id", profile.UserID),
+		zap.String("id", profile.UserID.String()),
 	)
 
 	return profile, nil
 }
 
-// BulkCreateProfile creates multiple new profile
-func (m *Manager) BulkCreateProfile(ctx context.Context, newProfiles []Profile) (profiles []Profile, err error) {
-	// obtaining store
-	store, err := m.Store()
-	if err != nil {
-		return nil, err
-	}
-
-	// validating each profile
-	for _, profile := range newProfiles {
-		if err = profile.Validate(); err != nil {
-			return nil, errors.Wrap(err, "failed to validate profile before bulk creation")
-		}
-	}
-
-	// saving to the store
-	profiles, err = store.BulkCreateProfile(ctx, newProfiles)
-	if err != nil {
-		return nil, err
-	}
-
-	zap.L().Debug(
-		"created a batch of profiles",
-		zap.Int("count", len(profiles)),
-	)
-
-	return profiles, nil
-}
-
 // GetProfileByID returns a profile if found by ObjectID
-func (m *Manager) GetProfileByID(ctx context.Context, id uint32) (profile Profile, err error) {
-	if id == 0 {
+func (m *Manager) GetProfileByID(ctx context.Context, id uuid.UUID) (profile Profile, err error) {
+	if id == uuid.Nil {
 		return profile, ErrProfileNotFound
 	}
 
@@ -100,7 +72,7 @@ func (m *Manager) GetProfileByID(ctx context.Context, id uint32) (profile Profil
 
 // UpdateProfile updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateProfile(ctx context.Context, id uint32, fn func(ctx context.Context, r Profile) (profile Profile, err error)) (profile Profile, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateProfile(ctx context.Context, id uuid.UUID, fn func(context.Context, Profile) (Profile, error)) (profile Profile, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return profile, essentialChangelog, err
@@ -124,27 +96,29 @@ func (m *Manager) UpdateProfile(ctx context.Context, id uint32, fn func(ctx cont
 	// pre-save modifications
 	updated.UpdatedAt = dbr.NewNullTime(time.Now())
 
-	// acquiring changelog of essential changes
-	essentialChangelog, err = diff.Diff(profile.ProfileEssential, updated.ProfileEssential)
-	if err != nil {
-		return profile, nil, errors.Wrap(err, "failed to diff essential changes")
-	}
+	/*
+		// acquiring changelog of essential changes
+		essentialChangelog, err = diff.Diff(profile.ProfileEssential, updated.ProfileEssential)
+		if err != nil {
+			return profile, nil, errors.Wrap(err, "failed to diff essential changes")
+		}
 
-	// acquiring total changelog
-	changelog, err := diff.Diff(profile, updated)
-	if err != nil {
-		return profile, nil, errors.Wrap(err, "failed to diff total changes")
-	}
+		// acquiring total changelog
+		changelog, err := diff.Diff(profile, updated)
+		if err != nil {
+			return profile, nil, errors.Wrap(err, "failed to diff total changes")
+		}
+	*/
 
 	// persisting to the store as a final step
-	profile, err = store.UpdateProfile(ctx, profile, changelog)
+	profile, err = store.UpsertProfile(ctx, profile)
 	if err != nil {
 		return profile, essentialChangelog, err
 	}
 
 	m.Logger().Debug(
-		"updated",
-		zap.Uint32("user_id", profile.UserID),
+		"updated profile",
+		zap.String("user_id", profile.UserID.String()),
 	)
 
 	return profile, essentialChangelog, nil
@@ -152,7 +126,7 @@ func (m *Manager) UpdateProfile(ctx context.Context, id uint32, fn func(ctx cont
 
 // DeleteProfileByUserID deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteProfileByUserID(ctx context.Context, userID uint32) (err error) {
+func (m *Manager) DeleteProfileByUserID(ctx context.Context, userID uuid.UUID) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")

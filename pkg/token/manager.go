@@ -1,15 +1,16 @@
 package token
 
 import (
+	"bytes"
 	"context"
-	"encoding/base64"
+	"crypto/rand"
+	"database/sql/driver"
+	"encoding/hex"
 	"fmt"
-	"strings"
 	"sync"
 	"time"
 
-	"github.com/agubarev/hometown/pkg/util"
-	jsoniter "github.com/json-iterator/go"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -18,8 +19,7 @@ import (
 var (
 	ErrNilDatabase              = errors.New("database is nil")
 	ErrNilTokenStore            = errors.New("token store is nil")
-	ErrNilTokenOwner            = errors.New("token owner is nil")
-	ErrNilToken                 = errors.New("token is nil")
+	ErrEmptyTokenHash           = errors.New("token hash is empty")
 	ErrTokenNotFound            = errors.New("token not found")
 	ErrTokenExpired             = errors.New("token is expired")
 	ErrTokenUsedUp              = errors.New("token is all used up")
@@ -27,26 +27,82 @@ var (
 	ErrTokenCallbackNotFound    = errors.New("token callback not found")
 	ErrNilTokenManager          = errors.New("token manager is nil")
 	ErrNothingChanged           = errors.New("nothing changed")
+	ErrDuplicateToken           = errors.New("duplicate token")
 )
 
-var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
 // Length total length in bytes (including prefix, id and random bytes)
-const Length = 30
+const Length = 32
 
 // DefaultTTL defines the default token longevity duration from the moment of its creation
 const DefaultTTL = 1 * time.Hour
+
+// THash represents a token hash
+type THash [Length]byte
+
+func NewHash() (h THash) {
+	// generating token hash
+	_, err := rand.Read(h[:])
+	if err != nil {
+		return h
+	}
+
+	return h
+}
+
+func (h THash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	zpos := bytes.IndexByte(h[:], byte(0))
+	if zpos == -1 {
+		return append(buf, h[:]...), nil
+	}
+
+	return append(buf, h[0:zpos]...), nil
+}
+
+func (h THash) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+	copy(h[:], src)
+	return nil
+}
+
+func (h THash) String() string {
+	return hex.EncodeToString(h[:])
+}
+
+type TCallbackName [32]byte
+
+func CallbackName(s string) (name TCallbackName) {
+	copy(name[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
+	return name
+}
+
+func (name TCallbackName) Scan(data interface{}) error {
+	copy(name[:], data.([]byte))
+	return nil
+}
+
+func (name TCallbackName) Value() (driver.Value, error) {
+	if name[0] == 0 {
+		return "", nil
+	}
+
+	// finding position of zero
+	zeroPos := bytes.IndexByte(name[:], byte(0))
+	if zeroPos == -1 {
+		return name[:], nil
+	}
+
+	return name[0:zeroPos], nil
+}
 
 // ObjectKind represents the type of a token, used by a token container
 type Kind uint16
 
 func (k Kind) String() string {
 	switch k {
-	case TkRefreshToken:
+	case TRefreshToken:
 		return "refresh token"
-	case TkUserEmailConfirmation:
+	case TEmailConfirmation:
 		return "email confirmation token"
-	case TkUserPhoneConfirmation:
+	case TPhoneConfirmation:
 		return "phone confirmation token"
 	default:
 		return fmt.Sprintf("unrecognized token kind: %d", k)
@@ -55,15 +111,15 @@ func (k Kind) String() string {
 
 // predefined token kinds
 const (
-	TkRefreshToken Kind = 1 << iota
-	TkSessionToken
-	TkUserEmailConfirmation
-	TkUserPhoneConfirmation
+	TRefreshToken Kind = 1 << iota
+	TSessionToken
+	TEmailConfirmation
+	TPhoneConfirmation
 
-	TkAllTokens Kind = ^Kind(0)
+	TAll = ^Kind(0)
 )
 
-// Token represents a general-purpose token
+// THash represents a general-purpose token
 // NOTE: the token will expire after certain conditions are met
 // i.e. after specific time or a set number of checkins
 // TODO add complexity variations for different use cases, i.e. SMS code should be short
@@ -72,29 +128,26 @@ type Token struct {
 	Kind Kind `db:"kind" json:"kind"`
 
 	// token string id
-	Token string `db:"token" json:"token"`
-
-	// the accompanying metadata
-	Payload []byte `db:"payload" json:"payload"`
+	Hash THash `db:"hash" json:"hash"`
 
 	// holds the initial checkin threshold number
-	CheckinTotal int `db:"checkin_total" json:"checkin_total"`
+	CheckinTotal int32 `db:"checkin_total" json:"checkin_total"`
 
 	// holds how many checkins could be performed before it's void
-	CheckinRemainder int `db:"checkin_remainder" json:"checkin_remainder"`
+	CheckinRemainder int32 `db:"checkin_remainder" json:"checkin_remainder"`
 
 	// time when this token was created
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	CreatedAt int64 `db:"created_at" json:"created_at"`
 
 	// denotes when this token becomes void and is removed
-	ExpireAt time.Time `db:"expire_at" json:"expire_at"`
+	ExpireAt int64 `db:"expire_at" json:"expire_at"`
 }
 
 // SanitizeAndValidate checks whether the token is expired or ran out of checkins left
 // NOTE: returns errors instead of booleans only for more flexible explicitness
-func (t *Token) Validate() error {
+func (t Token) Validate() error {
 	// checking whether token's expiration time is behind current moment
-	if t.ExpireAt.Before(time.Now()) {
+	if t.ExpireAt <= time.Now().Unix() {
 		return ErrTokenExpired
 	}
 
@@ -121,38 +174,25 @@ func (t *Token) Validate() error {
 // NOTE: payload is whatever token metadata that can be JSON-encoded for further
 // processing by checkin callbacks
 // NOTE: checkin remainder must be -1 (indefinite) or greater than 0 (default: 1)
-func NewToken(k Kind, payload interface{}, ttl time.Duration, checkins int) (*Token, error) {
+func NewToken(k Kind, ttl time.Duration, checkins int32) (t Token, err error) {
 	if checkins == 0 {
-		return nil, fmt.Errorf("failed to initialize new token: checkins remainder must be -1 or greater than 0")
+		return t, errors.New("failed to initialize new token: checkins remainder must be -1 or greater than 0")
 	}
 
-	// setting given ttl (time to live) if given duration is greater than zero,
+	// setting given ttl (time to live in seconds) if given duration is greater than zero,
 	// otherwise using default token longevity
 	// NOTE: the final expiration time is the current time plus ttl duration
 	if ttl <= 0 {
 		ttl = DefaultTTL
 	}
 
-	// marshaling payload
-	payloadBuf, err := json.Marshal(payload)
-	if err != nil {
-		return nil, err
-	}
-
-	// generating token string
-	tokenBuf, err := util.NewCSPRNG(Length)
-	if err != nil {
-		return nil, err
-	}
-
-	t := &Token{
+	t = Token{
 		Kind:             k,
-		Token:            base64.URLEncoding.EncodeToString(tokenBuf),
+		Hash:             NewHash(),
 		CheckinTotal:     checkins,
 		CheckinRemainder: checkins,
-		Payload:          payloadBuf,
-		CreatedAt:        time.Now(),
-		ExpireAt:         time.Now().Add(ttl),
+		CreatedAt:        time.Now().Unix(),
+		ExpireAt:         time.Now().Add(DefaultTTL).Unix(),
 	}
 
 	return t, nil
@@ -163,7 +203,7 @@ type Manager struct {
 	// base context for the token callback call chain
 	BaseContext context.Context
 
-	tokens    map[string]*Token
+	tokens    map[THash]Token
 	store     Store
 	callbacks []Callback
 	errorChan chan CallbackError
@@ -173,27 +213,27 @@ type Manager struct {
 
 // Callback is a function metadata
 type Callback struct {
-	ID       string
+	Name     TCallbackName
 	Kind     Kind
-	Function func(ctx context.Context, t *Token) error
+	Function func(ctx context.Context, t Token) error
 }
 
 // CallbackError represents an error which could be produced by callback
 type CallbackError struct {
 	Kind  Kind
-	Token *Token
+	Token Token
 	Err   error
 }
 
-// NewTokenManager returns an initialized token container
-func NewTokenManager(s Store) (*Manager, error) {
+// NewManager returns an initialized token container
+func NewManager(s Store) (*Manager, error) {
 	if s == nil {
 		return nil, ErrNilTokenStore
 	}
 
 	c := &Manager{
 		BaseContext: context.Background(),
-		tokens:      make(map[string]*Token),
+		tokens:      make(map[THash]Token),
 		store:       s,
 		callbacks:   make([]Callback, 0),
 		errorChan:   make(chan CallbackError, 100),
@@ -254,7 +294,7 @@ func (m *Manager) Validate() error {
 	}
 
 	if m.tokens == nil {
-		return fmt.Errorf("token map is not initialized")
+		return errors.New("token map is not initialized")
 	}
 
 	if m.store == nil {
@@ -262,19 +302,19 @@ func (m *Manager) Validate() error {
 	}
 
 	if m.callbacks == nil {
-		return fmt.Errorf("callback slice is not initialized")
+		return errors.New("callback slice is not initialized")
 	}
 
 	if m.errorChan == nil {
-		return fmt.Errorf("error channel is not initialized")
+		return errors.New("error channel is not initialized")
 	}
 
 	return nil
 }
 
 // Registry returns a slice of tokens filtered by a given kind mask
-func (m *Manager) List(k Kind) []*Token {
-	ts := make([]*Token, 0)
+func (m *Manager) List(k Kind) []Token {
+	ts := make([]Token, 0)
 
 	for _, t := range m.tokens {
 		if t.Kind&k != 0 {
@@ -286,66 +326,66 @@ func (m *Manager) List(k Kind) []*Token {
 }
 
 // Upsert initializes, registers and returns a new token
-func (m *Manager) Create(ctx context.Context, k Kind, payload interface{}, ttl time.Duration, checkins int) (*Token, error) {
-	t, err := NewToken(k, payload, ttl, checkins)
+func (m *Manager) Create(ctx context.Context, k Kind, ttl time.Duration, checkins int32) (t Token, err error) {
+	t, err = NewToken(k, ttl, checkins)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to initialize new token: %s", k)
+		return t, errors.Wrapf(err, "failed to initialize new token: %s", k)
 	}
 
 	// paranoid check; making sure there is no existing token object with such token key string
-	if _, err := m.Get(ctx, t.Token); err == nil {
-		return nil, errors.Wrapf(err, "found duplicate %s token: %s", k, t.Token)
+	if _, err = m.Get(ctx, t.Hash); err == nil {
+		return t, ErrDuplicateToken
 	}
 
 	// storing new token
 	err = m.store.Put(ctx, t)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to store new token")
+		return t, errors.Wrap(err, "failed to store new token")
 	}
 
 	// adding new token to the container
 	m.Lock()
-	m.tokens[t.Token] = t
+	m.tokens[t.Hash] = t
 	m.Unlock()
 
 	return t, nil
 }
 
 // Get obtains a token from the container or returns ErrTokenNotFound
-func (m *Manager) Get(ctx context.Context, token string) (*Token, error) {
+func (m *Manager) Get(ctx context.Context, hash THash) (t Token, err error) {
 	// checking map cache first
 	m.RLock()
-	t, ok := m.tokens[token]
+	t, ok := m.tokens[hash]
 	m.RUnlock()
 
-	// found cached token
+	// found cached hash
 	if ok {
 		return t, nil
 	}
 
 	// checking the store
-	t, err := m.store.Get(ctx, token)
+	t, err = m.store.Get(ctx, hash)
 	if err != nil {
-		return nil, err
+		return t, err
 	}
 
-	// adding token to the map and returning
+	// adding hash to the map and returning
 	m.Lock()
-	m.tokens[t.Token] = t
+	m.tokens[t.Hash] = t
 	m.Unlock()
 
 	return t, nil
 }
 
 // DeletePolicy deletes a token from the container
-func (m *Manager) Delete(ctx context.Context, t *Token) error {
+func (m *Manager) Delete(ctx context.Context, t Token) error {
 	// clearing token from the map
 	m.Lock()
-	delete(m.tokens, t.Token)
+	delete(m.tokens, t.Hash)
 	m.Unlock()
 
 	// removing from the store
-	if err := m.store.DeleteByToken(ctx, t.Token); err != nil {
+	if err := m.store.Delete(ctx, t.Hash); err != nil {
 		return err
 	}
 
@@ -353,8 +393,8 @@ func (m *Manager) Delete(ctx context.Context, t *Token) error {
 }
 
 // Checkin check in token for processing
-func (m *Manager) Checkin(ctx context.Context, token string) error {
-	t, err := m.Get(context.Background(), token)
+func (m *Manager) Checkin(ctx context.Context, hash THash) error {
+	t, err := m.Get(context.Background(), hash)
 	if err != nil {
 		return err
 	}
@@ -370,12 +410,12 @@ func (m *Manager) Checkin(ctx context.Context, token string) error {
 		return ErrTokenCallbackNotFound
 	}
 
-	// obtaining a list of callbacks attached to this token kind
+	// obtaining a list of callbacks attached to this hash kind
 	// NOTE: this process is synchronous because the caller expects a response
 	// NOTE: checkin stops at first error returned by any callback because they're set for a reason
 	for _, cb := range callbacks {
 		if err = cb.Function(ctx, t); err != nil {
-			return fmt.Errorf("checkin failed (token=%s, kind=%s): %s", t.Token, t.Kind, err)
+			return fmt.Errorf("checkin failed (hash=%s, kind=%s): %s", t.Hash, t.Kind, err)
 		}
 	}
 
@@ -384,13 +424,22 @@ func (m *Manager) Checkin(ctx context.Context, token string) error {
 		t.CheckinRemainder--
 	}
 
-	// now if validate returns an error, this means that this token is void,
+	// now if validate returns an error, this means that this hash is void,
 	// and can be safely removed, because all related callbacks ran successfully at this point
 	if err = t.Validate(); err != nil {
 		if err := m.Delete(context.Background(), t); err != nil {
-			return fmt.Errorf("failed to delete token(%s) after use: %s", t.Token, err)
+			return errors.Wrapf(err, "failed to delete depleted token: %s", t.Hash.String())
 		}
+
+		return nil
 	}
+
+	// TODO: persist changes to the store
+
+	// otherwise, replacing token cache
+	m.Lock()
+	m.tokens[t.Hash] = t
+	m.Unlock()
 
 	return nil
 }
@@ -404,7 +453,7 @@ func (m *Manager) Cleanup(ctx context.Context) (err error) {
 			// ignoring errors from delete, because some tokens could possibly be
 			// already deleted other way i.e. records expired by the store
 			if err = m.Delete(ctx, t); err != nil {
-				m.Logger().Warn("failed to delete token", zap.String("token", t.Token), zap.Error(err))
+				m.Logger().Warn("failed to delete token", zap.String("token", t.Hash.String()), zap.Error(err))
 			}
 		}
 	}
@@ -414,24 +463,24 @@ func (m *Manager) Cleanup(ctx context.Context) (err error) {
 }
 
 // AddCallback adds callback function to container's callstack to be called upon token checkins
-func (m *Manager) AddCallback(k Kind, id string, fn func(ctx context.Context, t *Token) error) error {
-	// this is straightforward, adding function to a callback stack
-	// NOTE: ObjectID is a basic mechanism to prevent multiple callback additions
-	id = strings.ToLower(id)
+func (m *Manager) AddCallback(kind Kind, name TCallbackName, fn func(ctx context.Context, t Token) error) error {
+	// trimming and flattening case
+	copy(name[:], bytes.ToLower(bytes.TrimSpace(name[:])))
 
 	m.Lock()
 	defer m.Unlock()
 
-	// making sure there isn't any callback registered with this ObjectID
+	// making sure there isn't any other callback registered with this name
 	for _, cb := range m.callbacks {
-		if cb.ID == id {
+		if cb.Name == name {
 			return ErrTokenDuplicateCallbackID
 		}
 	}
 
+	// this is straightforward, just adding function to the callback stack
 	m.callbacks = append(m.callbacks, Callback{
-		ID:       id,
-		Kind:     k,
+		Name:     name,
+		Kind:     kind,
 		Function: fn,
 	})
 
@@ -439,10 +488,10 @@ func (m *Manager) AddCallback(k Kind, id string, fn func(ctx context.Context, t 
 }
 
 // GetCallback returns a named callback if it exists
-func (m *Manager) GetCallback(id string) (*Callback, error) {
+func (m *Manager) GetCallback(name TCallbackName) (*Callback, error) {
 	// just looping over the slice
 	for _, cb := range m.callbacks {
-		if cb.ID == strings.ToLower(id) {
+		if cb.Name == name {
 			// returning pointer to callback object
 			return &cb, nil
 		}
@@ -464,15 +513,13 @@ func (m *Manager) GetCallbacks(k Kind) []Callback {
 }
 
 // RemoveCallback removes token callback by ObjectID, returns ErrTokenCallbackNotfound
-func (m *Manager) RemoveCallback(id string) error {
-	id = strings.ToLower(id)
-
+func (m *Manager) RemoveCallback(name TCallbackName) error {
 	m.Lock()
 	defer m.Unlock()
 
 	// finding and removing callback
 	for i, cb := range m.callbacks {
-		if cb.ID == id {
+		if cb.Name == name {
 			m.callbacks = append(m.callbacks[0:i], m.callbacks[i+1:]...)
 			return nil
 		}

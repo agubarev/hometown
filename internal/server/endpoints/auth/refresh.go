@@ -56,7 +56,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 			return u, err
 		}
 
-		// updating IP from where the user has just authenticated from
+		// updating IPAddr from where the user has just authenticated from
 		u.LastLoginIP = ri.IP
 
 		return u, nil
@@ -86,7 +86,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	response, err := json.Marshal(auth.TokenTrinity{
 		SessionToken: s.Token,
 		AccessToken:  atok,
-		RefreshToken: rtok.Token,
+		RefreshToken: rtok.Hash,
 	})
 
 	if err != nil {

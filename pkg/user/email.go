@@ -3,10 +3,10 @@ package user
 import (
 	"bytes"
 	"encoding/binary"
+	"time"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
-	"github.com/gocraft/dbr/v2"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -27,9 +27,9 @@ type EmailEssential struct {
 
 // EmailMetadata contains generic metadata of the primary object
 type EmailMetadata struct {
-	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
-	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
-	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -96,11 +96,11 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "Addr":
 			email.Addr = change.To.(string)
 		case "CreatedAt":
-			email.CreatedAt = change.To.(dbr.NullTime)
+			email.CreatedAt = change.To.(time.Time)
 		case "ConfirmedAt":
-			email.ConfirmedAt = change.To.(dbr.NullTime)
+			email.ConfirmedAt = change.To.(time.Time)
 		case "UpdatedAt":
-			email.UpdatedAt = change.To.(dbr.NullTime)
+			email.UpdatedAt = change.To.(time.Time)
 		}
 	}
 

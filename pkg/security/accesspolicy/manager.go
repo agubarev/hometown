@@ -167,7 +167,7 @@ func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID uuid.U
 		}
 	}
 
-	// generating ID for the new policy
+	// generating Name for the new policy
 	p.ID = uuid.New()
 
 	// creating in the store
@@ -196,7 +196,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	}
 
 	//-!!!-[ WARNING ]-----------------------------------------------------------
-	// !!! KEY, OBJECT NAME AND ID ARE NOT ALLOWED TO CHANGE BECAUSE CURRENT
+	// !!! KEY, OBJECT NAME AND Name ARE NOT ALLOWED TO CHANGE BECAUSE CURRENT
 	// !!! VALUES ARE/COULD BE RELIED UPON ELSEWHERE AND MUST REMAIN THE SAME
 	//-!!!-----------------------------------------------------------------------
 	if p.Key != currentPolicy.Key {
@@ -608,6 +608,54 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 	return access
 }
 
+// GroupAccess returns the rights of a given group if set explicitly,
+// otherwise returns the rights of the first ancestor group that has
+// any rights record explicitly set
+func (m *Manager) GroupAccess(ctx context.Context, pid, groupID uuid.UUID) (access Right) {
+	if pid == uuid.Nil || groupID == uuid.Nil {
+		return APNoAccess
+	}
+
+	// group manager is mandatory at this point
+	if m.groups == nil {
+		log.Printf("GroupAccess(policy_id=%d, group_id=%d): group manager is nil\n", pid, groupID)
+		return APNoAccess
+	}
+
+	// obtaining roster
+	r, err := m.RosterByPolicyID(ctx, pid)
+	if err != nil {
+		log.Printf("GroupAccess(policy_id=%d, group_id=%d): failed to obtain rights roster\n", pid, groupID)
+		return APNoAccess
+	}
+
+	// obtaining target group
+	g, err := m.groups.GroupByID(ctx, groupID)
+	if err != nil {
+		return APNoAccess
+	}
+
+	switch true {
+	case g.IsGroup():
+		access = r.lookup(NewActor(AGroup, g.ID))
+	case g.IsRole():
+		access = r.lookup(NewActor(ARoleGroup, g.ID))
+	}
+
+	// returning if any positive accesspolicy right is found
+	if access != APNoAccess {
+		return access
+	}
+
+	// otherwise, looking for the first set accesspolicy by tracing back
+	// through its parents
+	if g.ParentID != uuid.Nil {
+		return m.GroupAccess(ctx, pid, g.ParentID)
+	}
+
+	return APNoAccess
+}
+
 // GrantPublicAccess setting base accesspolicy rights for everyone
 func (m *Manager) GrantPublicAccess(ctx context.Context, pid uuid.UUID, grantor Actor, rights Right) error {
 	// safety fuse
@@ -893,52 +941,4 @@ func (m *Manager) SummarizedUserAccess(ctx context.Context, policyID, userID uui
 
 	// user-specific rights
 	return access | r.lookup(NewActor(AUser, userID))
-}
-
-// GroupAccess returns the rights of a given group if set explicitly,
-// otherwise returns the rights of the first ancestor group that has
-// any rights record explicitly set
-func (m *Manager) GroupAccess(ctx context.Context, pid, groupID uuid.UUID) (access Right) {
-	if pid == uuid.Nil || groupID == uuid.Nil {
-		return APNoAccess
-	}
-
-	// group manager is mandatory at this point
-	if m.groups == nil {
-		log.Printf("GroupAccess(policy_id=%d, group_id=%d): group manager is nil\n", pid, groupID)
-		return APNoAccess
-	}
-
-	// obtaining roster
-	r, err := m.RosterByPolicyID(ctx, pid)
-	if err != nil {
-		log.Printf("GroupAccess(policy_id=%d, group_id=%d): failed to obtain rights roster\n", pid, groupID)
-		return APNoAccess
-	}
-
-	// obtaining target group
-	g, err := m.groups.GroupByID(ctx, groupID)
-	if err != nil {
-		return APNoAccess
-	}
-
-	switch true {
-	case g.IsGroup():
-		access = r.lookup(NewActor(AGroup, g.ID))
-	case g.IsRole():
-		access = r.lookup(NewActor(ARoleGroup, g.ID))
-	}
-
-	// returning if any positive accesspolicy right is found
-	if access != APNoAccess {
-		return access
-	}
-
-	// otherwise, looking for the first set accesspolicy by tracing back
-	// through its parents
-	if g.ParentID != uuid.Nil {
-		return m.GroupAccess(ctx, pid, g.ParentID)
-	}
-
-	return APNoAccess
 }

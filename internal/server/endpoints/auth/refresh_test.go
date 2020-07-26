@@ -88,9 +88,9 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NoError(gm.CreateRelation(ctx, r2.ID, testuser.ID))
 
 	// ====================================================================================
-	// wrong IP case
+	// wrong IPAddr case
 	// NOTE: request's RemoteAddr is empty when testing, so validation
-	// can be failed by specifying any IP, i.e. 127.0.0.1
+	// can be failed by specifying any IPAddr, i.e. 127.0.0.1
 	// ====================================================================================
 	/*
 		u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))

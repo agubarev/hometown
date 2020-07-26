@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 	"go.uber.org/zap"
@@ -24,7 +24,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newEmail.UserID,
 		EmailEssential: newEmail.EmailEssential,
 		EmailMetadata: EmailMetadata{
-			CreatedAt: dbr.NewNullTime(time.Now()),
+			CreatedAt: time.Now(),
 		},
 	}
 
@@ -45,7 +45,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 	}
 
 	// saving to the store
-	email, err = store.CreateEmail(ctx, email)
+	email, err = store.UpsertEmail(ctx, email)
 	if err != nil {
 		return email, err
 	}
@@ -57,35 +57,6 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 	)
 
 	return email, nil
-}
-
-// BulkCreateEmail creates multiple new email
-func (m *Manager) BulkCreateEmail(ctx context.Context, newEmails []Email) (emails []Email, err error) {
-	// obtaining store
-	store, err := m.Store()
-	if err != nil {
-		return nil, err
-	}
-
-	// validating each email
-	for _, email := range newEmails {
-		if err = email.Validate(); err != nil {
-			return nil, errors.Wrap(err, "failed to validate email before bulk creation")
-		}
-	}
-
-	// saving to the store
-	emails, err = store.BulkCreateEmail(ctx, newEmails)
-	if err != nil {
-		return nil, err
-	}
-
-	zap.L().Debug(
-		"created a batch of emails",
-		zap.Int("count", len(emails)),
-	)
-
-	return emails, nil
 }
 
 // EmailByAddr obtains an email by a given address
@@ -103,8 +74,8 @@ func (m *Manager) EmailByAddr(ctx context.Context, addr string) (email Email, er
 }
 
 // PrimaryEmailByUserID obtains the primary email by user id
-func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uint32) (email Email, err error) {
-	if userID == 0 {
+func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uuid.UUID) (email Email, err error) {
+	if userID == uuid.Nil {
 		return email, ErrEmailNotFound
 	}
 
@@ -140,29 +111,31 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = dbr.NewNullTime(time.Now())
+	updated.UpdatedAt = time.Now()
 
-	// acquiring changelog of essential changes
-	essentialChangelog, err = diff.Diff(email.EmailEssential, updated.EmailEssential)
-	if err != nil {
-		return email, nil, errors.Wrap(err, "failed to diff essential changes")
-	}
+	/*
+		// acquiring changelog of essential changes
+		essentialChangelog, err = diff.Diff(email.EmailEssential, updated.EmailEssential)
+		if err != nil {
+			return email, nil, errors.Wrap(err, "failed to diff essential changes")
+		}
 
-	// acquiring total changelog
-	changelog, err := diff.Diff(email, updated)
-	if err != nil {
-		return email, nil, errors.Wrap(err, "failed to diff total changes")
-	}
+			// acquiring total changelog
+			changelog, err := diff.Diff(email, updated)
+			if err != nil {
+				return email, nil, errors.Wrap(err, "failed to diff total changes")
+			}
+	*/
 
 	// persisting to the store as a final step
-	email, err = store.UpdateEmail(ctx, email, changelog)
+	email, err = store.UpsertEmail(ctx, email)
 	if err != nil {
 		return email, essentialChangelog, err
 	}
 
 	m.Logger().Debug(
-		"updated",
-		zap.Uint32("user_id", email.UserID),
+		"updated email",
+		zap.String("user_id", email.UserID.String()),
 		zap.String("addr", email.Addr),
 	)
 
@@ -171,7 +144,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 
 // DeleteEmailByAddr deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uint32, addr string) (err error) {
+func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr string) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")
@@ -196,22 +169,22 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 		return errors.Wrapf(err, "failed to obtain email by address: %s", addr)
 	}
 
-	if email.ConfirmedAt.Valid && !email.ConfirmedAt.Time.IsZero() {
+	if !email.ConfirmedAt.IsZero() {
 		return ErrUserAlreadyConfirmed
 	}
 
 	email, _, err = m.UpdateEmail(ctx, email.Addr, func(ctx context.Context, e Email) (email Email, err error) {
-		e.ConfirmedAt = dbr.NewNullTime(time.Now())
+		e.ConfirmedAt = time.Now()
 
 		return email, nil
 	})
 
 	if err != nil {
-		return errors.Wrapf(err, "failed to confirm email: user_id=%d, addr=%s", email.UserID, email.Addr)
+		return errors.Wrapf(err, "failed to confirm email: addr=%s", addr)
 	}
 
 	m.Logger().Info("email confirmed",
-		zap.Uint32("user_id", email.UserID),
+		zap.String("user_id", email.UserID.String()),
 		zap.String("email", email.Addr),
 	)
 

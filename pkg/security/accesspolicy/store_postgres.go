@@ -126,7 +126,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 	// checking whether the rights rosters has any changes
 	// TODO: optimize by squashing inserts and deletes into single queries
 	for _, c := range r.changes {
-		// actor ID must not be NIL for any other than Public actor kind
+		// actor Name must not be NIL for any other than Public actor kind
 		if c.key.Kind != AEveryone && c.key.ID == uuid.Nil {
 			return ErrNilActorID
 		}

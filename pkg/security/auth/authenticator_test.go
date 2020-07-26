@@ -203,7 +203,7 @@ func TestDestroySession(t *testing.T) {
 		auth.ErrWrongUser.Error(),
 	)
 
-	// correct user but wrong IP
+	// correct user but wrong IPAddr
 	a.EqualError(
 		am.DestroySession(ctx, testuser.ID, bs.Token, wrongIP),
 		auth.ErrWrongIP.Error(),

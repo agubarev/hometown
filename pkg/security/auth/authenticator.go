@@ -20,6 +20,7 @@ import (
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/dgrijalva/jwt-go"
+	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -70,7 +71,7 @@ type Claims struct {
 
 // Session represents a user session
 // NOTE: the session is used only to identify the session owner (user),
-// verify the user's IP and UserAgent, and when to expire
+// verify the user's IPAddr and UserAgent, and when to expire
 // WARNING: session object must never be shared with the client,
 // because it contains the refresh token
 type Session struct {
@@ -411,8 +412,8 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 			// IPs don't match, thus deleting this refresh token
 			// to prevent any further use (safety first)
 			if err = tm.Delete(ctx, t); err != nil {
-				l.Warn("IP MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
-				return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
+				l.Warn("IPAddr MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash))
+				return u, fmt.Errorf("failed to delete refresh token: %s", t.Hash)
 			}
 
 			return u, ErrWrongIP
@@ -425,8 +426,8 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 			// given user agent doesn't match to what's saved in the session
 			// deleting session because it could've been exposed (safety first)
 			if err = tm.Delete(ctx, t); err != nil {
-				l.Warn("USER-AGENT MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
-				return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
+				l.Warn("USER-AGENT MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash))
+				return u, fmt.Errorf("failed to delete refresh token: %s", t.Hash)
 			}
 		}
 	}
@@ -443,8 +444,8 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 		// that this token is a liability and a possible threat,
 		// and... is asking to be deleted
 		if err = tm.Delete(ctx, t); err != nil {
-			l.Warn("USER SUSPENDED: failed to delete refresh token", zap.Error(err), zap.String("token", t.Token))
-			return u, fmt.Errorf("failed to delete refresh token: %s", t.Token)
+			l.Warn("USER SUSPENDED: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash))
+			return u, fmt.Errorf("failed to delete refresh token: %s", t.Hash)
 		}
 
 		return u, ErrUserSuspended
@@ -560,7 +561,7 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 
 // GenerateRefreshToken generates a refresh token for a given user
 func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, ri *RequestMetadata) (*token.Token, error) {
-	if u.ID == 0 {
+	if u.ID == uuid.Nil {
 		return nil, user.ErrZeroUserID
 	}
 
@@ -569,7 +570,7 @@ func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, r
 
 	return tm.Create(
 		ctx,
-		token.TkRefreshToken,
+		token.TRefreshToken,
 		RefreshTokenPayload{
 			UserID:    u.ID,
 			UserAgent: ri.UserAgent,
@@ -602,7 +603,7 @@ func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri *Requ
 		AccessTokenID: jti,
 		CreatedAt:     time.Now(),
 		ExpireAt:      time.Now().Add(a.AccessTokenTTL),
-		RefreshToken:  rtok.Token,
+		RefreshToken:  rtok.Hash,
 	}
 
 	// adding session to the registry
@@ -633,7 +634,7 @@ func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, user user.User
 	tt := &TokenTrinity{
 		SessionToken: session.Token,
 		AccessToken:  atok,
-		RefreshToken: rtok.Token,
+		RefreshToken: rtok.Hash,
 	}
 
 	return tt, nil

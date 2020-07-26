@@ -68,7 +68,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	u.Checksum = u.calculateChecksum()
 
 	// saving to the store
-	u, err = store.CreateUser(ctx, u)
+	u, err = store.UpsertUser(ctx, u)
 	if err != nil {
 		return u, err
 	}
@@ -218,7 +218,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 
 	m.Logger().Debug(
 		"created new user",
-		zap.Uint32("id", u.ID),
+		zap.String("id", u.ID),
 		zap.String("username", u.Username),
 		zap.String("email", newUser.EmailAddr),
 	)
@@ -340,14 +340,14 @@ func (m *Manager) UpdateUser(ctx context.Context, id uint32, fn func(ctx context
 	}
 
 	// persisting to the store as a final step
-	u, err = store.UpdateUser(ctx, u, changelog)
+	u, err = store.UpsertUser(ctx, u, changelog)
 	if err != nil {
 		return u, essentialChangelog, err
 	}
 
 	m.Logger().Debug(
-		"updated",
-		zap.Uint32("id", u.ID),
+		"updated user",
+		zap.String("id", u.ID.String()),
 		zap.String("username", u.Username),
 	)
 

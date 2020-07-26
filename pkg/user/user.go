@@ -1,60 +1,132 @@
-package user
+pemail[:]ackage user
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"net"
 
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
-	"github.com/gocraft/dbr/v2"
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/pgtype"
 	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
 
+//---------------------------------------------------------------------------
+// IPAddr is a 16 byte is an amortized size to accommodate both IPv4 and IPv6
+//---------------------------------------------------------------------------
+type IPAddr [16]byte
+
+func (addr IPAddr) StringIPv4() string {
+	return fmt.Sprintf(
+		"%x.%x.%x.%x",
+		addr[0],
+		addr[1],
+		addr[2],
+		addr[3],
+	)
+}
+
+func (addr IPAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	zpos := bytes.IndexByte(addr[:], byte(0))
+	if zpos == -1 {
+		return append(buf, addr[:]...), nil
+	}
+
+	return append(buf, addr[0:zpos]...), nil
+}
+
+func (addr IPAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+	copy(addr[:], src)
+	return nil
+}
+
+//---------------------------------------------------------------------------
+// email address
+//---------------------------------------------------------------------------
+type TEmailAddr [256]byte
+
+func (email TEmailAddr) String() string {
+	if email[0] == 0 {
+		return ""
+	}
+
+	// finding position of zero
+	zeroPos := bytes.IndexByte(email[:], byte(0))
+	if zeroPos == -1 {
+		return string(email[:])
+	}
+
+	return string(email[0:zeroPos])
+}
+
+func (email TEmailAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	zpos := bytes.IndexByte(email[:], byte(0))
+	if zpos == -1 {
+		return append(buf, email[:]...), nil
+	}
+
+	return append(buf, email[0:zpos]...), nil
+}
+
+func (email TEmailAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+	copy(email[:], src)
+	return nil
+}
+
+//---------------------------------------------------------------------------
+// phone number
+//---------------------------------------------------------------------------
+type TPhoneNumber [16]byte
+
+type TUsername [32]byte
+
+type TDisplayName [32]byte
+
+type TSuspensionReason [64]byte
+
 // UserNewObject contains fields sufficient to create a new object
 type NewUserObject struct {
 	Essential
 	ProfileEssential
-	EmailAddr   string `json:"email"`
-	PhoneNumber string `json:"phone"`
-	Password    []byte `json:"password"`
+	EmailAddr   TEmailAddr   `json:"email_addr"`
+	PhoneNumber TPhoneNumber `json:"phone_number"`
+	Password    []byte       `json:"password"`
 }
 
 // Essential represents an essential part of the primary object
 type Essential struct {
-	Username    string `db:"username" json:"username"`
-	DisplayName string `db:"display_name" json:"display_name"`
+	Username    TUsername    `db:"username" json:"username"`
+	DisplayName TDisplayName `db:"display_name" json:"display_name"`
 }
 
-// TODO: solve net.IP field problem
+// TODO: solve net.IPAddr field problem
 type Metadata struct {
 	Checksum uint64 `db:"checksum" json:"checksum"`
 
 	// timestamps
-	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
-	CreatedByID uuid.UUID    `db:"created_by_id" json:"created_by_id"`
-	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
-	UpdatedByID uuid.UUID    `db:"updated_by_id" json:"updated_by_id"`
-	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
-	DeletedAt   dbr.NullTime `db:"deleted_at" json:"deleted_at"`
-	DeletedByID uuid.UUID    `db:"deleted_by_id" json:"deleted_by_id"`
+	CreatedAt   uint32    `db:"created_at" json:"created_at"`
+	CreatedByID uuid.UUID `db:"created_by_id" json:"created_by_id"`
+	UpdatedAt   uint32    `db:"updated_at" json:"updated_at"`
+	UpdatedByID uuid.UUID `db:"updated_by_id" json:"updated_by_id"`
+	ConfirmedAt uint32    `db:"confirmed_at" json:"confirmed_at"`
+	DeletedAt   uint32    `db:"deleted_at" json:"deleted_at"`
+	DeletedByID uuid.UUID `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
-	LastLoginAt       dbr.NullTime `db:"last_login_at" json:"last_login_at"`
-	LastLoginIP       net.IP       `db:"last_login_ip" json:"last_login_ip"`
-	LastLoginFailedAt dbr.NullTime `db:"last_login_failed_at" json:"last_login_failed_at"`
-	LastLoginFailedIP string       `db:"last_login_failed_ip" json:"last_login_failed_ip"`
-	LastLoginAttempts uint16       `db:"last_login_attempts" json:"last_login_attempts"`
+	LastLoginAt       uint32 `db:"last_login_at" json:"last_login_at"`
+	LastLoginIP       IPAddr `db:"last_login_ip" json:"last_login_ip"`
+	LastLoginFailedAt uint32 `db:"last_login_failed_at" json:"last_login_failed_at"`
+	LastLoginFailedIP IPAddr `db:"last_login_failed_ip" json:"last_login_failed_ip"`
+	LastLoginAttempts uint8  `db:"last_login_attempts" json:"last_login_attempts"`
 
 	// account suspension
-	IsSuspended         bool         `db:"is_suspended" json:"is_suspended"`
-	SuspendedAt         dbr.NullTime `db:"suspended_at" json:"suspended_at"`
-	SuspensionExpiresAt dbr.NullTime `db:"suspension_expires_at" json:"suspension_expires_at"`
-	SuspensionReason    string       `db:"suspension_reason" json:"suspension_reason"`
+	IsSuspended         bool              `db:"is_suspended" json:"is_suspended"`
+	SuspendedAt         uint32            `db:"suspended_at" json:"suspended_at"`
+	SuspensionExpiresAt uint32            `db:"suspension_expires_at" json:"suspension_expires_at"`
+	SuspensionReason    TSuspensionReason `db:"suspension_reason" json:"suspension_reason"`
 }
 
 // User represents certain users which are custom
@@ -76,8 +148,8 @@ func (u *User) calculateChecksum() uint64 {
 		[]byte(u.Username),
 		[]byte(u.DisplayName),
 		u.IsSuspended,
-		u.SuspendedAt.Time.Unix(),
-		u.SuspensionExpiresAt.Time.Unix(),
+		u.SuspendedAt,
+		u.SuspensionExpiresAt,
 		[]byte(u.SuspensionReason),
 	}
 
@@ -93,38 +165,6 @@ func (u *User) calculateChecksum() uint64 {
 	return u.Checksum
 }
 
-func (u *User) hashKey() {
-	// panic if ObjectID is zero or a name is empty
-	if u.ID == 0 || u.Username[0] == 0 {
-		panic(ErrInsufficientDataToHashKey)
-	}
-
-	// initializing a key buffer with and assuming the minimum key length
-	key := bytes.NewBuffer(make([]byte, 0, 4+len(u.Username)+8))
-
-	// composing a key value
-	key.WriteString("user")
-	key.WriteString(u.Username)
-
-	// adding ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, u.ID); err != nil {
-		panic(errors.Wrap(err, "failed to hash user key"))
-	}
-
-	// updating recalculated key
-	u.keyHash = xxhash.Sum64(key.Bytes())
-}
-
-// Key returns a uint64 key hash to be used as a map/cache key
-func (u User) Key(rehash bool) uint64 {
-	// returning a cached key if it's set
-	if u.keyHash == 0 || rehash {
-		u.hashKey()
-	}
-
-	return u.keyHash
-}
-
 // ApplyChangelog applies changes described by a diff.Diff()'s changelog
 // NOTE: doing a manual update to avoid using reflection
 func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
@@ -136,21 +176,21 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "Username":
-			u.Username = change.To.(string)
+			u.Username = change.To.(TUsername)
 		case "DisplayName":
-			u.DisplayName = change.To.(string)
+			u.DisplayName = change.To.(TDisplayName)
 		case "LastLoginAt":
-			u.LastLoginAt = change.To.(dbr.NullTime)
+			u.LastLoginAt = change.To.(uint32)
 		case "LastLoginIP":
-			u.LastLoginIP = change.To.(net.IP)
+			u.LastLoginIP = change.To.(IPAddr)
 		case "Checksum":
 			u.Checksum = change.To.(uint64)
 		case "CreatedAt":
-			u.CreatedAt = change.To.(dbr.NullTime)
+			u.CreatedAt = change.To.(uint32)
 		case "UpdatedAt":
-			u.UpdatedAt = change.To.(dbr.NullTime)
+			u.UpdatedAt = change.To.(uint32)
 		case "DeletedAt":
-			u.DeletedAt = change.To.(dbr.NullTime)
+			u.DeletedAt = change.To.(uint32)
 		}
 	}
 

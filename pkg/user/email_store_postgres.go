@@ -64,7 +64,7 @@ func (s *PostgreSQLStore) UpsertEmail(ctx context.Context, e Email) (_ Email, er
 	q := `
 	INSERT INTO user_email(user_id, addr, is_primary, created_at, confirmed_at, updated_at) 
 	VALUES($1, $2, $3, $4, $5)
-	ON CONFLICT (user_id, addr)
+	ON CONFLICT ON CONSTRAINT user_email_pk
 	DO UPDATE 
 		SET is_primary = EXCLUDED.is_primary,
 			updated_at = EXCLUDED.updated_at`

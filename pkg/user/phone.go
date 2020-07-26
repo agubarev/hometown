@@ -1,14 +1,10 @@
 package user
 
 import (
-	"bytes"
-	"encoding/binary"
+	"time"
 
 	"github.com/asaskevich/govalidator"
-	"github.com/cespare/xxhash"
-	"github.com/gocraft/dbr/v2"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
 
@@ -27,9 +23,9 @@ type PhoneEssential struct {
 
 // PhoneMetadata contains generic metadata of the primary object
 type PhoneMetadata struct {
-	CreatedAt   dbr.NullTime `db:"created_at" json:"created_at"`
-	ConfirmedAt dbr.NullTime `db:"confirmed_at" json:"confirmed_at"`
-	UpdatedAt   dbr.NullTime `db:"updated_at" json:"updated_at"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -43,42 +39,10 @@ type Phone struct {
 	PhoneMetadata
 }
 
-func (p *Phone) hashKey() {
-	// panic if ObjectID is zero or a name is empty
-	if p.UserID == uuid.Nil || p.Number[0] == 0 {
-		panic(ErrInsufficientDataToHashKey)
-	}
-
-	// initializing a key buffer with and assuming the minimum key length
-	key := bytes.NewBuffer(make([]byte, 0, len(p.Number[:])+13))
-
-	// composing a key value
-	key.WriteString("phone")
-	key.WriteString(p.Number)
-
-	// adding user ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, p.UserID); err != nil {
-		panic(errors.Wrap(err, "failed to hash phone key"))
-	}
-
-	// updating recalculated key
-	p.keyHash = xxhash.Sum64(key.Bytes())
-}
-
 // SanitizeAndValidate validates the object
 func (p Phone) Validate() (err error) {
 	_, err = govalidator.ValidateStruct(p)
 	return nil
-}
-
-// Key returns a uint64 key hash to be used as a map/cache key
-func (p Phone) Key(rehash bool) uint64 {
-	// returning a cached key if it's set
-	if p.keyHash == 0 || rehash {
-		p.hashKey()
-	}
-
-	return p.keyHash
 }
 
 // ApplyChangelog applies changes described by a diff.Diff()'s changelog
@@ -96,11 +60,11 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "Number":
 			p.Number = change.To.(string)
 		case "CreatedAt":
-			p.CreatedAt = change.To.(dbr.NullTime)
+			p.CreatedAt = change.To.(time.Time)
 		case "Confirmed_at":
-			p.ConfirmedAt = change.To.(dbr.NullTime)
+			p.ConfirmedAt = change.To.(time.Time)
 		case "UpdatedAt":
-			p.UpdatedAt = change.To.(dbr.NullTime)
+			p.UpdatedAt = change.To.(time.Time)
 		}
 	}
 

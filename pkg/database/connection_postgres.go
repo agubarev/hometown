@@ -106,12 +106,12 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 		"group_assets",
 		"accesspolicy",
 		"accesspolicy_roster",
-		//"password",
-		//"token",
-		//"user",
-		//"user_email",
-		//"user_phone",
-		//"user_profile",
+		"password",
+		"token",
+		"user",
+		"user_email",
+		"user_phone",
+		"user_profile",
 	}
 
 	// truncating tables

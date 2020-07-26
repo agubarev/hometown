@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/gocraft/dbr/v2"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 	"go.uber.org/zap"
@@ -23,7 +23,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newPhone.UserID,
 		PhoneEssential: newPhone.PhoneEssential,
 		PhoneMetadata: PhoneMetadata{
-			CreatedAt: dbr.NewNullTime(time.Now()),
+			CreatedAt: time.Now(),
 		},
 	}
 
@@ -44,52 +44,23 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 	}
 
 	// saving to the store
-	phone, err = store.CreatePhone(ctx, phone)
+	phone, err = store.UpsertPhone(ctx, phone)
 	if err != nil {
 		return phone, err
 	}
 
 	m.Logger().Debug(
 		"created new phone",
-		zap.Uint32("user_id", phone.UserID),
+		zap.String("user_id", phone.UserID.String()),
 		zap.String("number", phone.Number),
 	)
 
 	return phone, nil
 }
 
-// BulkCreatePhone creates multiple newphone
-func (m *Manager) BulkCreatePhone(ctx context.Context, newPhones []Phone) (phones []Phone, err error) {
-	// obtaining store
-	store, err := m.Store()
-	if err != nil {
-		return nil, err
-	}
-
-	// validating eachphone
-	for _, phone := range newPhones {
-		if err = phone.Validate(); err != nil {
-			return nil, errors.Wrap(err, "failed to validate phone before bulk creation")
-		}
-	}
-
-	// saving to the store
-	phones, err = store.BulkCreatePhone(ctx, newPhones)
-	if err != nil {
-		return nil, err
-	}
-
-	zap.L().Debug(
-		"created a batch of phones",
-		zap.Int("count", len(phones)),
-	)
-
-	return phones, nil
-}
-
 // PrimaryPhoneByUserID obtains the primary phone by user id
-func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uint32) (phone Phone, err error) {
-	if userID == 0 {
+func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uuid.UUID) (phone Phone, err error) {
+	if userID == uuid.Nil {
 		return phone, ErrPhoneNotFound
 	}
 
@@ -109,7 +80,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 		return phone, essentialChangelog, err
 	}
 
-	// obtaining existingphone
+	// obtaining existing phone
 	phone, err = store.FetchPhoneByNumber(ctx, number)
 	if err != nil {
 		return phone, nil, errors.Wrap(err, "failed to obtain existing phone from the store")
@@ -125,29 +96,31 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = dbr.NewNullTime(time.Now())
+	updated.UpdatedAt = time.Now()
 
-	// acquiring changelog of essential changes
-	essentialChangelog, err = diff.Diff(phone.PhoneEssential, updated.PhoneEssential)
-	if err != nil {
-		return phone, nil, errors.Wrap(err, "failed to diff essential changes")
-	}
+	/*
+		// acquiring changelog of essential changes
+		essentialChangelog, err = diff.Diff(phone.PhoneEssential, updated.PhoneEssential)
+		if err != nil {
+			return phone, nil, errors.Wrap(err, "failed to diff essential changes")
+		}
 
-	// acquiring total changelog
-	changelog, err := diff.Diff(phone, updated)
-	if err != nil {
-		return phone, nil, errors.Wrap(err, "failed to diff total changes")
-	}
+		// acquiring total changelog
+		changelog, err := diff.Diff(phone, updated)
+		if err != nil {
+			return phone, nil, errors.Wrap(err, "failed to diff total changes")
+		}
+	*/
 
 	// persisting to the store as a final step
-	phone, err = store.UpdatePhone(ctx, phone, changelog)
+	phone, err = store.UpsertPhone(ctx, phone)
 	if err != nil {
 		return phone, essentialChangelog, err
 	}
 
 	m.Logger().Debug(
-		"updated",
-		zap.Uint32("user_id", phone.UserID),
+		"updated phone",
+		zap.String("user_id", phone.UserID.String()),
 		zap.String("number", phone.Number),
 	)
 
@@ -156,7 +129,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 
 // DeletePhoneByNumber deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uint32, number string) (phone Phone, err error) {
+func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number string) (phone Phone, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, errors.Wrap(err, "failed to obtain a store")

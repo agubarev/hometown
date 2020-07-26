@@ -77,12 +77,12 @@ func ManagerForTesting(db *pgx.Conn) (*Manager, context.Context, error) {
 	//---------------------------------------------------------------------------
 	// initializing token manager
 	//---------------------------------------------------------------------------
-	tms, err := token.NewTokenStore(db)
+	tms, err := token.NewStore(db)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	tm, err := token.NewTokenManager(tms)
+	tm, err := token.NewManager(tms)
 	if err != nil {
 		return nil, nil, err
 	}

@@ -2,60 +2,25 @@ package user
 
 import (
 	"context"
-	"database/sql"
 
-	"github.com/agubarev/hometown/pkg/util/guard"
-	"github.com/go-sql-driver/mysql"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
-	"github.com/r3labs/diff"
 )
 
-func (s *PostgreSQLStore) onePhone(ctx context.Context, q string, args ...interface{}) (phone Phone, err error) {
-}
-
-func (s *PostgreSQLStore) manyPhones(ctx context.Context, q string, args ...interface{}) (phones []Phone, err error) {
-	phones = make([]Phone, 0)
-
-	rows, err := s.db.QueryEx(ctx, q, nil, args...)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to fetch phones")
-	}
-
-	for rows.Next() {
-		var phone Phone
-
-		err := rows.Scan(
-			&phone.UserID,
-			&phone.Number,
-			&phone.IsPrimary,
-			&phone.CreatedAt,
-			&phone.ConfirmedAt,
-			&phone.UpdatedAt)
-
-		if err != nil {
-			return phones, errors.Wrap(err, "failed to scan phones")
-		}
-
-		phones = append(phones, phone)
-	}
-
-	return phones, nil
-}
-
-func (s *PostgreSQLStore) UpsertPhone(ctx context.Context, e Phone) (_ Phone, err error) {
+func (s *PostgreSQLStore) UpsertProfile(ctx context.Context, e Phone) (_ Phone, err error) {
 	if e.UserID == uuid.Nil {
 		return e, ErrZeroUserID
 	}
 
 	q := `
-	INSERT INTO user_phone(user_id, number, is_primary, created_at, confirmed_at, updated_at) 
+	INSERT INTO user_profile(user_id, number, is_primary, created_at, confirmed_at, updated_at) 
 	VALUES($1, $2, $3, $4, $5)
-	ON CONFLICT (user_id, number)
+	ON CONFLICT ON CONSTRAINT user_profile_pk
 	DO UPDATE 
-		SET is_primary = EXCLUDED.is_primary,
-			updated_at = EXCLUDED.updated_at`
+		SET is_primary		= EXCLUDED.is_primary,
+			is_confirmed	= EXCLUDED.is_confirmed,
+			updated_at		= EXCLUDED.updated_at`
 
 	cmd, err := s.db.ExecEx(
 		ctx,
@@ -80,66 +45,48 @@ func (s *PostgreSQLStore) UpsertPhone(ctx context.Context, e Phone) (_ Phone, er
 	}
 }
 
-func (s *PostgreSQLStore) FetchPrimaryPhoneByUserID(ctx context.Context, userID uuid.UUID) (e Phone, err error) {
+func (s *PostgreSQLStore) FetchProfileByUserID(ctx context.Context, userID uuid.UUID) (profile Profile, err error) {
 	q := `
-	SELECT user_id, number, is_primary, created_at, confirmed_at, updated_at
-	FROM user_phone 
-		WHERE user_id = $1 AND is_primary = 1 
+	SELECT user_id, firstname, middlename, lastname, language, created_at, updated_at, checksum
+	FROM user_profile
+		WHERE user_id = $1
 	LIMIT 1`
 
-	err = s.db.QueryRowEx(ctx, q, nil, args...).
-		Scan(&phone.UserID,
-			&phone.Number,
-			&phone.IsPrimary,
-			&phone.CreatedAt,
-			&phone.ConfirmedAt,
-			&phone.UpdatedAt)
+	err = s.db.QueryRowEx(ctx, q, nil, userID).
+		Scan(&profile.UserID,
+			&profile.Firstname,
+			&profile.Middlename,
+			&profile.Lastname,
+			&profile.Language,
+			&profile.CreatedAt,
+			&profile.UpdatedAt,
+			&profile.Language,
+		)
 
 	switch err {
 	case nil:
-		return phone, nil
+		return profile, nil
 	case pgx.ErrNoRows:
-		return phone, ErrPhoneNotFound
+		return profile, ErrProfileNotFound
 	default:
-		return phone, errors.Wrap(err, "failed to scan phone")
+		return profile, errors.Wrap(err, "failed to scan profile")
 	}
-
-	return s.onePhone(ctx, q, userID)
 }
 
-func (s *PostgreSQLStore) FetchPhonesByUserID(ctx context.Context, userID uuid.UUID) ([]Phone, error) {
-	q := `
-	SELECT user_id, number, is_primary, created_at, confirmed_at, updated_at
-	FROM user_phone 
-		WHERE user_id = $1`
-
-	return s.manyPhones(ctx, q, userID)
-}
-
-func (s *PostgreSQLStore) FetchPhoneByAddr(ctx context.Context, number string) (e Phone, err error) {
-	q := `
-	SELECT user_id, number, is_primary, created_at, confirmed_at, updated_at
-	FROM user_phone 
-		WHERE number = $1
-	LIMIT 1`
-
-	return s.onePhone(ctx, q, number)
-}
-
-func (s *PostgreSQLStore) DeletePhoneByAddr(ctx context.Context, userID uuid.UUID, number string) (err error) {
+func (s *PostgreSQLStore) DeleteProfileByUserID(ctx context.Context, userID uuid.UUID) (err error) {
 	if userID == uuid.Nil {
 		return ErrZeroUserID
 	}
 
 	cmd, err := s.db.ExecEx(
 		ctx,
-		`DELETE FROM user_phone WHERE user_id = $1 AND number = $2`,
+		`DELETE FROM user_profile WHERE user_id = $1`,
 		nil,
-		userID, number,
+		userID,
 	)
 
 	if err != nil {
-		return errors.Wrap(err, "failed to delete phone")
+		return errors.Wrap(err, "failed to delete profile")
 	}
 
 	if cmd.RowsAffected() == 0 {

@@ -196,7 +196,7 @@ func (b *DefaultBackend) DeleteSession(sess Session) error {
 	return nil
 }
 
-// GetSessionByAccessToken retrieves session by an accesspolicy token ObjectID (JTI: JWT Token ObjectID)
+// GetSessionByAccessToken retrieves session by an accesspolicy token ObjectID (JTI: JWT Hash ObjectID)
 func (b *DefaultBackend) GetSessionByAccessToken(jti string) (sess Session, err error) {
 	b.RLock()
 	sess, ok := b.jtiMap[jti]

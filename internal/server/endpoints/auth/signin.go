@@ -72,7 +72,7 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// updating IP from where the user has just authenticated from
+	// updating IPAddr from where the user has just authenticated from
 	u.LastLoginIP = ri.IP
 
 	/*

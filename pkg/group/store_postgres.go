@@ -40,6 +40,7 @@ func (s *PostgreSQLStore) manyGroups(ctx context.Context, q string, args ...inte
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch groups")
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var g Group
@@ -74,6 +75,7 @@ func (s *PostgreSQLStore) manyRelations(ctx context.Context, q string, args ...i
 	if err != nil {
 		return relations, errors.Wrap(err, "failed to fetch relations")
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var rel Relation
@@ -96,7 +98,7 @@ func (s *PostgreSQLStore) UpsertGroup(ctx context.Context, g Group) (Group, erro
 	q := `
 	INSERT INTO "group"(id, parent_id, name, key, flags) 
 	VALUES($1, $2, $3, $4, $5)
-	ON CONFLICT (id)
+	ON CONFLICT ON CONSTRAINT group_pk
 	DO UPDATE 
 		SET parent_id 	= EXCLUDED.parent_id,
 			name		= EXCLUDED.name,
