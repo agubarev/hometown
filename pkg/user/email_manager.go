@@ -2,9 +2,9 @@ package user
 
 import (
 	"context"
-	"strings"
-	"time"
 
+	"github.com/agubarev/hometown/pkg/util"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -24,7 +24,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newEmail.UserID,
 		EmailEssential: newEmail.EmailEssential,
 		EmailMetadata: EmailMetadata{
-			CreatedAt: time.Now(),
+			CreatedAt: util.NowUnixU32(),
 		},
 	}
 
@@ -53,15 +53,18 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 	m.Logger().Debug(
 		"created new email",
 		zap.String("user_id", email.UserID.String()),
-		zap.String("addr", email.Addr),
+		zap.String("addr", email.Addr.String()),
 	)
 
 	return email, nil
 }
 
 // EmailByAddr obtains an email by a given address
-func (m *Manager) EmailByAddr(ctx context.Context, addr string) (email Email, err error) {
-	if strings.TrimSpace(addr) == "" {
+func (m *Manager) EmailByAddr(ctx context.Context, addr bytearray.ByteString256) (email Email, err error) {
+	addr.Trim()
+	addr.ToLower()
+
+	if addr[0] == 0 {
 		return email, ErrEmptyEmailAddr
 	}
 
@@ -89,7 +92,7 @@ func (m *Manager) PrimaryEmailByUserID(ctx context.Context, userID uuid.UUID) (e
 
 // UpdateEmail updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx context.Context, email Email) (_ Email, err error)) (email Email, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateEmail(ctx context.Context, addr bytearray.ByteString256, fn func(ctx context.Context, email Email) (_ Email, err error)) (email Email, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return email, essentialChangelog, err
@@ -111,7 +114,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = time.Now()
+	updated.UpdatedAt = util.NowUnixU32()
 
 	/*
 		// acquiring changelog of essential changes
@@ -136,7 +139,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 	m.Logger().Debug(
 		"updated email",
 		zap.String("user_id", email.UserID.String()),
-		zap.String("addr", email.Addr),
+		zap.String("addr", email.Addr.String()),
 	)
 
 	return email, essentialChangelog, nil
@@ -144,7 +147,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 
 // DeleteEmailByAddr deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr string) (err error) {
+func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr bytearray.ByteString256) (err error) {
 	store, err := m.Store()
 	if err != nil {
 		return errors.Wrap(err, "failed to obtain a store")
@@ -159,7 +162,7 @@ func (m *Manager) DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr 
 }
 
 // ConfirmEmail this function is used only when user's email is confirmed
-func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
+func (m *Manager) ConfirmEmail(ctx context.Context, addr bytearray.ByteString256) (err error) {
 	if addr[0] == 0 {
 		return ErrEmptyEmailAddr
 	}
@@ -169,12 +172,12 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 		return errors.Wrapf(err, "failed to obtain email by address: %s", addr)
 	}
 
-	if !email.ConfirmedAt.IsZero() {
+	if email.ConfirmedAt != 0 {
 		return ErrUserAlreadyConfirmed
 	}
 
 	email, _, err = m.UpdateEmail(ctx, email.Addr, func(ctx context.Context, e Email) (email Email, err error) {
-		e.ConfirmedAt = time.Now()
+		e.ConfirmedAt = util.NowUnixU32()
 
 		return email, nil
 	})
@@ -185,7 +188,7 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 
 	m.Logger().Info("email confirmed",
 		zap.String("user_id", email.UserID.String()),
-		zap.String("email", email.Addr),
+		zap.String("email", email.Addr.String()),
 	)
 
 	return nil

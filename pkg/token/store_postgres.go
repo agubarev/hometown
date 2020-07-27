@@ -66,7 +66,7 @@ func (s *defaultTokenStore) Put(ctx context.Context, t Token) (err error) {
 }
 
 // Get retrieves token from a store
-func (s *defaultTokenStore) Get(ctx context.Context, hash THash) (t Token, err error) {
+func (s *defaultTokenStore) Get(ctx context.Context, hash Hash) (t Token, err error) {
 	q := `
 	SELECT 
 		kind, 
@@ -99,7 +99,7 @@ func (s *defaultTokenStore) Get(ctx context.Context, hash THash) (t Token, err e
 }
 
 // DeletePolicy deletes token from a store
-func (s *defaultTokenStore) Delete(ctx context.Context, hash THash) error {
+func (s *defaultTokenStore) Delete(ctx context.Context, hash Hash) error {
 	cmd, err := s.db.ExecEx(ctx, `DELETE FROM token WHERE hash = $1`, nil, hash)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete token")

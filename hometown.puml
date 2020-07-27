@@ -243,7 +243,7 @@ namespace auth {
 
     }
     class Claims << (S,Aquamarine) >> {
-        + UserID uint32
+        + UserID uuid.UUID
         + Roles []group.TKey
         + Groups []group.TKey
 
@@ -345,9 +345,75 @@ namespace auth {
 
 "auth.Authenticator" o-- "time.Duration"
 "auth.Claims" o-- "group.TKey"
+"auth.Claims" o-- "uuid.UUID"
 "auth.RequestMetadata" o-- "net.IP"
 "auth.RevokedAccessToken" o-- "time.Time"
 "auth.Session" o-- "time.Time"
+
+namespace bytearray {
+    class ByteString128 << (S,Aquamarine) >> {
+        + String() string
+        + Trim() 
+        + ToLower() 
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+
+    }
+    class ByteString16 << (S,Aquamarine) >> {
+        + String() string
+        + Trim() 
+        + ToLower() 
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+
+    }
+    class ByteString256 << (S,Aquamarine) >> {
+        + String() string
+        + Trim() 
+        + ToLower() 
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+
+    }
+    class ByteString32 << (S,Aquamarine) >> {
+        + String() string
+        + Trim() 
+        + ToLower() 
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+
+    }
+    class ByteString512 << (S,Aquamarine) >> {
+        + String() string
+        + Trim() 
+        + ToLower() 
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+
+    }
+    class ByteString64 << (S,Aquamarine) >> {
+        + String() string
+        + Trim() 
+        + ToLower() 
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+
+    }
+    class bytearray.ByteString128 << (T, #FF7700) >>  {
+    }
+    class bytearray.ByteString16 << (T, #FF7700) >>  {
+    }
+    class bytearray.ByteString256 << (T, #FF7700) >>  {
+    }
+    class bytearray.ByteString32 << (T, #FF7700) >>  {
+    }
+    class bytearray.ByteString512 << (T, #FF7700) >>  {
+    }
+    class bytearray.ByteString64 << (T, #FF7700) >>  {
+    }
+}
+
+
 
 namespace core {
     class Core << (S,Aquamarine) >> {
@@ -585,11 +651,11 @@ namespace password {
     }
     class Password << (S,Aquamarine) >> {
         + Kind Kind
-        + OwnerID uint32
+        + OwnerID uuid.UUID
         + Hash []byte
-        + CreatedAt dbr.NullTime
-        + UpdatedAt dbr.NullTime
-        + ExpireAt dbr.NullTime
+        + CreatedAt uint32
+        + UpdatedAt uint32
+        + ExpireAt uint32
         + IsChangeRequired bool
 
         + Validate() error
@@ -627,8 +693,8 @@ namespace password {
 "password.Manager" <|-- "password.defaultManager"
 "password.Store" <|-- "password.defaultManager"
 
-"password.Password" o-- "dbr.NullTime"
 "password.Password" o-- "password.Kind"
+"password.Password" o-- "uuid.UUID"
 
 namespace server {
     class Response << (S,Aquamarine) >> {
@@ -683,7 +749,7 @@ namespace task {
 
 namespace token {
     class Callback << (S,Aquamarine) >> {
-        + Name TCallbackName
+        + Name CallbackName
         + Kind Kind
         + Function <font color=blue>func</font>(context.Context, Token) error
 
@@ -694,12 +760,23 @@ namespace token {
         + Err error
 
     }
+    class CallbackName << (S,Aquamarine) >> {
+        + Scan(data <font color=blue>interface</font>{}) error
+        + Value() (driver.Value, error)
+
+    }
+    class Hash << (S,Aquamarine) >> {
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+        + String() string
+
+    }
     class Kind << (S,Aquamarine) >> {
         + String() string
 
     }
     class Manager << (S,Aquamarine) >> {
-        - tokens <font color=blue>map</font>[THash]Token
+        - tokens <font color=blue>map</font>[Hash]Token
         - store Store
         - callbacks []Callback
         - errorChan <font color=blue>chan</font> CallbackError
@@ -714,36 +791,25 @@ namespace token {
         + Validate() error
         + List(k Kind) []Token
         + Create(ctx context.Context, k Kind, ttl time.Duration, checkins int32) (Token, error)
-        + Get(ctx context.Context, hash THash) (Token, error)
+        + Get(ctx context.Context, hash Hash) (Token, error)
         + Delete(ctx context.Context, t Token) error
-        + Checkin(ctx context.Context, hash THash) error
+        + Checkin(ctx context.Context, hash Hash) error
         + Cleanup(ctx context.Context) error
-        + AddCallback(kind Kind, name TCallbackName, fn <font color=blue>func</font>(context.Context, Token) error) error
-        + GetCallback(name TCallbackName) (*Callback, error)
+        + AddCallback(kind Kind, name CallbackName, fn <font color=blue>func</font>(context.Context, Token) error) error
+        + GetCallback(name CallbackName) (*Callback, error)
         + GetCallbacks(k Kind) []Callback
-        + RemoveCallback(name TCallbackName) error
+        + RemoveCallback(name CallbackName) error
 
     }
     interface Store  {
         + Put(ctx context.Context, t Token) error
-        + Get(ctx context.Context, hash THash) (Token, error)
-        + Delete(ctx context.Context, hash THash) error
-
-    }
-    class TCallbackName << (S,Aquamarine) >> {
-        + Scan(data <font color=blue>interface</font>{}) error
-        + Value() (driver.Value, error)
-
-    }
-    class THash << (S,Aquamarine) >> {
-        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
-        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
-        + String() string
+        + Get(ctx context.Context, hash Hash) (Token, error)
+        + Delete(ctx context.Context, hash Hash) error
 
     }
     class Token << (S,Aquamarine) >> {
         + Kind Kind
-        + Hash THash
+        + Hash Hash
         + CheckinTotal int32
         + CheckinRemainder int32
         + CreatedAt int64
@@ -756,28 +822,312 @@ namespace token {
         - db *pgx.Conn
 
         + Put(ctx context.Context, t Token) error
-        + Get(ctx context.Context, hash THash) (Token, error)
-        + Delete(ctx context.Context, hash THash) error
+        + Get(ctx context.Context, hash Hash) (Token, error)
+        + Delete(ctx context.Context, hash Hash) error
 
     }
+    class token.CallbackName << (T, #FF7700) >>  {
+    }
+    class token.Hash << (T, #FF7700) >>  {
+    }
     class token.Kind << (T, #FF7700) >>  {
-    }
-    class token.TCallbackName << (T, #FF7700) >>  {
-    }
-    class token.THash << (T, #FF7700) >>  {
     }
 }
 "sync.RWMutex" *-- "token.Manager"
 
 "token.Store" <|-- "token.defaultTokenStore"
 
+"token.Callback" o-- "token.CallbackName"
 "token.Callback" o-- "token.Kind"
-"token.Callback" o-- "token.TCallbackName"
 "token.CallbackError" o-- "token.Kind"
 "token.CallbackError" o-- "token.Token"
 "token.Manager" o-- "context.Context"
+"token.Token" o-- "token.Hash"
 "token.Token" o-- "token.Kind"
-"token.Token" o-- "token.THash"
+
+namespace user {
+    class Container << (S,Aquamarine) >> {
+        + Validate() error
+        + Filter(fn <font color=blue>func</font>(User) bool) Container
+
+    }
+    class Email << (S,Aquamarine) >> {
+        + UserID uuid.UUID
+
+        + Validate() error
+        + ApplyChangelog(changelog diff.Changelog) error
+
+    }
+    class EmailEssential << (S,Aquamarine) >> {
+        + Addr bytearray.ByteString256
+        + IsPrimary bool
+
+    }
+    class EmailMetadata << (S,Aquamarine) >> {
+        - keyHash uint64
+
+        + CreatedAt uint32
+        + ConfirmedAt uint32
+        + UpdatedAt uint32
+
+    }
+    class Essential << (S,Aquamarine) >> {
+        + Username bytearray.ByteString32
+        + DisplayName bytearray.ByteString32
+
+    }
+    class IPAddr << (S,Aquamarine) >> {
+        + EncodeBinary(ci *pgtype.ConnInfo, buf []byte) ([]byte, error)
+        + DecodeBinary(ci *pgtype.ConnInfo, src []byte) error
+        + StringIPv4() string
+
+    }
+    class Manager << (S,Aquamarine) >> {
+        - passwords password.Manager
+        - groups *group.Manager
+        - policies *accesspolicy.Manager
+        - tokens *token.Manager
+        - store Store
+        - logger *zap.Logger
+
+        + CreateEmail(ctx context.Context, fn <font color=blue>func</font>(context.Context) (NewEmailObject, error)) (Email, error)
+        + EmailByAddr(ctx context.Context, addr bytearray.ByteString256) (Email, error)
+        + PrimaryEmailByUserID(ctx context.Context, userID uuid.UUID) (Email, error)
+        + UpdateEmail(ctx context.Context, addr bytearray.ByteString256, fn <font color=blue>func</font>(context.Context, Email) (Email, error)) (Email, diff.Changelog, error)
+        + DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr bytearray.ByteString256) error
+        + ConfirmEmail(ctx context.Context, addr bytearray.ByteString256) error
+        + Validate() error
+        + Store() (Store, error)
+        + SetLogger(logger *zap.Logger) error
+        + Logger() *zap.Logger
+        + SetPasswordManager(pm password.Manager) error
+        + SetGroupManager(gm *group.Manager) error
+        + SetTokenManager(tm *token.Manager) error
+        + SetAccessPolicyManager(apm *accesspolicy.Manager) error
+        + GroupManager() *group.Manager
+        + AccessPolicyManager() *accesspolicy.Manager
+        + TokenManager() *token.Manager
+        + PasswordManager() password.Manager
+        + CreatePhone(ctx context.Context, fn <font color=blue>func</font>(context.Context) (NewPhoneObject, error)) (Phone, error)
+        + PrimaryPhoneByUserID(ctx context.Context, userID uuid.UUID) (Phone, error)
+        + UpdatePhone(ctx context.Context, number bytearray.ByteString16, fn <font color=blue>func</font>(context.Context, Phone) (Phone, error)) (Phone, diff.Changelog, error)
+        + DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number bytearray.ByteString16) (Phone, error)
+        + CreateProfile(ctx context.Context, fn <font color=blue>func</font>(context.Context) (NewProfileObject, error)) (Profile, error)
+        + GetProfileByID(ctx context.Context, id uuid.UUID) (Profile, error)
+        + UpdateProfile(ctx context.Context, id uuid.UUID, fn <font color=blue>func</font>(context.Context, Profile) (Profile, error)) (Profile, diff.Changelog, error)
+        + DeleteProfileByUserID(ctx context.Context, userID uuid.UUID) error
+        + CreateUser(ctx context.Context, fn <font color=blue>func</font>(context.Context) (NewUserObject, error)) (User, error)
+        + BulkCreateUser(ctx context.Context, newUsers []User) ([]User, error)
+        + UserByID(ctx context.Context, id uuid.UUID) (User, error)
+        + UserByUsername(ctx context.Context, username string) (User, error)
+        + UserByEmailAddr(ctx context.Context, addr string) (User, error)
+        + UpdateUser(ctx context.Context, id uuid.UUID, fn <font color=blue>func</font>(context.Context, User) (User, error)) (User, diff.Changelog, error)
+        + DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool) (User, error)
+        + CheckAvailability(ctx context.Context, username string, email string) error
+        + SetPassword(ctx context.Context, userID uuid.UUID, p password.Password) error
+
+    }
+    class Metadata << (S,Aquamarine) >> {
+        + Checksum uint64
+        + CreatedAt uint32
+        + CreatedByID uuid.UUID
+        + UpdatedAt uint32
+        + UpdatedByID uuid.UUID
+        + ConfirmedAt uint32
+        + DeletedAt uint32
+        + DeletedByID uuid.UUID
+        + LastLoginAt uint32
+        + LastLoginIP IPAddr
+        + LastLoginFailedAt uint32
+        + LastLoginFailedIP IPAddr
+        + LastLoginAttempts uint8
+        + IsSuspended bool
+        + SuspendedAt uint32
+        + SuspensionExpiresAt uint32
+        + SuspensionReason bytearray.ByteString128
+
+    }
+    class NewEmailObject << (S,Aquamarine) >> {
+        + UserID uuid.UUID
+        + IsConfirmed bool
+
+    }
+    class NewPhoneObject << (S,Aquamarine) >> {
+        + UserID uuid.UUID
+        + IsConfirmed bool
+
+    }
+    class NewProfileObject << (S,Aquamarine) >> {
+        + UserID uuid.UUID
+
+    }
+    class NewUserObject << (S,Aquamarine) >> {
+        + EmailAddr bytearray.ByteString256
+        + PhoneNumber bytearray.ByteString16
+        + Password []byte
+
+    }
+    interface Object  {
+        + ObjectID() int64
+        + ObjectKind() uint8
+
+    }
+    class Phone << (S,Aquamarine) >> {
+        + UserID uuid.UUID
+
+        + Validate() error
+        + ApplyChangelog(changelog diff.Changelog) error
+
+    }
+    class PhoneEssential << (S,Aquamarine) >> {
+        + Number bytearray.ByteString16
+        + IsPrimary bool
+
+    }
+    class PhoneMetadata << (S,Aquamarine) >> {
+        - keyHash uint64
+
+        + CreatedAt uint32
+        + ConfirmedAt uint32
+        + UpdatedAt uint32
+
+    }
+    class PostgreSQLStore << (S,Aquamarine) >> {
+        - db *pgx.Conn
+
+        - oneEmail(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) (Email, error)
+        - manyEmails(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) ([]Email, error)
+        - onePhone(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) (Phone, error)
+        - manyPhones(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) ([]Phone, error)
+        - fetchUserByQuery(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) (User, error)
+        - fetchUsersByQuery(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) ([]User, error)
+
+        + UpsertEmail(ctx context.Context, e Email) (Email, error)
+        + FetchPrimaryEmailByUserID(ctx context.Context, userID uuid.UUID) (Email, error)
+        + FetchEmailsByUserID(ctx context.Context, userID uuid.UUID) ([]Email, error)
+        + FetchEmailByAddr(ctx context.Context, addr string) (Email, error)
+        + DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr string) error
+        + UpsertPhone(ctx context.Context, e Phone) (Phone, error)
+        + FetchPrimaryPhoneByUserID(ctx context.Context, userID uuid.UUID) (Phone, error)
+        + FetchPhonesByUserID(ctx context.Context, userID uuid.UUID) ([]Phone, error)
+        + FetchPhoneByAddr(ctx context.Context, number string) (Phone, error)
+        + DeletePhoneByAddr(ctx context.Context, userID uuid.UUID, number string) error
+        + UpsertProfile(ctx context.Context, e Phone) (Phone, error)
+        + FetchProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
+        + DeleteProfileByUserID(ctx context.Context, userID uuid.UUID) error
+        + CreateUser(ctx context.Context, u User) (User, error)
+        + BulkCreateUser(ctx context.Context, us []User) ([]User, error)
+        + FetchUserByID(ctx context.Context, id uint32) (User, error)
+        + FetchUserByUsername(ctx context.Context, username string) (User, error)
+        + FetchUserByEmailAddr(ctx context.Context, addr string) (User, error)
+        + FetchUserByPhoneNumber(ctx context.Context, number string) (User, error)
+        + UpdateUser(ctx context.Context, u User, changelog diff.Changelog) (User, error)
+        + DeleteUserByID(ctx context.Context, id uint32) error
+        + DeleteUsersByQuery(ctx context.Context, q string, args ...<font color=blue>interface</font>{}) error
+
+    }
+    class Profile << (S,Aquamarine) >> {
+        + UserID uuid.UUID
+
+        - calculateChecksum() uint64
+
+        + Validate() error
+        + ApplyChangelog(changelog diff.Changelog) error
+
+    }
+    class ProfileEssential << (S,Aquamarine) >> {
+        + Firstname bytearray.ByteString16
+        + Lastname bytearray.ByteString16
+        + Middlename bytearray.ByteString16
+        + Language []byte
+
+    }
+    class ProfileMetadata << (S,Aquamarine) >> {
+        - keyHash uint64
+
+        + Checksum uint64
+        + CreatedAt dbr.NullTime
+        + UpdatedAt dbr.NullTime
+
+    }
+    interface Store  {
+        + UpsertUser(ctx context.Context, u User) (User, error)
+        + FetchUserByID(ctx context.Context, id uuid.UUID) (User, error)
+        + FetchUserByUsername(ctx context.Context, username bytearray.ByteString32) (User, error)
+        + FetchUserByEmailAddr(ctx context.Context, addr bytearray.ByteString256) (User, error)
+        + FetchUserByPhoneNumber(ctx context.Context, number bytearray.ByteString16) (User, error)
+        + DeleteUserByID(ctx context.Context, id uuid.UUID) error
+        + UpsertEmail(ctx context.Context, e Email) (Email, error)
+        + FetchPrimaryEmailByUserID(ctx context.Context, userID uuid.UUID) (Email, error)
+        + FetchEmailByAddr(ctx context.Context, addr bytearray.ByteString256) (Email, error)
+        + FetchEmailsByUserID(ctx context.Context, userID uuid.UUID) ([]Email, error)
+        + DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr bytearray.ByteString256) error
+        + UpsertPhone(ctx context.Context, p Phone) (Phone, error)
+        + FetchPrimaryPhoneByUserID(ctx context.Context, userID uuid.UUID) (Phone, error)
+        + FetchPhoneByNumber(ctx context.Context, number bytearray.ByteString16) (Phone, error)
+        + FetchPhonesByUserID(ctx context.Context, userID uuid.UUID) ([]Phone, error)
+        + DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number bytearray.ByteString16) error
+        + UpsertProfile(ctx context.Context, p Profile) (Profile, error)
+        + FetchProfileByUserID(ctx context.Context, userID uuid.UUID) (Profile, error)
+        + DeleteProfileByUserID(ctx context.Context, userID uuid.UUID) error
+
+    }
+    class Team << (S,Aquamarine) >> {
+    }
+    class User << (S,Aquamarine) >> {
+        - keyHash uint64
+
+        + ID uuid.UUID
+        + ULID ulid.ULID
+
+        - calculateChecksum() uint64
+
+        + ApplyChangelog(changelog diff.Changelog) error
+        + StringID() string
+        + Validate() error
+
+    }
+    class user.Container << (T, #FF7700) >>  {
+    }
+    class user.ContextKey << (T, #FF7700) >>  {
+    }
+    class user.IPAddr << (T, #FF7700) >>  {
+    }
+}
+"user.EmailEssential" *-- "user.Email"
+"user.EmailMetadata" *-- "user.Email"
+"sync.RWMutex" *-- "user.Manager"
+"user.EmailEssential" *-- "user.NewEmailObject"
+"user.PhoneEssential" *-- "user.NewPhoneObject"
+"user.ProfileEssential" *-- "user.NewProfileObject"
+"user.Essential" *-- "user.NewUserObject"
+"user.ProfileEssential" *-- "user.NewUserObject"
+"user.PhoneEssential" *-- "user.Phone"
+"user.PhoneMetadata" *-- "user.Phone"
+"user.ProfileEssential" *-- "user.Profile"
+"user.ProfileMetadata" *-- "user.Profile"
+"user.Essential" *-- "user.User"
+"user.Metadata" *-- "user.User"
+
+
+"user.Email" o-- "uuid.UUID"
+"user.EmailEssential" o-- "bytearray.ByteString256"
+"user.Essential" o-- "bytearray.ByteString32"
+"user.Metadata" o-- "bytearray.ByteString128"
+"user.Metadata" o-- "user.IPAddr"
+"user.Metadata" o-- "uuid.UUID"
+"user.NewEmailObject" o-- "uuid.UUID"
+"user.NewPhoneObject" o-- "uuid.UUID"
+"user.NewProfileObject" o-- "uuid.UUID"
+"user.NewUserObject" o-- "bytearray.ByteString16"
+"user.NewUserObject" o-- "bytearray.ByteString256"
+"user.Phone" o-- "uuid.UUID"
+"user.PhoneEssential" o-- "bytearray.ByteString16"
+"user.Profile" o-- "uuid.UUID"
+"user.ProfileEssential" o-- "bytearray.ByteString16"
+"user.ProfileMetadata" o-- "dbr.NullTime"
+"user.User" o-- "ulid.ULID"
+"user.User" o-- "uuid.UUID"
 
 namespace util {
     class HTTPError << (S,Aquamarine) >> {
@@ -798,12 +1148,20 @@ namespace util {
 
 
 "__builtin__.[]byte" #.. "accesspolicy.TKey"
+"__builtin__.[]byte" #.. "bytearray.ByteString128"
+"__builtin__.[]byte" #.. "bytearray.ByteString16"
+"__builtin__.[]byte" #.. "bytearray.ByteString256"
+"__builtin__.[]byte" #.. "bytearray.ByteString32"
+"__builtin__.[]byte" #.. "bytearray.ByteString512"
+"__builtin__.[]byte" #.. "bytearray.ByteString64"
 "__builtin__.[]byte" #.. "endpoints.TName"
 "__builtin__.[]byte" #.. "group.TKey"
-"__builtin__.[]byte" #.. "token.TCallbackName"
-"__builtin__.[]byte" #.. "token.THash"
+"__builtin__.[]byte" #.. "token.CallbackName"
+"__builtin__.[]byte" #.. "token.Hash"
+"__builtin__.[]byte" #.. "user.IPAddr"
 "__builtin__.int" #.. "endpoints.ContextKey"
 "__builtin__.uint16" #.. "token.Kind"
+"__builtin__.uint16" #.. "user.ContextKey"
 "__builtin__.uint32" #.. "accesspolicy.Right"
 "__builtin__.uint8" #.. "accesspolicy.ActorKind"
 "__builtin__.uint8" #.. "accesspolicy.RAction"
@@ -817,4 +1175,5 @@ namespace util {
 "group.[]Group" #.. "group.List"
 "task.<font color=blue>func</font>() (<font color=blue>chan</font> Status, error)" #.. "task.Process"
 "task.[]Task" #.. "task.Queue"
+"user.[]User" #.. "user.Container"
 @enduml

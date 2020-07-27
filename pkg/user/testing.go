@@ -10,6 +10,8 @@ import (
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 )
 
@@ -133,7 +135,7 @@ func ManagerForTesting(db *pgx.Conn) (*Manager, context.Context, error) {
 	return um, ctx, nil
 }
 
-func CreateTestUser(ctx context.Context, m *Manager, username string, email string, pass []byte) (User, error) {
+func CreateTestUser(ctx context.Context, m *Manager, username bytearray.ByteString32, email bytearray.ByteString256, pass []byte) (User, error) {
 	if flag.Lookup("test.v") == nil {
 		log.Fatal("can only be called during testing")
 	}
@@ -146,16 +148,16 @@ func CreateTestUser(ctx context.Context, m *Manager, username string, email stri
 		userObject = NewUserObject{
 			Essential: Essential{
 				Username:    username,
-				DisplayName: util.NewULID().String(),
+				DisplayName: bytearray.NewByteString32(uuid.New().String()),
 			},
 			ProfileEssential: ProfileEssential{
-				Firstname:  "John",
-				Lastname:   "Smith",
-				Middlename: "Jack",
-				Language:   "EN",
+				Firstname:  bytearray.NewByteString16("John"),
+				Lastname:   bytearray.NewByteString16("Smith"),
+				Middlename: bytearray.NewByteString16("Jack"),
+				Language:   [2]byte{'E', 'N'},
 			},
 			EmailAddr:   email,
-			PhoneNumber: util.NewULID().String()[15:26],
+			PhoneNumber: bytearray.NewByteString16(uuid.New().String()[:15]),
 			Password:    pass,
 		}
 

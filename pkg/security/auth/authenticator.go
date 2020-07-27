@@ -20,7 +20,7 @@ import (
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gofrs/uuid"
+	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
@@ -62,7 +62,7 @@ const (
 
 // Claims holds required JWT claims
 type Claims struct {
-	UserID uint32       `json:"uid"`
+	UserID uuid.UUID    `json:"uid"`
 	Roles  []group.TKey `json:"rs,omitempty"`
 	Groups []group.TKey `json:"gs,omitempty"`
 
@@ -332,8 +332,8 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 
 	// obtaining logger
 	l := a.Logger().With(
-		zap.Uint32("user_id", u.ID),
-		zap.String("username", u.Username),
+		zap.String("user_id", u.ID.String()),
+		zap.String("username", u.Username.String()),
 		zap.String("ip", ri.IP.String()),
 		zap.String("user_agent", ri.UserAgent),
 	)
@@ -342,8 +342,8 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 	if u.IsSuspended {
 		l.Info(
 			"suspended user signin attempt",
-			zap.Time("suspended_at", u.SuspendedAt.Time),
-			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time),
+			zap.Time("suspended_at", util.TimeFromU32Unix(u.SuspendedAt)),
+			zap.Time("suspension_expires_at", util.TimeFromU32Unix(u.SuspensionExpiresAt)),
 		)
 
 		return u, ErrUserSuspended
@@ -508,8 +508,9 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32
 }
 
 // GenerateAccessToken generates accesspolicy token for a given user
+// TODO: add dynamic token realm
 func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (string, string, error) {
-	if u.ID == 0 {
+	if u.ID == uuid.Nil {
 		return "", "", user.ErrNilUser
 	}
 

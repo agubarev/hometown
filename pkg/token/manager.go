@@ -36,10 +36,10 @@ const Length = 32
 // DefaultTTL defines the default token longevity duration from the moment of its creation
 const DefaultTTL = 1 * time.Hour
 
-// THash represents a token hash
-type THash [Length]byte
+// Hash represents a token hash
+type Hash [Length]byte
 
-func NewHash() (h THash) {
+func NewHash() (h Hash) {
 	// generating token hash
 	_, err := rand.Read(h[:])
 	if err != nil {
@@ -49,7 +49,7 @@ func NewHash() (h THash) {
 	return h
 }
 
-func (h THash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+func (h Hash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
 	zpos := bytes.IndexByte(h[:], byte(0))
 	if zpos == -1 {
 		return append(buf, h[:]...), nil
@@ -58,28 +58,28 @@ func (h THash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err
 	return append(buf, h[0:zpos]...), nil
 }
 
-func (h THash) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func (h Hash) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	copy(h[:], src)
 	return nil
 }
 
-func (h THash) String() string {
+func (h Hash) String() string {
 	return hex.EncodeToString(h[:])
 }
 
-type TCallbackName [32]byte
+type CallbackName [32]byte
 
-func CallbackName(s string) (name TCallbackName) {
+func NewCallbackName(s string) (name CallbackName) {
 	copy(name[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
 	return name
 }
 
-func (name TCallbackName) Scan(data interface{}) error {
+func (name CallbackName) Scan(data interface{}) error {
 	copy(name[:], data.([]byte))
 	return nil
 }
 
-func (name TCallbackName) Value() (driver.Value, error) {
+func (name CallbackName) Value() (driver.Value, error) {
 	if name[0] == 0 {
 		return "", nil
 	}
@@ -119,7 +119,7 @@ const (
 	TAll = ^Kind(0)
 )
 
-// THash represents a general-purpose token
+// Hash represents a general-purpose token
 // NOTE: the token will expire after certain conditions are met
 // i.e. after specific time or a set number of checkins
 // TODO add complexity variations for different use cases, i.e. SMS code should be short
@@ -128,7 +128,7 @@ type Token struct {
 	Kind Kind `db:"kind" json:"kind"`
 
 	// token string id
-	Hash THash `db:"hash" json:"hash"`
+	Hash Hash `db:"hash" json:"hash"`
 
 	// holds the initial checkin threshold number
 	CheckinTotal int32 `db:"checkin_total" json:"checkin_total"`
@@ -203,7 +203,7 @@ type Manager struct {
 	// base context for the token callback call chain
 	BaseContext context.Context
 
-	tokens    map[THash]Token
+	tokens    map[Hash]Token
 	store     Store
 	callbacks []Callback
 	errorChan chan CallbackError
@@ -213,7 +213,7 @@ type Manager struct {
 
 // Callback is a function metadata
 type Callback struct {
-	Name     TCallbackName
+	Name     CallbackName
 	Kind     Kind
 	Function func(ctx context.Context, t Token) error
 }
@@ -233,7 +233,7 @@ func NewManager(s Store) (*Manager, error) {
 
 	c := &Manager{
 		BaseContext: context.Background(),
-		tokens:      make(map[THash]Token),
+		tokens:      make(map[Hash]Token),
 		store:       s,
 		callbacks:   make([]Callback, 0),
 		errorChan:   make(chan CallbackError, 100),
@@ -352,7 +352,7 @@ func (m *Manager) Create(ctx context.Context, k Kind, ttl time.Duration, checkin
 }
 
 // Get obtains a token from the container or returns ErrTokenNotFound
-func (m *Manager) Get(ctx context.Context, hash THash) (t Token, err error) {
+func (m *Manager) Get(ctx context.Context, hash Hash) (t Token, err error) {
 	// checking map cache first
 	m.RLock()
 	t, ok := m.tokens[hash]
@@ -393,7 +393,7 @@ func (m *Manager) Delete(ctx context.Context, t Token) error {
 }
 
 // Checkin check in token for processing
-func (m *Manager) Checkin(ctx context.Context, hash THash) error {
+func (m *Manager) Checkin(ctx context.Context, hash Hash) error {
 	t, err := m.Get(context.Background(), hash)
 	if err != nil {
 		return err
@@ -463,7 +463,7 @@ func (m *Manager) Cleanup(ctx context.Context) (err error) {
 }
 
 // AddCallback adds callback function to container's callstack to be called upon token checkins
-func (m *Manager) AddCallback(kind Kind, name TCallbackName, fn func(ctx context.Context, t Token) error) error {
+func (m *Manager) AddCallback(kind Kind, name CallbackName, fn func(ctx context.Context, t Token) error) error {
 	// trimming and flattening case
 	copy(name[:], bytes.ToLower(bytes.TrimSpace(name[:])))
 
@@ -488,7 +488,7 @@ func (m *Manager) AddCallback(kind Kind, name TCallbackName, fn func(ctx context
 }
 
 // GetCallback returns a named callback if it exists
-func (m *Manager) GetCallback(name TCallbackName) (*Callback, error) {
+func (m *Manager) GetCallback(name CallbackName) (*Callback, error) {
 	// just looping over the slice
 	for _, cb := range m.callbacks {
 		if cb.Name == name {
@@ -513,7 +513,7 @@ func (m *Manager) GetCallbacks(k Kind) []Callback {
 }
 
 // RemoveCallback removes token callback by ObjectID, returns ErrTokenCallbackNotfound
-func (m *Manager) RemoveCallback(name TCallbackName) error {
+func (m *Manager) RemoveCallback(name CallbackName) error {
 	m.Lock()
 	defer m.Unlock()
 

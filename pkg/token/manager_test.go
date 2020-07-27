@@ -106,7 +106,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NotZero(tok.ExpireAt)
 	a.Equal(tok.CheckinRemainder, int32(1))
 
-	callbackName := token.CallbackName("test callback name")
+	callbackName := token.NewCallbackName("test callback name")
 
 	// registering a proper callback
 	flagSwitch := false
@@ -225,8 +225,8 @@ func TestTokenContainerAddCallback(t *testing.T) {
 	a.NotZero(tok.ExpireAt)
 	a.Equal(tok.CheckinRemainder, int32(1))
 
-	validName := token.CallbackName("test callback name")
-	wrongName := token.CallbackName("wrong callback name")
+	validName := token.NewCallbackName("test callback name")
+	wrongName := token.NewCallbackName("wrong callback name")
 
 	// registering a proper callback
 	err = c.AddCallback(tok.Kind, validName, func(ctx context.Context, t token.Token) error {
@@ -279,7 +279,7 @@ func TestTokenContainerRemoveCallback(t *testing.T) {
 	a.NotZero(tok.ExpireAt)
 	a.Equal(tok.CheckinRemainder, int32(1))
 
-	callbackName := token.CallbackName("test callback name")
+	callbackName := token.NewCallbackName("test callback name")
 
 	// registering callback
 	err = c.AddCallback(tok.Kind, callbackName, func(ctx context.Context, t token.Token) error {

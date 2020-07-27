@@ -3,7 +3,8 @@ package password
 import (
 	"time"
 
-	"github.com/gocraft/dbr/v2"
+	"github.com/agubarev/hometown/pkg/util"
+	"github.com/google/uuid"
 	zxcvbn "github.com/nbutton23/zxcvbn-go"
 	"golang.org/x/crypto/bcrypt"
 )
@@ -16,14 +17,15 @@ const (
 )
 
 // Password object
+// TODO: use byte array instead of slice for password hash
 type Password struct {
-	Kind             Kind         `db:"kind" json:"-"`
-	OwnerID          uint32       `db:"owner_id" json:"-"`
-	Hash             []byte       `db:"hash" json:"-"`
-	CreatedAt        dbr.NullTime `db:"created_at" json:"-"`
-	UpdatedAt        dbr.NullTime `db:"updated_at" json:"-"`
-	ExpireAt         dbr.NullTime `db:"expire_at" json:"-"`
-	IsChangeRequired bool         `db:"is_change_required" json:"-"`
+	Kind             Kind      `db:"kind" json:"-"`
+	OwnerID          uuid.UUID `db:"owner_id" json:"-"`
+	Hash             []byte    `db:"hash" json:"-"`
+	CreatedAt        uint32    `db:"created_at" json:"-"`
+	UpdatedAt        uint32    `db:"updated_at" json:"-"`
+	ExpireAt         uint32    `db:"expire_at" json:"-"`
+	IsChangeRequired bool      `db:"is_change_required" json:"-"`
 }
 
 // SanitizeAndValidate validates password
@@ -32,7 +34,7 @@ func (p Password) Validate() error {
 		return ErrZeroKind
 	}
 
-	if p.OwnerID == 0 {
+	if p.OwnerID == uuid.Nil {
 		return ErrNilOwnerID
 	}
 
@@ -66,7 +68,7 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 }
 
 // New creates a hash from a given raw password byte slice
-func New(k Kind, ownerID uint32, rawpass []byte, data []string) (p Password, err error) {
+func New(k Kind, ownerID uuid.UUID, rawpass []byte, data []string) (p Password, err error) {
 	if err = EvaluatePasswordStrength(rawpass, data); err != nil {
 		return p, err
 	}
@@ -80,8 +82,8 @@ func New(k Kind, ownerID uint32, rawpass []byte, data []string) (p Password, err
 		Kind:      k,
 		OwnerID:   ownerID,
 		Hash:      h,
-		CreatedAt: dbr.NewNullTime(time.Now()),
-		ExpireAt:  dbr.NewNullTime(time.Now().Add(defaultTTL)),
+		CreatedAt: util.NowUnixU32(),
+		ExpireAt:  uint32(time.Now().Add(defaultTTL).Unix()),
 	}
 
 	return p, nil

@@ -15,7 +15,7 @@ func NewStore(db *dbr.Connection) (Store, error) {
 }
 
 // UpdatePolicy puts token into a store
-func (s *tokenStore) Put(ctx context.Context, t *THash) error {
+func (s *tokenStore) Put(ctx context.Context, t *Hash) error {
 	if t == nil {
 		return ErrEmptyTokenHash
 	}
@@ -34,8 +34,8 @@ func (s *tokenStore) Put(ctx context.Context, t *THash) error {
 }
 
 // Get retrieves token from a store
-func (s *tokenStore) Get(ctx context.Context, token string) (*THash, error) {
-	t := new(THash)
+func (s *tokenStore) Get(ctx context.Context, token string) (*Hash, error) {
+	t := new(Hash)
 
 	err := s.db.NewSession(nil).
 		SelectBySql("SELECT * FROM token WHERE token = ? LIMIT 1", token).

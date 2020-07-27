@@ -1,10 +1,11 @@
-pemail[:]ackage user
+package user
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
 
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/google/uuid"
@@ -14,20 +15,8 @@ import (
 	"github.com/r3labs/diff"
 )
 
-//---------------------------------------------------------------------------
 // IPAddr is a 16 byte is an amortized size to accommodate both IPv4 and IPv6
-//---------------------------------------------------------------------------
 type IPAddr [16]byte
-
-func (addr IPAddr) StringIPv4() string {
-	return fmt.Sprintf(
-		"%x.%x.%x.%x",
-		addr[0],
-		addr[1],
-		addr[2],
-		addr[3],
-	)
-}
 
 func (addr IPAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
 	zpos := bytes.IndexByte(addr[:], byte(0))
@@ -43,63 +32,29 @@ func (addr IPAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	return nil
 }
 
-//---------------------------------------------------------------------------
-// email address
-//---------------------------------------------------------------------------
-type TEmailAddr [256]byte
-
-func (email TEmailAddr) String() string {
-	if email[0] == 0 {
-		return ""
-	}
-
-	// finding position of zero
-	zeroPos := bytes.IndexByte(email[:], byte(0))
-	if zeroPos == -1 {
-		return string(email[:])
-	}
-
-	return string(email[0:zeroPos])
+func (addr IPAddr) StringIPv4() string {
+	return fmt.Sprintf(
+		"%x.%x.%x.%x",
+		addr[0],
+		addr[1],
+		addr[2],
+		addr[3],
+	)
 }
-
-func (email TEmailAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
-	zpos := bytes.IndexByte(email[:], byte(0))
-	if zpos == -1 {
-		return append(buf, email[:]...), nil
-	}
-
-	return append(buf, email[0:zpos]...), nil
-}
-
-func (email TEmailAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
-	copy(email[:], src)
-	return nil
-}
-
-//---------------------------------------------------------------------------
-// phone number
-//---------------------------------------------------------------------------
-type TPhoneNumber [16]byte
-
-type TUsername [32]byte
-
-type TDisplayName [32]byte
-
-type TSuspensionReason [64]byte
 
 // UserNewObject contains fields sufficient to create a new object
 type NewUserObject struct {
 	Essential
 	ProfileEssential
-	EmailAddr   TEmailAddr   `json:"email_addr"`
-	PhoneNumber TPhoneNumber `json:"phone_number"`
-	Password    []byte       `json:"password"`
+	EmailAddr   bytearray.ByteString256 `json:"email_addr"`
+	PhoneNumber bytearray.ByteString16  `json:"phone_number"`
+	Password    []byte                  `json:"password"`
 }
 
 // Essential represents an essential part of the primary object
 type Essential struct {
-	Username    TUsername    `db:"username" json:"username"`
-	DisplayName TDisplayName `db:"display_name" json:"display_name"`
+	Username    bytearray.ByteString32 `db:"username" json:"username"`
+	DisplayName bytearray.ByteString32 `db:"display_name" json:"display_name"`
 }
 
 // TODO: solve net.IPAddr field problem
@@ -123,10 +78,10 @@ type Metadata struct {
 	LastLoginAttempts uint8  `db:"last_login_attempts" json:"last_login_attempts"`
 
 	// account suspension
-	IsSuspended         bool              `db:"is_suspended" json:"is_suspended"`
-	SuspendedAt         uint32            `db:"suspended_at" json:"suspended_at"`
-	SuspensionExpiresAt uint32            `db:"suspension_expires_at" json:"suspension_expires_at"`
-	SuspensionReason    TSuspensionReason `db:"suspension_reason" json:"suspension_reason"`
+	IsSuspended         bool                    `db:"is_suspended" json:"is_suspended"`
+	SuspendedAt         uint32                  `db:"suspended_at" json:"suspended_at"`
+	SuspensionExpiresAt uint32                  `db:"suspension_expires_at" json:"suspension_expires_at"`
+	SuspensionReason    bytearray.ByteString128 `db:"suspension_reason" json:"suspension_reason"`
 }
 
 // User represents certain users which are custom
@@ -145,12 +100,12 @@ func (u *User) calculateChecksum() uint64 {
 	buf := new(bytes.Buffer)
 
 	fields := []interface{}{
-		[]byte(u.Username),
-		[]byte(u.DisplayName),
+		u.Username,
+		u.DisplayName,
 		u.IsSuspended,
 		u.SuspendedAt,
 		u.SuspensionExpiresAt,
-		[]byte(u.SuspensionReason),
+		u.SuspensionReason,
 	}
 
 	for _, field := range fields {
@@ -176,9 +131,9 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "Username":
-			u.Username = change.To.(TUsername)
+			u.Username = change.To.(bytearray.ByteString32)
 		case "DisplayName":
-			u.DisplayName = change.To.(TDisplayName)
+			u.DisplayName = change.To.(bytearray.ByteString32)
 		case "LastLoginAt":
 			u.LastLoginAt = change.To.(uint32)
 		case "LastLoginIP":

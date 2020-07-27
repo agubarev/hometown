@@ -1,14 +1,9 @@
 package user
 
 import (
-	"bytes"
-	"encoding/binary"
-	"time"
-
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/asaskevich/govalidator"
-	"github.com/cespare/xxhash"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
 
@@ -21,15 +16,15 @@ type NewEmailObject struct {
 
 // EmailEssential represents an essential part of the primary object
 type EmailEssential struct {
-	Addr      string `db:"addr" json:"addr"`
-	IsPrimary bool   `db:"is_primary" json:"is_primary"`
+	Addr      bytearray.ByteString256 `db:"addr" json:"addr"`
+	IsPrimary bool                    `db:"is_primary" json:"is_primary"`
 }
 
 // EmailMetadata contains generic metadata of the primary object
 type EmailMetadata struct {
-	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
-	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	CreatedAt   uint32 `db:"created_at" json:"created_at"`
+	ConfirmedAt uint32 `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   uint32 `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -43,42 +38,10 @@ type Email struct {
 	EmailMetadata
 }
 
-func (email *Email) hashKey() {
-	// panic if ObjectID is zero or a name is empty
-	if email.UserID == uuid.Nil || email.Addr == "" {
-		panic(ErrInsufficientDataToHashKey)
-	}
-
-	// initializing a key buffer with and assuming the minimum key length
-	key := bytes.NewBuffer(make([]byte, 0, len("email")+len(email.Addr)+8))
-
-	// composing a key value
-	key.WriteString("email")
-	key.WriteString(email.Addr)
-
-	// adding user ObjectID to the key
-	if err := binary.Write(key, binary.LittleEndian, email.UserID); err != nil {
-		panic(errors.Wrap(err, "failed to hash email key"))
-	}
-
-	// updating recalculated key
-	email.keyHash = xxhash.Sum64(key.Bytes())
-}
-
 // SanitizeAndValidate validates the object
 func (email Email) Validate() (err error) {
 	_, err = govalidator.ValidateStruct(email)
 	return nil
-}
-
-// Key returns a uint64 key hash to be used as a map/cache key
-func (email Email) Key(rehash bool) uint64 {
-	// returning a cached key if it's set
-	if email.keyHash == 0 || rehash {
-		email.hashKey()
-	}
-
-	return email.keyHash
 }
 
 // ApplyChangelog applies changes described by a diff.Diff()'s changelog
@@ -94,13 +57,13 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "UserID":
 			email.UserID = change.To.(uuid.UUID)
 		case "Addr":
-			email.Addr = change.To.(string)
+			email.Addr = change.To.(bytearray.ByteString256)
 		case "CreatedAt":
-			email.CreatedAt = change.To.(time.Time)
+			email.CreatedAt = change.To.(uint32)
 		case "ConfirmedAt":
-			email.ConfirmedAt = change.To.(time.Time)
+			email.ConfirmedAt = change.To.(uint32)
 		case "UpdatedAt":
-			email.UpdatedAt = change.To.(time.Time)
+			email.UpdatedAt = change.To.(uint32)
 		}
 	}
 

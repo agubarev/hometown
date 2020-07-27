@@ -20,7 +20,7 @@ func NewPostgreSQLStore(db *pgx.Conn) (Store, error) {
 // Upsert stores password
 // ObjectID must be equal to the user's ObjectID
 func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
-	if p.OwnerID == 0 {
+	if p.OwnerID == uuid.Nil {
 		return ErrNilOwnerID
 	}
 
