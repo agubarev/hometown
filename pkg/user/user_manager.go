@@ -3,12 +3,10 @@ package user
 import (
 	"bytes"
 	"context"
-	"strings"
-	"time"
 
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/gocraft/dbr/v2"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -60,7 +58,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	//---------------------------------------------------------------------------
 	// initializing new user
 	u = User{
-		ULID:      util.NewULID(),
+		ID:        uuid.New(),
 		Essential: newUser.Essential,
 		Metadata: Metadata{
 			CreatedAt: util.NowUnixU32(),
@@ -234,46 +232,17 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 
 	m.Logger().Debug(
 		"created new user",
-		zap.String("id", u.ID),
-		zap.String("username", u.Username),
-		zap.String("email", newUser.EmailAddr),
+		zap.String("id", u.ID.String()),
+		zap.String("username", u.Username.String()),
+		zap.String("email", newUser.EmailAddr.String()),
 	)
 
 	return u, nil
 }
 
-// BulkCreateUser creates multiple new user
-func (m *Manager) BulkCreateUser(ctx context.Context, newUsers []User) (us []User, err error) {
-	// obtaining store
-	store, err := m.Store()
-	if err != nil {
-		return nil, err
-	}
-
-	// validating each user
-	for _, u := range newUsers {
-		if err = u.Validate(); err != nil {
-			return nil, errors.Wrap(err, "failed to validate user before bulk creation")
-		}
-	}
-
-	// saving to the store
-	us, err = store.BulkCreateUser(ctx, newUsers)
-	if err != nil {
-		return nil, err
-	}
-
-	zap.L().Debug(
-		"created a batch of users",
-		zap.Int("count", len(us)),
-	)
-
-	return us, nil
-}
-
 // UserByID returns a user if found by ObjectID
 func (m *Manager) UserByID(ctx context.Context, id uuid.UUID) (u User, err error) {
-	if id == 0 {
+	if id == uuid.Nil {
 		return u, ErrUserNotFound
 	}
 
@@ -286,10 +255,11 @@ func (m *Manager) UserByID(ctx context.Context, id uuid.UUID) (u User, err error
 }
 
 // UserByUsername returns a user if found by username
-func (m *Manager) UserByUsername(ctx context.Context, username string) (u User, err error) {
-	username = strings.ToLower(strings.TrimSpace(username))
+func (m *Manager) UserByUsername(ctx context.Context, username bytearray.ByteString32) (u User, err error) {
+	username.Trim()
+	username.ToLower()
 
-	if username == "" {
+	if username[0] == 0 {
 		return u, ErrUserNotFound
 	}
 
@@ -302,10 +272,11 @@ func (m *Manager) UserByUsername(ctx context.Context, username string) (u User, 
 }
 
 // UserByEmailAddr returns a user if found by username
-func (m *Manager) UserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
-	addr = strings.ToLower(strings.TrimSpace(addr))
+func (m *Manager) UserByEmailAddr(ctx context.Context, addr bytearray.ByteString256) (u User, err error) {
+	addr.Trim()
+	addr.ToLower()
 
-	if addr == "" {
+	if addr[0] == 0 {
 		return u, ErrUserNotFound
 	}
 
@@ -341,22 +312,24 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = dbr.NewNullTime(time.Now())
+	updated.UpdatedAt = util.NowUnixU32()
 
-	// acquiring changelog of essential changes
-	essentialChangelog, err = diff.Diff(u.Essential, updated.Essential)
-	if err != nil {
-		return u, nil, errors.Wrap(err, "failed to diff essential changes")
-	}
+	/*
+		// acquiring changelog of essential changes
+		essentialChangelog, err = diff.Diff(u.Essential, updated.Essential)
+		if err != nil {
+			return u, nil, errors.Wrap(err, "failed to diff essential changes")
+		}
 
-	// acquiring total changelog
-	changelog, err := diff.Diff(u, updated)
-	if err != nil {
-		return u, nil, errors.Wrap(err, "failed to diff total changes")
-	}
+		// acquiring total changelog
+		changelog, err := diff.Diff(u, updated)
+		if err != nil {
+			return u, nil, errors.Wrap(err, "failed to diff total changes")
+		}
+	*/
 
 	// persisting to the store as a final step
-	u, err = store.UpsertUser(ctx, u, changelog)
+	u, err = store.UpsertUser(ctx, u)
 	if err != nil {
 		return u, essentialChangelog, err
 	}
@@ -364,7 +337,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	m.Logger().Debug(
 		"updated user",
 		zap.String("id", u.ID.String()),
-		zap.String("username", u.Username),
+		zap.String("username", u.Username.String()),
 	)
 
 	return u, essentialChangelog, nil
@@ -404,7 +377,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 
 	// updating to mark this object as deleted
 	u, _, err = m.UpdateUser(ctx, id, func(ctx context.Context, u User) (_ User, err error) {
-		u.DeletedAt = dbr.NewNullTime(time.Now())
+		u.DeletedAt = util.NowUnixU32()
 
 		return u, nil
 	})
@@ -413,7 +386,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 }
 
 // CheckAvailability tests whether someone with such username or email is already registered
-func (m *Manager) CheckAvailability(ctx context.Context, username string, email string) error {
+func (m *Manager) CheckAvailability(ctx context.Context, username bytearray.ByteString32, email bytearray.ByteString256) error {
 	store, err := m.Store()
 	if err != nil {
 		return err

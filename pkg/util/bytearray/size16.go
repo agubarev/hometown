@@ -8,6 +8,8 @@ import (
 
 type ByteString16 [16]byte
 
+var NilByteString16 = ByteString16{}
+
 func NewByteString16(s string) (bs ByteString16) {
 	copy(bs[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
 	return bs
@@ -26,15 +28,19 @@ func (bs ByteString16) String() string {
 	return string(bs[0:zeroPos])
 }
 
-func (bs ByteString16) Trim() {
+func (bs *ByteString16) Trim() {
 	copy(bs[:], bytes.TrimSpace(bs[:]))
 }
 
-func (bs ByteString16) ToLower() {
+func (bs *ByteString16) ToLower() {
 	copy(bs[:], bytes.ToLower(bs[:]))
 }
 
 func (bs ByteString16) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	if bs[0] == 0 {
+		return nil, nil
+	}
+
 	zpos := bytes.IndexByte(bs[:], byte(0))
 	if zpos == -1 {
 		return append(buf, bs[:]...), nil
@@ -43,7 +49,7 @@ func (bs ByteString16) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []b
 	return append(buf, bs[0:zpos]...), nil
 }
 
-func (bs ByteString16) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func (bs *ByteString16) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	copy(bs[:], src)
 	return nil
 }

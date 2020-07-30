@@ -19,6 +19,7 @@ import (
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -75,31 +76,31 @@ type Claims struct {
 // WARNING: session object must never be shared with the client,
 // because it contains the refresh token
 type Session struct {
-	Token         string    `json:"t,omitempty"`
-	UserID        uint32    `json:"uid,omitempty"`
-	IP            string    `json:"ip,omitempty"`
-	UserAgent     string    `json:"ua,omitempty"`
-	AccessTokenID string    `json:"jti,omitempty"`
-	RefreshToken  string    `json:"rtok,omitempty"`
-	ExpireAt      time.Time `json:"eat,omitempty"`
-	CreatedAt     time.Time `json:"cat,omitempty"`
+	UserAgent     bytearray.ByteString64 `json:"ua,omitempty"`
+	UserID        uuid.UUID              `json:"uid,omitempty"`
+	IP            user.IPAddr            `json:"ip,omitempty"`
+	AccessTokenID bytearray.ByteString32 `json:"jti,omitempty"`
+	RefreshToken  bytearray.ByteString32 `json:"rtok,omitempty"`
+	Token         token.Hash             `json:"t,omitempty"`
+	CreatedAt     uint32                 `json:"cat,omitempty"`
+	ExpireAt      uint32                 `json:"eat,omitempty"`
 }
 
 // SanitizeAndValidate validates the session
 func (s *Session) Validate() error {
-	if s.Token == "" {
-		return errors.New("empty token")
+	if s.Token[0] == 0 {
+		return errors.New("empty token hash")
 	}
 
-	if s.UserID == 0 {
+	if s.UserID == uuid.Nil {
 		return errors.New("user id not set")
 	}
 
-	if s.ExpireAt.IsZero() {
-		return errors.New("expiration time not set")
+	if s.ExpireAt == 0 {
+		return errors.New("expiration time is not set")
 	}
 
-	if s.ExpireAt.Before(time.Now()) {
+	if s.ExpireAt < util.NowUnixU32() {
 		return ErrTokenExpired
 	}
 

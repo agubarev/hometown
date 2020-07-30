@@ -6,6 +6,7 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -27,8 +28,8 @@ func TestPostgreSQLStore_UpsertGroup(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.Key("test_key"),
-		DisplayName: group.Name("test name"),
+		Key:         bytearray.NewByteString32("test_key"),
+		DisplayName: bytearray.NewByteString128("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -53,8 +54,8 @@ func TestPostgreSQLStore_FetchGroupByID(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.Key("test_key"),
-		DisplayName: group.Name("test name"),
+		Key:         bytearray.NewByteString32("test_key"),
+		DisplayName: bytearray.NewByteString128("test name"),
 	}
 
 	g, err = s.UpsertGroup(ctx, g)
@@ -87,24 +88,24 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.Key("test_key"),
-		DisplayName: group.Name("test name"),
+		Key:         bytearray.NewByteString32("test_key"),
+		DisplayName: bytearray.NewByteString128("test name"),
 	}
 
 	g2 := group.Group{
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FRole,
-		Key:         group.Key("test_role"),
-		DisplayName: group.Name("test role"),
+		Key:         bytearray.NewByteString32("test_role"),
+		DisplayName: bytearray.NewByteString128("test role"),
 	}
 
 	g3 := group.Group{
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.Key("test_group123"),
-		DisplayName: group.Name("test group 123"),
+		Key:         bytearray.NewByteString32("test_group123"),
+		DisplayName: bytearray.NewByteString128("test group 123"),
 	}
 
 	g1, err = s.UpsertGroup(ctx, g1)
@@ -153,8 +154,8 @@ func TestPostgreSQLStore_DeleteByID(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.Key("test_group"),
-		DisplayName: group.Name("test group"),
+		Key:         bytearray.NewByteString32("test_group"),
+		DisplayName: bytearray.NewByteString128("test group"),
 	}
 
 	// creating test group
@@ -190,8 +191,8 @@ func TestPostgreSQLStore_DeleteRelation(t *testing.T) {
 		ID:          uuid.New(),
 		ParentID:    uuid.Nil,
 		Flags:       group.FGroup,
-		Key:         group.Key("test_group"),
-		DisplayName: group.Name("test group"),
+		Key:         bytearray.NewByteString32("test_group"),
+		DisplayName: bytearray.NewByteString128("test group"),
 	}
 
 	// creating test group

@@ -21,12 +21,6 @@ const (
 	CKAccessPolicyManager
 )
 
-// Asset represents a group asset contract
-type Object interface {
-	ObjectID() int64
-	ObjectKind() uint8
-}
-
 // userManager handles business logic of its underlying objects
 // TODO: consider naming first release `Lidia`
 type Manager struct {

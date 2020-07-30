@@ -3,6 +3,7 @@ package user
 import (
 	"context"
 
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -111,7 +112,7 @@ func (s *PostgreSQLStore) FetchPhonesByUserID(ctx context.Context, userID uuid.U
 	return s.manyPhones(ctx, q, userID)
 }
 
-func (s *PostgreSQLStore) FetchPhoneByAddr(ctx context.Context, number string) (e Phone, err error) {
+func (s *PostgreSQLStore) FetchPhoneByNumber(ctx context.Context, number bytearray.ByteString16) (e Phone, err error) {
 	q := `
 	SELECT user_id, number, is_primary, created_at, confirmed_at, updated_at
 	FROM user_phone 
@@ -121,7 +122,7 @@ func (s *PostgreSQLStore) FetchPhoneByAddr(ctx context.Context, number string) (
 	return s.onePhone(ctx, q, number)
 }
 
-func (s *PostgreSQLStore) DeletePhoneByAddr(ctx context.Context, userID uuid.UUID, number string) (err error) {
+func (s *PostgreSQLStore) DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number bytearray.ByteString16) (err error) {
 	if userID == uuid.Nil {
 		return ErrZeroUserID
 	}

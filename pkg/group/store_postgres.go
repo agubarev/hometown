@@ -3,6 +3,7 @@ package group
 import (
 	"context"
 
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -21,9 +22,10 @@ func NewPostgreSQLStore(db *pgx.Conn) (Store, error) {
 }
 
 func (s *PostgreSQLStore) oneGroup(ctx context.Context, q string, args ...interface{}) (g Group, err error) {
-	row := s.db.QueryRowEx(ctx, q, nil, args...)
+	err = s.db.QueryRowEx(ctx, q, nil, args...).
+		Scan(&g.ID, &g.ParentID, &g.DisplayName, &g.Key, &g.Flags)
 
-	switch row.Scan(&g.ID, &g.ParentID, &g.DisplayName, &g.Key, &g.Flags) {
+	switch err {
 	case nil:
 		return g, nil
 	case pgx.ErrNoRows:
@@ -56,9 +58,10 @@ func (s *PostgreSQLStore) manyGroups(ctx context.Context, q string, args ...inte
 }
 
 func (s *PostgreSQLStore) oneRelation(ctx context.Context, q string, args ...interface{}) (rel Relation, err error) {
-	row := s.db.QueryRowEx(ctx, q, nil, args...)
+	err = s.db.QueryRowEx(ctx, q, nil, args...).
+		Scan(&rel.GroupID, &rel.Asset.Kind, &rel.Asset.ID)
 
-	switch err := row.Scan(&rel.GroupID, &rel.Asset.Kind, &rel.Asset.ID); err {
+	switch err {
 	case nil:
 		return rel, nil
 	case pgx.ErrNoRows:
@@ -161,15 +164,15 @@ func (s *PostgreSQLStore) FetchGroupByID(ctx context.Context, groupID uuid.UUID)
 	return s.oneGroup(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE id = $1 LIMIT 1`, groupID)
 }
 
-func (s *PostgreSQLStore) FetchGroupByKey(ctx context.Context, key TKey) (Group, error) {
+func (s *PostgreSQLStore) FetchGroupByKey(ctx context.Context, key bytearray.ByteString32) (Group, error) {
 	return s.oneGroup(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE key = $1 LIMIT 1`, key)
 }
 
-func (s *PostgreSQLStore) FetchGroupByName(ctx context.Context, name TName) (g Group, err error) {
+func (s *PostgreSQLStore) FetchGroupByName(ctx context.Context, name bytearray.ByteString128) (g Group, err error) {
 	return s.oneGroup(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE name $1 LIMIT 1`, name)
 }
 
-func (s *PostgreSQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name TName) (gs []Group, err error) {
+func (s *PostgreSQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name bytearray.ByteString128) (gs []Group, err error) {
 	if isPartial {
 		return s.manyGroups(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE name = '%' || $1 || '%'`, name)
 	}

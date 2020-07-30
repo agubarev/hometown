@@ -4,6 +4,8 @@ import (
 	"context"
 	"log"
 
+	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -48,7 +50,7 @@ func (s *PostgreSQLStore) withTransaction(ctx context.Context, fn func(tx *pgx.T
 	}(tx)
 
 	// applying function
-	if err = fn(tx); err != nil {
+	if err = fn(tx); err != nil && err != ErrNothingChanged {
 		return errors.Wrap(err, "transaction failed")
 	}
 
@@ -139,9 +141,8 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 			q := `
 			INSERT INTO accesspolicy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
 			VALUES ($1, $2, $3, $4, $5) 
-			ON CONFLICT ON CONSTRAINT policy_roster_pk
-			DO UPDATE SET access = $6
-			`
+			ON CONFLICT ON CONSTRAINT accesspolicy_roster_pk
+			DO UPDATE SET access = $6`
 
 			_, err = tx.Exec(
 				q,
@@ -196,6 +197,7 @@ func (s *PostgreSQLStore) manyPolicies(ctx context.Context, q string, args ...in
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to fetch policies")
 	}
+	defer rows.Close()
 
 	for rows.Next() {
 		var p Policy
@@ -222,23 +224,28 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 		q := `
 		INSERT INTO  accesspolicy(id, parent_id, owner_id, key, object_name, object_id, flags) 
 		VALUES($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT ON CONSTRAINT policy_pk
-		DO NOTHING
-		`
+		ON CONFLICT ON CONSTRAINT accesspolicy_pk
+		DO NOTHING`
 
-		cmd, err := tx.ExecEx(
+		_, err := tx.ExecEx(
 			ctx,
 			q,
 			nil,
 			p.ID, p.ParentID, p.OwnerID, p.Key, p.ObjectName, p.ObjectID, p.Flags,
 		)
 
-		if err != nil {
-			return errors.Wrap(err, "failed to execute insert policy")
-		}
-
-		if cmd.RowsAffected() == 0 {
-			return ErrNothingChanged
+		switch err {
+		case nil:
+			// all good, skipping
+		default:
+			switch pgerr := err.(pgx.PgError); pgerr.Code {
+			case "23505":
+				spew.Dump(pgerr)
+				return err
+				//return ErrDuplicatePolicy
+			default:
+				return errors.Wrap(err, "failed to execute insert policy")
+			}
 		}
 
 		//---------------------------------------------------------------------------
@@ -252,9 +259,8 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 			q := `
 			INSERT INTO accesspolicy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
 			VALUES($1, $2, $3, $4, $5)
-			ON CONFLICT ON CONSTRAINT policy_roster_pk_2
-			DO NOTHING
-			`
+			ON CONFLICT ON CONSTRAINT accesspolicy_roster_pk
+			DO NOTHING`
 
 			_, err := tx.ExecEx(
 				ctx,
@@ -293,8 +299,7 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 			parent_id	= $1,
 			owner_id	= $2,
 			flags		= $3
-		WHERE id = $4
-		`
+		WHERE id = $4`
 
 		cmd, err := tx.ExecEx(
 			ctx,
@@ -331,19 +336,17 @@ func (s *PostgreSQLStore) FetchPolicyByID(ctx context.Context, id uuid.UUID) (Po
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
 	FROM accesspolicy 
 	WHERE id = $1
-	LIMIT 1
-	`
+	LIMIT 1`
 
 	return s.onePolicy(ctx, q, id)
 }
 
-func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key TKey) (p Policy, err error) {
+func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key bytearray.ByteString32) (p Policy, err error) {
 	q := `
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
 	FROM accesspolicy 
 	WHERE key = $1
-	LIMIT 1
-	`
+	LIMIT 1`
 
 	return s.onePolicy(ctx, q, key)
 }
@@ -355,8 +358,7 @@ func (s *PostgreSQLStore) FetchPolicyByObject(ctx context.Context, obj Object) (
 	WHERE 
 		object_name		= $1 
 		AND object_id	= $2
-	LIMIT 1
-	`
+	LIMIT 1`
 
 	return s.onePolicy(ctx, q, obj.Name, obj.ID)
 }
@@ -390,8 +392,7 @@ func (s *PostgreSQLStore) CreateRoster(ctx context.Context, policyID uuid.UUID, 
 			INSERT INTO accesspolicy_roster(policy_id, actor_kind, actor_id, access, access_explained) 
 			VALUES($1, $2, $3, $4, $5)
 			ON CONFLICT ON CONSTRAINT policy_roster_policy_id_subject_kind_subject_id_uindex
-			DO NOTHING
-			`
+			DO NOTHING`
 
 			_, err := tx.ExecEx(
 				ctx,
@@ -413,8 +414,7 @@ func (s *PostgreSQLStore) FetchRosterByPolicyID(ctx context.Context, pid uuid.UU
 	q := `
 	SELECT policy_id, actor_kind, actor_id, access, access_explained
 	FROM accesspolicy_roster 
-	WHERE policy_id = $1
-	`
+	WHERE policy_id = $1`
 
 	rows, err := s.db.QueryEx(ctx, q, nil, pid)
 	if err != nil {

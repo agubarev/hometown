@@ -8,9 +8,9 @@ import (
 	"github.com/pkg/errors"
 )
 
-func (s *PostgreSQLStore) UpsertProfile(ctx context.Context, e Phone) (_ Phone, err error) {
-	if e.UserID == uuid.Nil {
-		return e, ErrZeroUserID
+func (s *PostgreSQLStore) UpsertProfile(ctx context.Context, profile Profile) (_ Profile, err error) {
+	if profile.UserID == uuid.Nil {
+		return profile, ErrZeroUserID
 	}
 
 	q := `
@@ -31,16 +31,16 @@ func (s *PostgreSQLStore) UpsertProfile(ctx context.Context, e Phone) (_ Phone, 
 	switch err {
 	case nil:
 		if cmd.RowsAffected() == 0 {
-			return e, ErrNothingChanged
+			return profile, ErrNothingChanged
 		}
 
-		return e, nil
+		return profile, nil
 	default:
 		switch pgerr := err.(pgx.PgError); pgerr.Code {
 		case "23505":
-			return e, ErrDuplicatePhoneNumber
+			return profile, ErrDuplicatePhoneNumber
 		default:
-			return e, errors.Wrap(err, "failed to execute insert phone")
+			return profile, errors.Wrap(err, "failed to execute insert phone")
 		}
 	}
 }

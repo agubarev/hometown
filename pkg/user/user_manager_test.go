@@ -8,17 +8,18 @@ import (
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserManagerNew(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	userStore, err := user.NewMySQLStore(db)
+	userStore, err := user.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(userStore)
 
@@ -34,11 +35,11 @@ func TestUserManagerNew(t *testing.T) {
 func TestUserManagerCreate(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
-	userStore, err := user.NewMySQLStore(db)
+	userStore, err := user.NewPostgreSQLStore(db)
 	a.NoError(err)
 	a.NotNil(userStore)
 
@@ -57,12 +58,12 @@ func TestUserManagerCreate(t *testing.T) {
 	u1, err := userManager.CreateUser(context.Background(), func(ctx context.Context) (object user.NewUserObject, err error) {
 		object = user.NewUserObject{
 			Essential: user.Essential{
-				Username:    "testuser",
-				DisplayName: "test display name",
+				Username:    bytearray.NewByteString32("testuser"),
+				DisplayName: bytearray.NewByteString32("test display name"),
 			},
 			ProfileEssential: user.ProfileEssential{},
-			EmailAddr:        "testuser@hometown.local",
-			PhoneNumber:      "12398543292",
+			EmailAddr:        bytearray.NewByteString256("testuser@hometown.local"),
+			PhoneNumber:      bytearray.NewByteString16("12398543292"),
 			Password:         util.NewULID().Entropy(),
 		}
 

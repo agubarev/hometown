@@ -5,8 +5,8 @@ import (
 	"database/sql/driver"
 	"strings"
 
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/pgtype"
 )
 
 // Flags designates whether a group is enabled, default, a role or a standard group
@@ -69,35 +69,19 @@ func FlagDictionary() map[uint32]string {
 	return dict
 }
 
-// using byte arrays as a replacement for strings
-type (
-	TKey  [32]byte
-	TName [128]byte
-)
-
-func Key(skey string) (key TKey) {
-	copy(key[:], strings.ToLower(strings.TrimSpace(skey)))
-	return key
-}
-
-func Name(sname string) (name TName) {
-	copy(name[:], strings.TrimSpace(sname))
-	return name
-}
-
 // Group represents a asset group
 // TODO: replace Flags and IsDefault with a Flags bitmask
 // TODO: work out a simple Flags bit layout
 type Group struct {
-	DisplayName TName     `db:"name" json:"name"`
-	Key         TKey      `db:"key" json:"key" valid:"required,ascii"`
-	ID          uuid.UUID `db:"id" json:"id"`
-	ParentID    uuid.UUID `db:"parent_id" json:"parent_id"`
-	Flags       Flags     `db:"kind" json:"kind"`
+	DisplayName bytearray.ByteString128 `db:"name" json:"name"`
+	Key         bytearray.ByteString32  `db:"key" json:"key" valid:"required,ascii"`
+	ID          uuid.UUID               `db:"id" json:"id"`
+	ParentID    uuid.UUID               `db:"parent_id" json:"parent_id"`
+	Flags       Flags                   `db:"kind" json:"kind"`
 	_           struct{}
 }
 
-func NewGroup(flags Flags, parentID uuid.UUID, key TKey, name TName) (g Group, err error) {
+func NewGroup(flags Flags, parentID uuid.UUID, key bytearray.ByteString32, name bytearray.ByteString128) (g Group, err error) {
 	g = Group{
 		DisplayName: name,
 		Key:         key,
@@ -166,13 +150,6 @@ func (g *Group) SetKey(key interface{}, maxLen int) error {
 		}
 
 		copy(g.Key[:], v)
-	case TKey:
-		newKey := v[0:bytes.IndexByte(v[0:maxLen], byte(0))]
-		if len(newKey) == 0 {
-			return ErrEmptyKey
-		}
-
-		copy(g.Key[:], newKey)
 	}
 
 	return nil
@@ -195,13 +172,6 @@ func (g *Group) SetName(name interface{}, maxLen int) error {
 		}
 
 		copy(g.DisplayName[:], v)
-	case TKey:
-		newName := v[0:maxLen]
-		if len(newName) == 0 {
-			return ErrEmptyGroupName
-		}
-
-		copy(g.DisplayName[:], newName)
 	}
 
 	return nil
@@ -222,80 +192,4 @@ func (ak *AssetKind) Scan(data []byte) error {
 
 func (flags Flags) Value() (driver.Value, error) {
 	return flags, nil
-}
-
-func (key TKey) MarshalBinary() ([]byte, error) {
-	return key[:], nil
-}
-
-func (key *TKey) UnmarshalBinary(data []byte) ([]byte, error) {
-	copy(key[:], data)
-	return key[:], nil
-}
-
-func (key TKey) Value() (driver.Value, error) {
-	if key[0] == 0 {
-		return "", nil
-	}
-
-	zeroPos := bytes.IndexByte(key[:], byte(0))
-	if zeroPos == -1 {
-		return key[:], nil
-	}
-
-	return key[0:zeroPos], nil
-}
-
-func (key TKey) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
-	return append(buf, key[:]...), nil
-}
-
-func (key *TKey) Scan(v interface{}) error {
-	copy(key[:], v.([]byte))
-	return nil
-}
-
-func (key TKey) String() string {
-	zeroPos := bytes.IndexByte(key[:], byte(0))
-	if zeroPos == -1 {
-		return string(key[:])
-	}
-
-	return string(key[:zeroPos])
-}
-
-func (name TName) Value() (driver.Value, error) {
-	if name[0] == 0 {
-		return "", nil
-	}
-
-	zeroPos := bytes.IndexByte(name[:], byte(0))
-	if zeroPos == -1 {
-		return name[:], nil
-	}
-
-	return name[0:zeroPos], nil
-}
-
-func (name TName) MarshalBinary() ([]byte, error) {
-	return name[:], nil
-}
-
-func (name *TName) UnmarshalBinary(data []byte) ([]byte, error) {
-	copy(name[:], data)
-	return name[:], nil
-}
-
-func (name TName) String() string {
-	zeroPos := bytes.IndexByte(name[:], byte(0))
-	if zeroPos == -1 {
-		return string(name[:])
-	}
-
-	return string(name[:zeroPos])
-}
-
-func (name *TName) Scan(v interface{}) error {
-	copy(name[:], v.([]byte))
-	return nil
 }

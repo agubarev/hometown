@@ -1,11 +1,9 @@
 package accesspolicy
 
 import (
-	"bytes"
-	"database/sql/driver"
-	"runtime/debug"
 	"strings"
 
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -19,11 +17,11 @@ const (
 )
 
 type Object struct {
-	Name TObjectName
+	Name bytearray.ByteString32
 	ID   uuid.UUID
 }
 
-func NewObject(id uuid.UUID, name TObjectName) Object {
+func NewObject(id uuid.UUID, name bytearray.ByteString32) Object {
 	return Object{
 		Name: name,
 		ID:   id,
@@ -32,24 +30,9 @@ func NewObject(id uuid.UUID, name TObjectName) Object {
 
 func NilObject() Object {
 	return Object{
-		Name: TObjectName{},
+		Name: bytearray.ByteString32{},
 		ID:   uuid.Nil,
 	}
-}
-
-type (
-	TKey        [32]byte
-	TObjectName [32]byte
-)
-
-func Key(s string) (v TKey) {
-	copy(v[:], strings.ToLower(strings.TrimSpace(s)))
-	return v
-}
-
-func ObjectName(s string) (v TObjectName) {
-	copy(v[:], strings.TrimSpace(s))
-	return v
 }
 
 // everyone, user, group, role_group, etc...
@@ -195,24 +178,24 @@ func (r Right) String() string {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
-// NOTE: an accesspolicy policy can have only one object identifier set, either ObjectID or a TKey
+// NOTE: an accesspolicy policy can have only one object identifier set, either ObjectID or abytearray.ByteString32
 // TODO: store object rights rosters, name and object name in separate maps
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each rosterChange
 // TODO: add caching mechanism to skip rights summarization
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
 type Policy struct {
-	Key        TKey        `db:"key" json:"key"`
-	ObjectName TObjectName `db:"object_name" json:"object_name"`
-	ID         uuid.UUID   `db:"id" json:"id"`
-	ParentID   uuid.UUID   `db:"parent_id" json:"parent_id"`
-	OwnerID    uuid.UUID   `db:"owner_id" json:"owner_id"`
-	ObjectID   uuid.UUID   `db:"object_id" json:"object_id"`
-	Flags      uint8       `db:"flags" json:"flags"`
+	Key        bytearray.ByteString32 `db:"key" json:"key"`
+	ObjectName bytearray.ByteString32 `db:"object_name" json:"object_name"`
+	ID         uuid.UUID              `db:"id" json:"id"`
+	ParentID   uuid.UUID              `db:"parent_id" json:"parent_id"`
+	OwnerID    uuid.UUID              `db:"owner_id" json:"owner_id"`
+	ObjectID   uuid.UUID              `db:"object_id" json:"object_id"`
+	Flags      uint8                  `db:"flags" json:"flags"`
 	_          struct{}
 }
 
 // NewPolicy create a new Policy object
-func NewPolicy(key TKey, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
+func NewPolicy(key bytearray.ByteString32, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
 	// initializing new policy
 	// NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 	// because this allows to create independent policies in the middle of a chain and still
@@ -228,12 +211,12 @@ func NewPolicy(key TKey, ownerID, parentID uuid.UUID, obj Object, flags uint8) (
 
 	// NOTE: key may be optional
 	if key[0] != 0 {
-		if err = p.SetKey(key, 32); err != nil {
+		if err = p.SetKey(key); err != nil {
 			return p, errors.Wrap(err, "failed to set initial key")
 		}
 	}
 
-	if err = p.SetObjectName(obj.Name, 32); err != nil {
+	if err = p.SetObjectName(obj.Name); err != nil {
 		return p, errors.Wrap(err, "failed to set initial object name")
 	}
 
@@ -265,10 +248,10 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 			ap.ParentID = change.To.(uuid.UUID)
 		case "OwnerID":
 			ap.OwnerID = change.To.(uuid.UUID)
-		case "TKey":
-			ap.Key = change.To.(TKey)
-		case "TObjectName":
-			ap.ObjectName = change.To.(TObjectName)
+		case "Key":
+			ap.Key = change.To.(bytearray.ByteString32)
+		case "ObjectName":
+			ap.ObjectName = change.To.(bytearray.ByteString32)
 		case "ObjectID":
 			ap.ObjectID = change.To.(uuid.UUID)
 		case "Flags":
@@ -283,7 +266,6 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 func (ap Policy) Validate() error {
 	// policy must have some designators
 	if ap.Key[0] == 0 && ap.ObjectName[0] == 0 {
-		debug.PrintStack()
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object name empty")
 	}
 
@@ -321,120 +303,25 @@ func (ap Policy) IsExtended() bool {
 }
 
 // SetKey sets a key name to the group
-func (ap *Policy) SetKey(key interface{}, maxLen int) error {
+func (ap *Policy) SetKey(key bytearray.ByteString32) error {
 	if ap.ID != uuid.Nil {
 		return ErrForbiddenChange
 	}
 
-	switch v := key.(type) {
-	case string:
-		v = strings.ToLower(strings.TrimSpace(v))
-		if v == "" {
-			return ErrEmptyKey
-		}
-
-		copy(ap.Key[:], v)
-	case []byte:
-		v = bytes.ToLower(bytes.TrimSpace(v))
-		if len(v) == 0 {
-			return ErrEmptyKey
-		}
-
-		copy(ap.Key[:], v)
-	case TKey:
-		newKey := v[0:maxLen]
-		if len(newKey) == 0 {
-			return ErrEmptyKey
-		}
-
-		copy(ap.Key[:], newKey)
-	}
+	// setting new key
+	ap.Key = key
 
 	return nil
 }
 
 // SetObjectName sets an object name name
-func (ap *Policy) SetObjectName(objectType interface{}, maxLen int) error {
+func (ap *Policy) SetObjectName(name bytearray.ByteString32) error {
 	if ap.ID != uuid.Nil {
 		return ErrForbiddenChange
 	}
 
-	switch v := objectType.(type) {
-	case string:
-		v = strings.TrimSpace(v)
-		if v == "" {
-			return ErrEmptyObjectType
-		}
-
-		copy(ap.ObjectName[:], v)
-	case []byte:
-		v = bytes.TrimSpace(v)
-		if len(v) == 0 {
-			return ErrEmptyObjectType
-		}
-
-		copy(ap.ObjectName[:], v)
-	case TKey:
-		newName := v[0:maxLen]
-		if len(newName) == 0 {
-			return ErrEmptyObjectType
-		}
-
-		copy(ap.ObjectName[:], newName)
-	}
-
-	return nil
-}
-
-//---------------------------------------------------------------------------
-// conversions
-//---------------------------------------------------------------------------
-
-func (key TKey) Value() (driver.Value, error) {
-	if key[0] == 0 {
-		return nil, nil
-	}
-
-	zeroPos := bytes.IndexByte(key[:], byte(0))
-	if zeroPos == -1 {
-		return key[:], nil
-	}
-
-	return key[0:zeroPos], nil
-}
-
-func (key *TKey) Scan(v interface{}) error {
-	if v == nil {
-		key[0] = 0
-		return nil
-	}
-
-	copy(key[:], v.([]byte))
-
-	return nil
-}
-
-func (name TObjectName) Value() (driver.Value, error) {
-	// a little hack to store an empty string instead of zeroes
-	if name[0] == 0 {
-		return nil, nil
-	}
-
-	zeroPos := bytes.IndexByte(name[:], byte(0))
-	if zeroPos == -1 {
-		return name[:], nil
-	}
-
-	return name[0:zeroPos], nil
-}
-
-func (name *TObjectName) Scan(v interface{}) error {
-	if v == nil {
-		name[0] = 0
-		return nil
-	}
-
-	copy(name[:], v.([]byte))
+	// setting new object name
+	ap.ObjectName = name
 
 	return nil
 }

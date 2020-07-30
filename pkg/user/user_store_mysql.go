@@ -35,7 +35,7 @@ func (s *MySQLStore) fetchUserByQuery(ctx context.Context, q string, args ...int
 	return u, nil
 }
 
-func (s *MySQLStore) fetchUsersByQuery(ctx context.Context, q string, args ...interface{}) (us []User, err error) {
+func (s *MySQLStore) manyUsersByWhere(ctx context.Context, q string, args ...interface{}) (us []User, err error) {
 	us = make([]User, 0)
 
 	_, err = s.db.NewSession(nil).

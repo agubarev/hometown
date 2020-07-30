@@ -13,6 +13,8 @@ func NewByteString128(s string) (bs ByteString128) {
 	return bs
 }
 
+var NilByteString128 = ByteString128{}
+
 func (bs ByteString128) String() string {
 	if bs[0] == 0 {
 		return ""
@@ -26,15 +28,19 @@ func (bs ByteString128) String() string {
 	return string(bs[0:zeroPos])
 }
 
-func (bs ByteString128) Trim() {
+func (bs *ByteString128) Trim() {
 	copy(bs[:], bytes.TrimSpace(bs[:]))
 }
 
-func (bs ByteString128) ToLower() {
+func (bs *ByteString128) ToLower() {
 	copy(bs[:], bytes.ToLower(bs[:]))
 }
 
 func (bs ByteString128) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	if bs[0] == 0 {
+		return nil, nil
+	}
+
 	zpos := bytes.IndexByte(bs[:], byte(0))
 	if zpos == -1 {
 		return append(buf, bs[:]...), nil
@@ -43,7 +49,7 @@ func (bs ByteString128) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []
 	return append(buf, bs[0:zpos]...), nil
 }
 
-func (bs ByteString128) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func (bs *ByteString128) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	copy(bs[:], src)
 	return nil
 }

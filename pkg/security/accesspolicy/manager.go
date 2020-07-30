@@ -6,6 +6,7 @@ import (
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/group"
+	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -22,7 +23,7 @@ var (
 	ErrPolicyKeyTaken               = errors.New("policy name is taken")
 	ErrPolicyObjectConflict         = errors.New("id of a kind is taken")
 	ErrEmptyKey                     = errors.New("key is empty")
-	ErrEmptyObjectType              = errors.New("object type is empty")
+	ErrEmptyObjectName              = errors.New("object name is empty")
 	ErrNilRoster                    = errors.New("rights rosters is nil")
 	ErrCacheMiss                    = errors.New("roster cache miss")
 	ErrEmptyRoster                  = errors.New("rights rosters is empty")
@@ -50,7 +51,7 @@ var (
 // Manager is the accesspolicy policy registry
 type Manager struct {
 	policies   map[uuid.UUID]Policy
-	keyMap     map[TKey]uuid.UUID
+	keyMap     map[bytearray.ByteString32]uuid.UUID
 	roster     map[uuid.UUID]*Roster
 	groups     *group.Manager
 	store      Store
@@ -67,7 +68,7 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	c := &Manager{
 		policies: make(map[uuid.UUID]Policy),
 		roster:   make(map[uuid.UUID]*Roster),
-		keyMap:   make(map[TKey]uuid.UUID),
+		keyMap:   make(map[bytearray.ByteString32]uuid.UUID),
 		groups:   gm,
 		store:    store,
 	}
@@ -124,7 +125,7 @@ func (m *Manager) removePolicy(policyID uuid.UUID) (err error) {
 }
 
 // Upsert creates a new accesspolicy policy
-func (m *Manager) Create(ctx context.Context, key TKey, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
+func (m *Manager) Create(ctx context.Context, key bytearray.ByteString32, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
 	p, err = NewPolicy(key, ownerID, parentID, obj, flags)
 	if err != nil {
 		return p, errors.Wrap(err, "failed to initialize new accesspolicy policy")
@@ -290,7 +291,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uuid.UUID) (p Policy, err e
 }
 
 // PolicyByKey returns an accesspolicy policy by its key
-func (m *Manager) PolicyByKey(ctx context.Context, name TKey) (p Policy, err error) {
+func (m *Manager) PolicyByKey(ctx context.Context, name bytearray.ByteString32) (p Policy, err error) {
 	m.RLock()
 	p, ok := m.policies[m.keyMap[name]]
 	m.RUnlock()

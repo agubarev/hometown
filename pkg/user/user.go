@@ -10,7 +10,6 @@ import (
 	"github.com/cespare/xxhash"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/pgtype"
-	"github.com/oklog/ulid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
@@ -80,6 +79,7 @@ type Metadata struct {
 	// account suspension
 	IsSuspended         bool                    `db:"is_suspended" json:"is_suspended"`
 	SuspendedAt         uint32                  `db:"suspended_at" json:"suspended_at"`
+	SuspendedByID       uuid.UUID               `db:"suspended_by_id" json:"suspended_by_id"`
 	SuspensionExpiresAt uint32                  `db:"suspension_expires_at" json:"suspension_expires_at"`
 	SuspensionReason    bytearray.ByteString128 `db:"suspension_reason" json:"suspension_reason"`
 }
@@ -87,8 +87,7 @@ type Metadata struct {
 // User represents certain users which are custom
 // and are handled by the customer
 type User struct {
-	ID   uuid.UUID `db:"id" json:"id"`
-	ULID ulid.ULID `db:"ulid" json:"ulid" diff:"-"`
+	ID uuid.UUID `db:"id" json:"id"`
 
 	Essential
 	Metadata
@@ -152,17 +151,8 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 	return nil
 }
 
-// StringID returns short info about the user
-func (u *User) StringID() string {
-	return fmt.Sprintf("user(%d:%s)", u.ID, u.Username)
-}
-
 // SanitizeAndValidate user object
-func (u *User) Validate() error {
-	if u == nil {
-		return ErrNilUser
-	}
-
+func (u User) Validate() error {
 	if ok, err := govalidator.ValidateStruct(u); !ok {
 		return errors.Wrapf(err, "user validation failed")
 	}
