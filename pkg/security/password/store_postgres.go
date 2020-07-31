@@ -33,14 +33,14 @@ func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
 	}
 
 	q := `
-	INSERT INTO password(kind, owner_id, hash, is_change_required, created_at, expire_at)
-	VALUES($1, $2, $3, $4, $5, $6)
+	INSERT INTO password(kind, owner_id, hash, is_change_required, created_at, updated_at, expire_at)
+	VALUES($1, $2, $3, $4, $5, $6, $7)
 	ON CONFLICT ON CONSTRAINT password_pk
 	DO UPDATE
-		SET hash				= $1,
-			is_change_required 	= $2,
-			updated_at			= $3,
-			expire_at			= $4`
+		SET hash				= EXCLUDED.hash,
+			is_change_required 	= EXCLUDED.is_change_required,
+			updated_at			= EXCLUDED.updated_at,
+			expire_at			= EXCLUDED.expire_at`
 
 	cmd, err := s.db.ExecEx(
 		ctx,

@@ -19,13 +19,13 @@ const (
 // Password object
 // TODO: use byte array instead of slice for password hash
 type Password struct {
-	Kind             Kind      `db:"kind" json:"-"`
-	OwnerID          uuid.UUID `db:"owner_id" json:"-"`
-	Hash             []byte    `db:"hash" json:"-"`
-	CreatedAt        uint32    `db:"created_at" json:"-"`
-	UpdatedAt        uint32    `db:"updated_at" json:"-"`
-	ExpireAt         uint32    `db:"expire_at" json:"-"`
-	IsChangeRequired bool      `db:"is_change_required" json:"-"`
+	Kind             Kind           `db:"kind" json:"-"`
+	OwnerID          uuid.UUID      `db:"owner_id" json:"-"`
+	Hash             []byte         `db:"hash" json:"-"`
+	CreatedAt        util.Timestamp `db:"created_at" json:"-"`
+	UpdatedAt        util.Timestamp `db:"updated_at" json:"-"`
+	ExpireAt         util.Timestamp `db:"expire_at" json:"-"`
+	IsChangeRequired bool           `db:"is_change_required" json:"-"`
 }
 
 // SanitizeAndValidate validates password
@@ -83,7 +83,7 @@ func New(k Kind, ownerID uuid.UUID, rawpass []byte, data []string) (p Password, 
 		OwnerID:   ownerID,
 		Hash:      h,
 		CreatedAt: util.NowUnixU32(),
-		ExpireAt:  uint32(time.Now().Add(defaultTTL).Unix()),
+		ExpireAt:  util.Timestamp(time.Now().Add(defaultTTL).Unix()),
 	}
 
 	return p, nil

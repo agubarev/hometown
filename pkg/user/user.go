@@ -5,6 +5,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
@@ -18,6 +19,10 @@ import (
 type IPAddr [16]byte
 
 func (addr IPAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	if addr[0] == 0 {
+		return nil, nil
+	}
+
 	zpos := bytes.IndexByte(addr[:], byte(0))
 	if zpos == -1 {
 		return append(buf, addr[:]...), nil
@@ -26,7 +31,7 @@ func (addr IPAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte,
 	return append(buf, addr[0:zpos]...), nil
 }
 
-func (addr IPAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func (addr *IPAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	copy(addr[:], src)
 	return nil
 }
@@ -61,26 +66,26 @@ type Metadata struct {
 	Checksum uint64 `db:"checksum" json:"checksum"`
 
 	// timestamps
-	CreatedAt   uint32    `db:"created_at" json:"created_at"`
-	CreatedByID uuid.UUID `db:"created_by_id" json:"created_by_id"`
-	UpdatedAt   uint32    `db:"updated_at" json:"updated_at"`
-	UpdatedByID uuid.UUID `db:"updated_by_id" json:"updated_by_id"`
-	ConfirmedAt uint32    `db:"confirmed_at" json:"confirmed_at"`
-	DeletedAt   uint32    `db:"deleted_at" json:"deleted_at"`
-	DeletedByID uuid.UUID `db:"deleted_by_id" json:"deleted_by_id"`
+	CreatedAt   util.Timestamp `db:"created_at" json:"created_at"`
+	CreatedByID uuid.UUID      `db:"created_by_id" json:"created_by_id"`
+	UpdatedAt   util.Timestamp `db:"updated_at" json:"updated_at"`
+	UpdatedByID uuid.UUID      `db:"updated_by_id" json:"updated_by_id"`
+	ConfirmedAt util.Timestamp `db:"confirmed_at" json:"confirmed_at"`
+	DeletedAt   util.Timestamp `db:"deleted_at" json:"deleted_at"`
+	DeletedByID uuid.UUID      `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
-	LastLoginAt       uint32 `db:"last_login_at" json:"last_login_at"`
-	LastLoginIP       IPAddr `db:"last_login_ip" json:"last_login_ip"`
-	LastLoginFailedAt uint32 `db:"last_login_failed_at" json:"last_login_failed_at"`
-	LastLoginFailedIP IPAddr `db:"last_login_failed_ip" json:"last_login_failed_ip"`
-	LastLoginAttempts uint8  `db:"last_login_attempts" json:"last_login_attempts"`
+	LastLoginAt       util.Timestamp `db:"last_login_at" json:"last_login_at"`
+	LastLoginIP       IPAddr         `db:"last_login_ip" json:"last_login_ip"`
+	LastLoginFailedAt util.Timestamp `db:"last_login_failed_at" json:"last_login_failed_at"`
+	LastLoginFailedIP IPAddr         `db:"last_login_failed_ip" json:"last_login_failed_ip"`
+	LastLoginAttempts uint8          `db:"last_login_attempts" json:"last_login_attempts"`
 
 	// account suspension
 	IsSuspended         bool                    `db:"is_suspended" json:"is_suspended"`
-	SuspendedAt         uint32                  `db:"suspended_at" json:"suspended_at"`
+	SuspendedAt         util.Timestamp          `db:"suspended_at" json:"suspended_at"`
 	SuspendedByID       uuid.UUID               `db:"suspended_by_id" json:"suspended_by_id"`
-	SuspensionExpiresAt uint32                  `db:"suspension_expires_at" json:"suspension_expires_at"`
+	SuspensionExpiresAt util.Timestamp          `db:"suspension_expires_at" json:"suspension_expires_at"`
 	SuspensionReason    bytearray.ByteString128 `db:"suspension_reason" json:"suspension_reason"`
 }
 
@@ -134,17 +139,17 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "DisplayName":
 			u.DisplayName = change.To.(bytearray.ByteString32)
 		case "LastLoginAt":
-			u.LastLoginAt = change.To.(uint32)
+			u.LastLoginAt = change.To.(util.Timestamp)
 		case "LastLoginIP":
 			u.LastLoginIP = change.To.(IPAddr)
 		case "Checksum":
 			u.Checksum = change.To.(uint64)
 		case "CreatedAt":
-			u.CreatedAt = change.To.(uint32)
+			u.CreatedAt = change.To.(util.Timestamp)
 		case "UpdatedAt":
-			u.UpdatedAt = change.To.(uint32)
+			u.UpdatedAt = change.To.(util.Timestamp)
 		case "DeletedAt":
-			u.DeletedAt = change.To.(uint32)
+			u.DeletedAt = change.To.(util.Timestamp)
 		}
 	}
 

@@ -122,24 +122,51 @@ func (s *PostgreSQLStore) manyUsersByWhere(ctx context.Context, where string, ar
 // CreateUser creates a new entry in the storage backend
 func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err error) {
 	q := `
-		INSERT INTO  accesspolicy(id, parent_id, owner_id, key, object_name, object_id, flags) 
-		VALUES($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT ON CONSTRAINT accesspolicy_pk
-		DO NOTHING`
+		INSERT INTO "user"(
+			id,	username, display_name, last_login_at, last_login_ip, 
+			last_login_failed_at, last_login_failed_ip,	last_login_attempts, 
+			is_suspended, suspension_reason, suspension_expires_at, 
+			suspended_by_id, checksum, confirmed_at, created_at, 
+			created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id) 
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		ON CONFLICT ON CONSTRAINT user_pk
+		DO UPDATE
+			SET display_name 			= EXCLUDED.display_name,
+				last_login_at			= EXCLUDED.last_login_at,
+				last_login_ip			= EXCLUDED.last_login_ip,
+				last_login_failed_at	= EXCLUDED.last_login_failed_at,
+				last_login_failed_ip	= EXCLUDED.last_login_failed_ip,
+				last_login_attempts		= EXCLUDED.last_login_attempts,
+				is_suspended			= EXCLUDED.is_suspended,
+				suspension_reason		= EXCLUDED.suspension_reason,
+				suspension_expires_at	= EXCLUDED.suspension_expires_at,
+				suspended_by_id			= EXCLUDED.suspended_by_id,
+				checksum				= EXCLUDED.checksum,
+				confirmed_at			= EXCLUDED.confirmed_at,
+				created_at				= EXCLUDED.created_at,
+				created_by_id			= EXCLUDED.created_by_id,
+				updated_at				= EXCLUDED.updated_at,
+				updated_by_id			= EXCLUDED.updated_by_id,
+				deleted_at				= EXCLUDED.deleted_at,
+				deleted_by_id			= EXCLUDED.deleted_by_id`
 
-	cmd, err := tx.ExecEx(
+	cmd, err := s.db.ExecEx(
 		ctx,
 		q,
 		nil,
-		p.ID, p.ParentID, p.OwnerID, p.Key, p.ObjectName, p.ObjectID, p.Flags,
+		u.ID, u.Username, u.DisplayName, u.LastLoginAt, u.LastLoginIP,
+		u.LastLoginFailedAt, u.LastLoginFailedIP, u.LastLoginAttempts,
+		u.IsSuspended, u.SuspensionReason, u.SuspensionExpiresAt, u.SuspendedByID,
+		u.Checksum, u.ConfirmedAt, u.CreatedAt, u.CreatedByID, u.UpdatedAt,
+		u.UpdatedByID, u.DeletedAt, u.DeletedByID,
 	)
 
 	if err != nil {
-		return errors.Wrap(err, "failed to execute insert policy")
+		return u, errors.Wrap(err, "failed to execute upsert user")
 	}
 
 	if cmd.RowsAffected() == 0 {
-		return ErrNothingChanged
+		return u, ErrNothingChanged
 	}
 
 	return u, nil
@@ -166,7 +193,41 @@ func (s *PostgreSQLStore) DeleteUserByID(ctx context.Context, id uuid.UUID) (err
 		return ErrZeroID
 	}
 
-	panic("not implemented")
+	err = s.withTransaction(ctx, func(tx *pgx.Tx) (err error) {
+		// deleting phones
+		_, err = tx.ExecEx(ctx, `DELETE FROM "user_phone" WHERE user_id = $1`, nil, id)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete user phones")
+		}
+
+		// deleting emails
+		_, err = tx.ExecEx(ctx, `DELETE FROM "user_email" WHERE user_id = $1`, nil, id)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete user emails")
+		}
+
+		// deleting profile
+		_, err = tx.ExecEx(ctx, `DELETE FROM "user_profile" WHERE user_id = $1`, nil, id)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete user profile")
+		}
+
+		// deleting the main user record
+		cmd, err := tx.ExecEx(ctx, `DELETE FROM "user" WHERE id = $1`, nil, id)
+		if err != nil {
+			return errors.Wrap(err, "failed to delete user record")
+		}
+
+		if cmd.RowsAffected() == 0 {
+			return ErrNothingChanged
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return errors.Wrap(err, "failed to delete user by id")
+	}
 
 	return nil
 }

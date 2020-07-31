@@ -64,32 +64,39 @@ func (s *PostgreSQLStore) UpsertEmail(ctx context.Context, e Email) (_ Email, er
 
 	q := `
 	INSERT INTO user_email(user_id, addr, is_primary, created_at, confirmed_at, updated_at) 
-	VALUES($1, $2, $3, $4, $5)
+	VALUES($1, $2, $3, $4, $5, $6)
 	ON CONFLICT ON CONSTRAINT user_email_pk
 	DO UPDATE 
-		SET is_primary = EXCLUDED.is_primary,
-			updated_at = EXCLUDED.updated_at`
+		SET is_primary 		= EXCLUDED.is_primary,
+			updated_at 		= EXCLUDED.updated_at,
+			confirmed_at	= EXCLUDED.confirmed_at`
 
-	cmd, err := s.db.ExecEx(
+	_, err = s.db.ExecEx(
 		ctx,
 		q,
 		nil,
+		e.UserID,
+		e.Addr,
+		e.IsPrimary,
+		e.CreatedAt,
+		e.ConfirmedAt,
+		e.UpdatedAt,
 	)
 
 	switch err {
 	case nil:
-		if cmd.RowsAffected() == 0 {
-			return e, ErrNothingChanged
-		}
-
 		return e, nil
 	default:
-		switch pgerr := err.(pgx.PgError); pgerr.Code {
-		case "23505":
-			return e, ErrDuplicateEmailAddr
-		default:
-			return e, errors.Wrap(err, "failed to execute insert email")
+		if pgerr, ok := err.(pgx.PgError); ok {
+			switch pgerr.Code {
+			case "23505":
+				return e, ErrDuplicateEmailAddr
+			default:
+				return e, errors.Wrap(err, "failed to execute insert email")
+			}
 		}
+
+		return e, err
 	}
 }
 

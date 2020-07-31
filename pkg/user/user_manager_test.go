@@ -61,10 +61,14 @@ func TestUserManagerCreate(t *testing.T) {
 				Username:    bytearray.NewByteString32("testuser"),
 				DisplayName: bytearray.NewByteString32("test display name"),
 			},
-			ProfileEssential: user.ProfileEssential{},
-			EmailAddr:        bytearray.NewByteString256("testuser@hometown.local"),
-			PhoneNumber:      bytearray.NewByteString16("12398543292"),
-			Password:         util.NewULID().Entropy(),
+			ProfileEssential: user.ProfileEssential{
+				Firstname:  bytearray.NewByteString16("Andrejs"),
+				Lastname:   bytearray.NewByteString16("Gubarevs"),
+				Middlename: bytearray.ByteString16{},
+			},
+			EmailAddr:   bytearray.NewByteString256("testuser@hometown.local"),
+			PhoneNumber: bytearray.NewByteString16("12398543292"),
+			Password:    util.NewULID().Entropy(),
 		}
 
 		return object, nil

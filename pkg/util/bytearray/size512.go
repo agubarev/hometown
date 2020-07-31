@@ -9,7 +9,7 @@ import (
 type ByteString512 [512]byte
 
 func NewByteString512(s string) (bs ByteString512) {
-	copy(bs[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
+	copy(bs[:], bytes.TrimSpace([]byte(s)))
 	return bs
 }
 

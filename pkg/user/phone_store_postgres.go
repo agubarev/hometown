@@ -57,39 +57,46 @@ func (s *PostgreSQLStore) manyPhones(ctx context.Context, q string, args ...inte
 	return phones, nil
 }
 
-func (s *PostgreSQLStore) UpsertPhone(ctx context.Context, e Phone) (_ Phone, err error) {
-	if e.UserID == uuid.Nil {
-		return e, ErrZeroUserID
+func (s *PostgreSQLStore) UpsertPhone(ctx context.Context, p Phone) (_ Phone, err error) {
+	if p.UserID == uuid.Nil {
+		return p, ErrZeroUserID
 	}
 
 	q := `
 	INSERT INTO user_phone(user_id, number, is_primary, created_at, confirmed_at, updated_at) 
-	VALUES($1, $2, $3, $4, $5)
-	ON CONFLICT (user_id, number)
+	VALUES($1, $2, $3, $4, $5, $6)
+	ON CONFLICT ON CONSTRAINT user_phone_pk
 	DO UPDATE 
-		SET is_primary = EXCLUDED.is_primary,
-			updated_at = EXCLUDED.updated_at`
+		SET is_primary 		= EXCLUDED.is_primary,
+			updated_at 		= EXCLUDED.updated_at,
+			confirmed_at	= EXCLUDED.confirmed_at`
 
-	cmd, err := s.db.ExecEx(
+	_, err = s.db.ExecEx(
 		ctx,
 		q,
 		nil,
+		p.UserID,
+		p.Number,
+		p.IsPrimary,
+		p.CreatedAt,
+		p.ConfirmedAt,
+		p.UpdatedAt,
 	)
 
 	switch err {
 	case nil:
-		if cmd.RowsAffected() == 0 {
-			return e, ErrNothingChanged
+		return p, nil
+	default:
+		if pgerr, ok := err.(pgx.PgError); ok {
+			switch pgerr.Code {
+			case "23505":
+				return p, ErrDuplicatePhoneNumber
+			default:
+				return p, errors.Wrap(err, "failed to execute insert phone")
+			}
 		}
 
-		return e, nil
-	default:
-		switch pgerr := err.(pgx.PgError); pgerr.Code {
-		case "23505":
-			return e, ErrDuplicatePhoneNumber
-		default:
-			return e, errors.Wrap(err, "failed to execute insert phone")
-		}
+		return p, err
 	}
 }
 

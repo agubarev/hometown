@@ -37,13 +37,13 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	newUser.EmailAddr.Trim()
 	newUser.EmailAddr.ToLower()
 
+	// phone
+	newUser.PhoneNumber.Trim()
+
 	// name
 	newUser.Firstname.Trim()
-	newUser.Firstname.ToLower()
 	newUser.Middlename.Trim()
-	newUser.Middlename.ToLower()
 	newUser.Lastname.Trim()
-	newUser.Lastname.ToLower()
 
 	if newUser.EmailAddr[0] == 0 {
 		return u, ErrEmptyEmailAddr
@@ -95,7 +95,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 			// TODO: devise a contingency plan for OSHI- if the recovery fails
 			if _, xerr := m.DeleteUserByID(ctx, u.ID, true); xerr != nil {
 				err = errors.Wrapf(err, "[panic:critical] failed to delete user during recovery from panic: %s", xerr)
-				l.Error("failed to delete new user during recovery from panic", zap.Error(err))
+				l.Warn("failed to delete new user during recovery from panic", zap.Error(err))
 			}
 
 			//---------------------------------------------------------------------------
@@ -104,25 +104,25 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 			// deleting email
 			if xerr := m.DeleteEmailByAddr(ctx, u.ID, newUser.EmailAddr); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete emails during recovery from panic: %s", xerr)
-				l.Error("failed to delete emails during recovery from panic", zap.Error(err))
+				l.Warn("failed to delete emails during recovery from panic", zap.Error(err))
 			}
 
 			// deleting phones
 			if _, xerr := m.DeletePhoneByNumber(ctx, u.ID, newUser.PhoneNumber); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete phones during recovery from panic: %s", xerr)
-				l.Error("failed to delete phones during recovery from panic", zap.Error(err))
+				l.Warn("failed to delete phones during recovery from panic", zap.Error(err))
 			}
 
 			// deleting profile
 			if xerr := m.DeleteProfileByUserID(ctx, u.ID); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete user profile during recovery from panic: %s", xerr)
-				l.Error("failed to delete user profile during recovery from panic", zap.Error(err))
+				l.Warn("failed to delete user profile during recovery from panic", zap.Error(err))
 			}
 
 			// deleting password
 			if xerr := m.passwords.Delete(ctx, password.KUser, u.ID); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete password during recovery from panic: %s", xerr)
-				l.Error("failed to delete password during recovery from panic", zap.Error(err))
+				l.Warn("failed to delete password during recovery from panic", zap.Error(err))
 			}
 		}
 	}()
@@ -158,8 +158,6 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	//---------------------------------------------------------------------------
 	// creating new phone record (if number is given)
 	//---------------------------------------------------------------------------
-	newUser.PhoneNumber.Trim()
-
 	if newUser.PhoneNumber[0] != 0 {
 		_, err = m.CreatePhone(ctx, func(ctx context.Context) (object NewPhoneObject, err error) {
 			object = NewPhoneObject{
@@ -354,7 +352,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 	if isHard {
 		// hard-deleting this object
 		if err = store.DeleteUserByID(ctx, id); err != nil {
-			return u, errors.Wrap(err, "failed to delete u")
+			return u, errors.Wrap(err, "failed to delete user")
 		}
 
 		// and finally deleting user's password if the password manager is present

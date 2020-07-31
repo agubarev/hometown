@@ -5,7 +5,6 @@ import (
 	"log"
 
 	"github.com/agubarev/hometown/pkg/util/bytearray"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -238,13 +237,13 @@ func (s *PostgreSQLStore) CreatePolicy(ctx context.Context, p Policy, r *Roster)
 		case nil:
 			// all good, skipping
 		default:
-			switch pgerr := err.(pgx.PgError); pgerr.Code {
-			case "23505":
-				spew.Dump(pgerr)
-				return err
-				//return ErrDuplicatePolicy
-			default:
-				return errors.Wrap(err, "failed to execute insert policy")
+			if pgerr, ok := err.(pgx.PgError); ok {
+				switch pgerr.Code {
+				case "23505":
+					return err
+				default:
+					return errors.Wrap(err, "failed to execute insert policy")
+				}
 			}
 		}
 

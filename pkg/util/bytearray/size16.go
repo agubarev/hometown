@@ -11,7 +11,7 @@ type ByteString16 [16]byte
 var NilByteString16 = ByteString16{}
 
 func NewByteString16(s string) (bs ByteString16) {
-	copy(bs[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
+	copy(bs[:], bytes.TrimSpace([]byte(s)))
 	return bs
 }
 

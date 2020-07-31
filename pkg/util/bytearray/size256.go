@@ -9,7 +9,7 @@ import (
 type ByteString256 [256]byte
 
 func NewByteString256(s string) (bs ByteString256) {
-	copy(bs[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
+	copy(bs[:], bytes.TrimSpace([]byte(s)))
 	return bs
 }
 

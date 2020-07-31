@@ -2,9 +2,8 @@ package user
 
 import (
 	"context"
-	"time"
 
-	"github.com/gocraft/dbr/v2"
+	"github.com/agubarev/hometown/pkg/util"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -24,7 +23,7 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 		UserID:           newProfile.UserID,
 		ProfileEssential: newProfile.ProfileEssential,
 		ProfileMetadata: ProfileMetadata{
-			CreatedAt: dbr.NewNullTime(time.Now()),
+			CreatedAt: util.NowUnixU32(),
 		},
 	}
 
@@ -94,7 +93,7 @@ func (m *Manager) UpdateProfile(ctx context.Context, id uuid.UUID, fn func(conte
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = dbr.NewNullTime(time.Now())
+	updated.UpdatedAt = util.NowUnixU32()
 
 	/*
 		// acquiring changelog of essential changes

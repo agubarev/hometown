@@ -154,7 +154,6 @@ func CreateTestUser(ctx context.Context, m *Manager, username bytearray.ByteStri
 				Firstname:  bytearray.NewByteString16("John"),
 				Lastname:   bytearray.NewByteString16("Smith"),
 				Middlename: bytearray.NewByteString16("Jack"),
-				Language:   [2]byte{'E', 'N'},
 			},
 			EmailAddr:   email,
 			PhoneNumber: bytearray.NewByteString16(uuid.New().String()[:15]),

@@ -4,10 +4,10 @@ import (
 	"bytes"
 	"encoding/binary"
 
+	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
-	"github.com/gocraft/dbr/v2"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -24,14 +24,13 @@ type ProfileEssential struct {
 	Firstname  bytearray.ByteString16 `db:"firstname" json:"firstname"`
 	Lastname   bytearray.ByteString16 `db:"lastname" json:"lastname"`
 	Middlename bytearray.ByteString16 `db:"middlename" json:"middlename"`
-	Language   [2]byte                `db:"language" json:"language"`
 }
 
 // ProfileMetadata contains generic metadata of the primary object
 type ProfileMetadata struct {
-	Checksum  uint64       `db:"checksum" json:"checksum"`
-	CreatedAt dbr.NullTime `db:"created_at" json:"created_at"`
-	UpdatedAt dbr.NullTime `db:"updated_at" json:"updated_at"`
+	Checksum  uint64         `db:"checksum" json:"checksum"`
+	CreatedAt util.Timestamp `db:"created_at" json:"created_at"`
+	UpdatedAt util.Timestamp `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -52,7 +51,6 @@ func (p *Profile) calculateChecksum() uint64 {
 		p.Firstname,
 		p.Lastname,
 		p.Middlename,
-		p.Language,
 	}
 
 	for _, field := range fields {
@@ -89,8 +87,6 @@ func (p *Profile) ApplyChangelog(changelog diff.Changelog) (err error) {
 			p.Middlename = change.To.(bytearray.ByteString16)
 		case "Lastname":
 			p.Lastname = change.To.(bytearray.ByteString16)
-		case "Language":
-			p.Language = change.To.([2]byte)
 		case "Checksum":
 			p.Checksum = change.To.(uint64)
 		}
