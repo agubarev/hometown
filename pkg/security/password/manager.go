@@ -17,21 +17,20 @@ var (
 	ErrShortPassword    = errors.New("password is too short")
 	ErrLongPassword     = errors.New("password is too long")
 	ErrUnsafePassword   = errors.New("password is too unsafe")
-	ErrNothingChanged   = errors.New("nothing changed")
 )
 
-type Kind uint8
+type OwnerKind uint8
 
 // password owner kinds
 const (
-	KUser Kind = 1
+	OKUser OwnerKind = 1
 )
 
 // userManager describes the behaviour of a user password manager
 type Manager interface {
 	Upsert(ctx context.Context, p Password) error
-	Get(ctx context.Context, kind Kind, ownerID uuid.UUID) (p Password, err error)
-	Delete(ctx context.Context, kind Kind, ownerID uuid.UUID) error
+	Get(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (p Password, err error)
+	Delete(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) error
 }
 
 type defaultManager struct {
@@ -63,7 +62,7 @@ func (m *defaultManager) Upsert(ctx context.Context, p Password) (err error) {
 	return m.store.Upsert(ctx, p)
 }
 
-func (m *defaultManager) Get(ctx context.Context, kind Kind, ownerID uuid.UUID) (p Password, err error) {
+func (m *defaultManager) Get(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (p Password, err error) {
 	if m.store == nil {
 		return p, ErrNilPasswordStore
 	}
@@ -79,7 +78,7 @@ func (m *defaultManager) Get(ctx context.Context, kind Kind, ownerID uuid.UUID) 
 	return m.store.Get(ctx, kind, ownerID)
 }
 
-func (m *defaultManager) Delete(ctx context.Context, k Kind, ownerID uuid.UUID) error {
+func (m *defaultManager) Delete(ctx context.Context, k OwnerKind, ownerID uuid.UUID) error {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}

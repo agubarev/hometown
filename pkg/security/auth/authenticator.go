@@ -20,6 +20,7 @@ import (
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -63,9 +64,9 @@ const (
 
 // Claims holds required JWT claims
 type Claims struct {
-	UserID uuid.UUID    `json:"uid"`
-	Roles  []group.TKey `json:"rs,omitempty"`
-	Groups []group.TKey `json:"gs,omitempty"`
+	UserID uuid.UUID                `json:"uid"`
+	Roles  []bytearray.ByteString32 `json:"rs,omitempty"`
+	Groups []bytearray.ByteString32 `json:"gs,omitempty"`
 
 	jwt.StandardClaims
 }
@@ -77,13 +78,13 @@ type Claims struct {
 // because it contains the refresh token
 type Session struct {
 	UserAgent     bytearray.ByteString64 `json:"ua,omitempty"`
+	RefreshToken  token.Hash             `json:"rtok,omitempty"`
+	Token         token.Hash             `json:"t,omitempty"`
+	AccessTokenID uuid.UUID              `json:"jti,omitempty"`
 	UserID        uuid.UUID              `json:"uid,omitempty"`
 	IP            user.IPAddr            `json:"ip,omitempty"`
-	AccessTokenID bytearray.ByteString32 `json:"jti,omitempty"`
-	RefreshToken  bytearray.ByteString32 `json:"rtok,omitempty"`
-	Token         token.Hash             `json:"t,omitempty"`
-	CreatedAt     uint32                 `json:"cat,omitempty"`
-	ExpireAt      uint32                 `json:"eat,omitempty"`
+	CreatedAt     timestamp.Timestamp    `json:"cat,omitempty"`
+	ExpireAt      timestamp.Timestamp    `json:"eat,omitempty"`
 }
 
 // SanitizeAndValidate validates the session
@@ -100,7 +101,7 @@ func (s *Session) Validate() error {
 		return errors.New("expiration time is not set")
 	}
 
-	if s.ExpireAt < util.NowUnixU32() {
+	if s.ExpireAt < timestamp.Now() {
 		return ErrTokenExpired
 	}
 
@@ -109,18 +110,18 @@ func (s *Session) Validate() error {
 
 // RefreshTokenPayload represents the payload of a refresh token
 type RefreshTokenPayload struct {
-	UserID    uint32 `json:"uid,omitempty"`
-	IP        string `json:"ip,omitempty"`
-	UserAgent string `json:"ua,omitempty"`
+	UserAgent bytearray.ByteString64 `json:"ua,omitempty"`
+	UserID    uuid.UUID              `json:"uid,omitempty"`
+	IP        user.IPAddr            `json:"ip,omitempty"`
 }
 
 // TokenTrinity is what is returned upon a successful
 // authentication by credentials, or by using a refresh token
 // NOTE: typically, refresh token stays the same when obtained via refresh token
 type TokenTrinity struct {
-	SessionToken string `json:"session_token,omitempty"`
-	AccessToken  string `json:"access_token,omitempty"`
-	RefreshToken string `json:"refresh_token,omitempty"`
+	SessionToken token.Hash `json:"session_token,omitempty"`
+	AccessToken  token.Hash `json:"access_token,omitempty"`
+	RefreshToken token.Hash `json:"refresh_token,omitempty"`
 }
 
 // ClientCredentials represents client authentication credentials
@@ -131,8 +132,8 @@ type ClientCredentials struct {
 
 // UserCredentials represents user authentication credentials
 type UserCredentials struct {
-	Username string `json:"username"`
-	Password []byte `json:"password"`
+	Username bytearray.ByteString32 `json:"username"`
+	Password []byte                 `json:"password"`
 }
 
 type Config struct {
@@ -151,10 +152,11 @@ func NewDefaultConfig() Config {
 // TODO: consider preserving original username but still change case to lower
 // NOTE: trimming passwords whitespace to prevent problems when people copy+paste
 func (c *UserCredentials) SanitizeAndValidate() error {
-	c.Username = strings.ToLower(strings.TrimSpace(c.Username))
+	c.Username.Trim()
+	c.Username.ToLower()
 	c.Password = bytes.TrimSpace(c.Password)
 
-	if c.Username == "" {
+	if c.Username[0] == 0 {
 		return ErrEmptyUsername
 	}
 
@@ -167,14 +169,14 @@ func (c *UserCredentials) SanitizeAndValidate() error {
 
 // RevokedAccessToken represents a blacklisted accesspolicy token
 type RevokedAccessToken struct {
-	TokenID  string
-	ExpireAt time.Time
+	AccessTokenID uuid.UUID
+	ExpireAt      timestamp.Timestamp
 }
 
 // RequestMetadata holds request information
 type RequestMetadata struct {
-	IP        net.IP
-	UserAgent string
+	IP        user.IPAddr
+	UserAgent bytearray.ByteString32
 }
 
 // NewRequestInfo initializes RequestInfo from a given http.Request
@@ -182,8 +184,8 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 	// this is just a convenience for tests
 	if r == nil {
 		return &RequestMetadata{
-			IP:        net.IPv4(0, 0, 0, 0),
-			UserAgent: "",
+			IP:        user.IPAddr{},
+			UserAgent: bytearray.NilByteString32,
 		}
 	}
 
@@ -194,17 +196,17 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 	}
 
 	return &RequestMetadata{
-		IP:        net.ParseIP(sip),
-		UserAgent: r.UserAgent(),
+		IP:        user.NewIPAddrFromString(net.ParseIP(sip).String()),
+		UserAgent: bytearray.NewByteString32(r.UserAgent()),
 	}
 }
 
 // SanitizeAndValidate validates revoked token
 func (ri *RevokedAccessToken) Validate() error {
 	// a little side-effect that won't hurt
-	ri.TokenID = strings.TrimSpace(ri.TokenID)
+	ri.AccessTokenID = strings.TrimSpace(ri.AccessTokenID)
 
-	if ri.TokenID == "" {
+	if ri.AccessTokenID == "" {
 		return ErrInvalidTokenID
 	}
 
@@ -325,7 +327,7 @@ func (a *Authenticator) PrivateKey() (*rsa.PrivateKey, error) {
 }
 
 // Authenticate authenticates a user by a given username and password
-func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpass []byte, ri *RequestMetadata) (u user.User, err error) {
+func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.ByteString32, rawpass []byte, ri *RequestMetadata) (u user.User, err error) {
 	u, err = a.UserManager().UserByUsername(ctx, username)
 	if err != nil {
 		return u, err
@@ -335,16 +337,16 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 	l := a.Logger().With(
 		zap.String("user_id", u.ID.String()),
 		zap.String("username", u.Username.String()),
-		zap.String("ip", ri.IP.String()),
-		zap.String("user_agent", ri.UserAgent),
+		zap.String("ip", ri.IP.StringIPv4()),
+		zap.String("user_agent", ri.UserAgent.String()),
 	)
 
 	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
 		l.Info(
 			"suspended user signin attempt",
-			zap.Time("suspended_at", util.TimeFromU32Unix(u.SuspendedAt)),
-			zap.Time("suspension_expires_at", util.TimeFromU32Unix(u.SuspensionExpiresAt)),
+			zap.Time("suspended_at", u.SuspendedAt.Time()),
+			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time()),
 		)
 
 		return u, ErrUserSuspended
@@ -354,7 +356,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username string, rawpa
 	pm := a.PasswordManager()
 
 	// obtaining user's password
-	userpass, err := pm.Get(ctx, password.KUser, u.ID)
+	userpass, err := pm.Get(ctx, password.OKUser, u.ID)
 	if err != nil {
 		if err == password.ErrPasswordNotFound {
 			l.Info("password not found", zap.Error(err))
@@ -458,8 +460,8 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 }
 
 // DestroySession destroys session by token, and as a given user
-func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32, stok string, ri *RequestMetadata) error {
-	if destroyedByID == 0 {
+func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uuid.UUID, tok token.Hash, ri *RequestMetadata) error {
+	if destroyedByID == uuid.Nil {
 		return user.ErrZeroUserID
 	}
 
@@ -467,7 +469,7 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32
 	tm := a.TokenManager()
 
 	// obtaining session from the backend to verify
-	s, err := a.backend.GetSession(stok)
+	s, err := a.backend.GetSession(tok)
 	if err != nil {
 		return err
 	}
@@ -481,7 +483,7 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uint32
 		return ErrWrongUserAgent
 	}
 
-	if s.IP != ri.IP.String() {
+	if s.IP != ri.IP {
 		return ErrWrongIP
 	}
 
@@ -518,8 +520,8 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 	gm := a.GroupManager()
 
 	// slicing group names
-	gs := make([]group.TKey, 0)
-	rs := make([]group.TKey, 0)
+	gs := make([]bytearray.ByteString32, 0)
+	rs := make([]bytearray.ByteString32, 0)
 
 	for _, g := range gm.GroupsByAssetID(ctx, group.FAllGroups, u.ID) {
 		switch g.Flags {
@@ -700,8 +702,8 @@ func (a *Authenticator) UserFromToken(ctx context.Context, tok string) (u user.U
 // of an accesspolicy token expiration time + 1 minute
 func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
 	return a.backend.PutRevokedAccessToken(RevokedAccessToken{
-		TokenID:  id,
-		ExpireAt: eat,
+		AccessTokenID: id,
+		ExpireAt:      eat,
 	})
 }
 

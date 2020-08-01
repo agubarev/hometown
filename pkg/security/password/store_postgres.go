@@ -42,7 +42,7 @@ func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
 			updated_at			= EXCLUDED.updated_at,
 			expire_at			= EXCLUDED.expire_at`
 
-	cmd, err := s.db.ExecEx(
+	_, err = s.db.ExecEx(
 		ctx,
 		q,
 		nil,
@@ -53,23 +53,22 @@ func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
 		return errors.Wrap(err, "failed to upsert password")
 	}
 
-	if cmd.RowsAffected() == 0 {
-		return ErrNothingChanged
-	}
-
 	return nil
 }
 
 // Get retrieves a stored password
-func (s *PostgreSQLStore) Get(ctx context.Context, kind Kind, ownerID uuid.UUID) (p Password, err error) {
+func (s *PostgreSQLStore) Get(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (p Password, err error) {
 	q := `
-	SELECT kind, owner_id, hash, is_changed_required, created_at, updated_at, expire_at
+	SELECT kind, owner_id, hash, is_change_required, created_at, updated_at, expire_at
+	FROM password
 	WHERE kind = $1 AND owner_id = $2
 	LIMIT 1`
 
-	row := s.db.QueryRowEx(ctx, q, nil, kind, ownerID)
+	err = s.db.QueryRowEx(ctx, q, nil, kind, ownerID).
+		Scan(&p.Kind, &p.OwnerID, &p.Hash, &p.IsChangeRequired,
+			&p.CreatedAt, &p.UpdatedAt, &p.ExpireAt)
 
-	switch err = row.Scan(&p.Kind, &p.OwnerID, &p.Hash, &p.IsChangeRequired, &p.CreatedAt, &p.UpdatedAt, &p.ExpireAt); err {
+	switch err {
 	case nil:
 		return p, nil
 	case pgx.ErrNoRows:
@@ -80,16 +79,12 @@ func (s *PostgreSQLStore) Get(ctx context.Context, kind Kind, ownerID uuid.UUID)
 }
 
 // DeletePolicy deletes a stored password
-func (s *PostgreSQLStore) Delete(ctx context.Context, kind Kind, ownerID uuid.UUID) (err error) {
+func (s *PostgreSQLStore) Delete(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (err error) {
 	q := `DELETE FROM password WHERE kind = $1 AND owner_id = $2`
 
-	cmd, err := s.db.ExecEx(ctx, q, nil, kind, ownerID)
+	_, err = s.db.ExecEx(ctx, q, nil, kind, ownerID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete password")
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return ErrNothingChanged
 	}
 
 	return err

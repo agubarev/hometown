@@ -3,7 +3,7 @@ package password
 import (
 	"time"
 
-	"github.com/agubarev/hometown/pkg/util"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	zxcvbn "github.com/nbutton23/zxcvbn-go"
 	"golang.org/x/crypto/bcrypt"
@@ -19,13 +19,13 @@ const (
 // Password object
 // TODO: use byte array instead of slice for password hash
 type Password struct {
-	Kind             Kind           `db:"kind" json:"-"`
-	OwnerID          uuid.UUID      `db:"owner_id" json:"-"`
-	Hash             []byte         `db:"hash" json:"-"`
-	CreatedAt        util.Timestamp `db:"created_at" json:"-"`
-	UpdatedAt        util.Timestamp `db:"updated_at" json:"-"`
-	ExpireAt         util.Timestamp `db:"expire_at" json:"-"`
-	IsChangeRequired bool           `db:"is_change_required" json:"-"`
+	Kind             OwnerKind           `db:"kind" json:"-"`
+	OwnerID          uuid.UUID           `db:"owner_id" json:"-"`
+	Hash             []byte              `db:"hash" json:"-"`
+	CreatedAt        timestamp.Timestamp `db:"created_at" json:"-"`
+	UpdatedAt        timestamp.Timestamp `db:"updated_at" json:"-"`
+	ExpireAt         timestamp.Timestamp `db:"expire_at" json:"-"`
+	IsChangeRequired bool                `db:"is_change_required" json:"-"`
 }
 
 // SanitizeAndValidate validates password
@@ -60,7 +60,7 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 	// evaluating password's strength by the library's score
 	// the score must be at least 3
 	result := zxcvbn.PasswordStrength(string(rawpass), data)
-	if result.Score < 3 {
+	if result.Score < 4 {
 		return ErrUnsafePassword
 	}
 
@@ -68,7 +68,7 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 }
 
 // New creates a hash from a given raw password byte slice
-func New(k Kind, ownerID uuid.UUID, rawpass []byte, data []string) (p Password, err error) {
+func New(k OwnerKind, ownerID uuid.UUID, rawpass []byte, data []string) (p Password, err error) {
 	if err = EvaluatePasswordStrength(rawpass, data); err != nil {
 		return p, err
 	}
@@ -82,8 +82,8 @@ func New(k Kind, ownerID uuid.UUID, rawpass []byte, data []string) (p Password, 
 		Kind:      k,
 		OwnerID:   ownerID,
 		Hash:      h,
-		CreatedAt: util.NowUnixU32(),
-		ExpireAt:  util.Timestamp(time.Now().Add(defaultTTL).Unix()),
+		CreatedAt: timestamp.Now(),
+		ExpireAt:  timestamp.Timestamp(time.Now().Add(defaultTTL).Unix()),
 	}
 
 	return p, nil

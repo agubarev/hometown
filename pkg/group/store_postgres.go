@@ -108,7 +108,7 @@ func (s *PostgreSQLStore) UpsertGroup(ctx context.Context, g Group) (Group, erro
 			key			= EXCLUDED.key,
 			flags		= EXCLUDED.flags`
 
-	cmd, err := s.db.ExecEx(
+	_, err := s.db.ExecEx(
 		ctx,
 		q,
 		nil,
@@ -117,10 +117,6 @@ func (s *PostgreSQLStore) UpsertGroup(ctx context.Context, g Group) (Group, erro
 
 	if err != nil {
 		return g, errors.Wrap(err, "failed to execute insert statement")
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return g, ErrNothingChanged
 	}
 
 	return g, nil
@@ -142,7 +138,7 @@ func (s *PostgreSQLStore) CreateRelation(ctx context.Context, rel Relation) (err
 	DO NOTHING
 	`
 
-	cmd, err := s.db.ExecEx(
+	_, err = s.db.ExecEx(
 		ctx,
 		q,
 		nil,
@@ -151,10 +147,6 @@ func (s *PostgreSQLStore) CreateRelation(ctx context.Context, rel Relation) (err
 
 	if err != nil {
 		return errors.Wrap(err, "failed to execute insert statement")
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return ErrNothingChanged
 	}
 
 	return nil
@@ -185,7 +177,7 @@ func (s *PostgreSQLStore) FetchAllGroups(ctx context.Context) (gs []Group, err e
 }
 
 func (s *PostgreSQLStore) FetchAllRelations(ctx context.Context) (relations []Relation, err error) {
-	return s.manyRelations(ctx, `SELECT group_id, asset_kind, asset_id  FROM group_assets`)
+	return s.manyRelations(ctx, `SELECT group_id, asset_kind, asset_id FROM group_assets`)
 }
 
 func (s *PostgreSQLStore) FetchGroupRelations(ctx context.Context, groupID uuid.UUID) ([]Relation, error) {
@@ -200,8 +192,7 @@ func (s *PostgreSQLStore) HasRelation(ctx context.Context, rel Relation) (bool, 
 		group_id		= $1 
 		AND asset_kind	= $2 
 		AND asset_id	= $3
-	LIMIT 1
-	`
+	LIMIT 1`
 
 	_rel, err := s.oneRelation(ctx, q, rel.GroupID, rel.Asset.Kind, rel.Asset.ID)
 	if err != nil {
@@ -215,35 +206,26 @@ func (s *PostgreSQLStore) HasRelation(ctx context.Context, rel Relation) (bool, 
 	return rel == _rel, nil
 }
 
-func (s *PostgreSQLStore) DeleteByID(ctx context.Context, groupID uuid.UUID) error {
-	cmd, err := s.db.ExecEx(ctx, `DELETE FROM "group" WHERE id = $1`, nil, groupID)
+func (s *PostgreSQLStore) DeleteByID(ctx context.Context, groupID uuid.UUID) (err error) {
+	_, err = s.db.ExecEx(ctx, `DELETE FROM "group" WHERE id = $1`, nil, groupID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete group")
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return ErrNothingChanged
 	}
 
 	return nil
 }
 
-func (s *PostgreSQLStore) DeleteRelation(ctx context.Context, rel Relation) error {
+func (s *PostgreSQLStore) DeleteRelation(ctx context.Context, rel Relation) (err error) {
 	q := `
 	DELETE FROM group_assets 
 	WHERE 
 		group_id		= $1 
 		AND asset_kind	= $2 
-		AND asset_id	= $3
-	`
+		AND asset_id	= $3`
 
-	cmd, err := s.db.ExecEx(ctx, q, nil, rel.GroupID, rel.Asset.Kind, rel.Asset.ID)
+	_, err = s.db.ExecEx(ctx, q, nil, rel.GroupID, rel.Asset.Kind, rel.Asset.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete group relation")
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return ErrNothingChanged
 	}
 
 	return nil

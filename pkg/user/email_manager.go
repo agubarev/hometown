@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 
-	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -24,7 +24,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newEmail.UserID,
 		EmailEssential: newEmail.EmailEssential,
 		EmailMetadata: EmailMetadata{
-			CreatedAt: util.NowUnixU32(),
+			CreatedAt: timestamp.Now(),
 		},
 	}
 
@@ -114,7 +114,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr bytearray.ByteString256,
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = util.NowUnixU32()
+	updated.UpdatedAt = timestamp.Now()
 
 	/*
 		// acquiring changelog of essential changes
@@ -177,7 +177,7 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr bytearray.ByteString256
 	}
 
 	email, _, err = m.UpdateEmail(ctx, email.Addr, func(ctx context.Context, e Email) (email Email, err error) {
-		e.ConfirmedAt = util.NowUnixU32()
+		e.ConfirmedAt = timestamp.Now()
 
 		return email, nil
 	})

@@ -1,4 +1,4 @@
-package util
+package timestamp
 
 import (
 	"encoding/binary"
@@ -14,7 +14,7 @@ func NewTimestampFromUnix(ts uint32) Timestamp {
 	return Timestamp(ts)
 }
 
-func NowUnixU32() Timestamp {
+func Now() Timestamp {
 	return Timestamp(time.Now().Unix())
 }
 
@@ -43,7 +43,12 @@ func (ts Timestamp) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte
 }
 
 func (ts *Timestamp) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+	if src == nil {
+		return nil
+	}
+
 	*ts = Timestamp(binary.BigEndian.Uint64(src) / 1e6)
+
 	return nil
 }
 

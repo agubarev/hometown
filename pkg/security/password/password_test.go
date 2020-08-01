@@ -1,9 +1,11 @@
 package password_test
 
 import (
+	"crypto/rand"
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/security/password"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -13,7 +15,7 @@ func TestNewPassword(t *testing.T) {
 
 	correctPassword := []byte("1j20nmdoansd-[afkcq0ofecimwq1")
 	wrongPassword := []byte("wrongpassword")
-	p, err := password.New(password.KUser, 1, correctPassword, []string{})
+	p, err := password.New(password.OKUser, uuid.New(), correctPassword, []string{})
 	a.NoError(err)
 	a.NotNil(p)
 	a.True(p.Compare(correctPassword))
@@ -27,7 +29,12 @@ func TestEvaluatePassword(t *testing.T) {
 	a.Error(err)
 	a.EqualError(password.ErrShortPassword, err.Error())
 
-	err = password.EvaluatePasswordStrength([]byte("jwfjowfjowjeofwjoefwjoefqjiqweoqpw[eofqwp-oefkqpwefoq"), []string{})
+	// generating password which must be lenghtier than max allowed
+	pass := make([]byte, password.MaxLength+1)
+	_, err = rand.Read(pass)
+	a.NoError(err)
+
+	err = password.EvaluatePasswordStrength(pass, []string{})
 	a.Error(err)
 	a.EqualError(password.ErrLongPassword, err.Error())
 
@@ -39,7 +46,6 @@ func TestEvaluatePassword(t *testing.T) {
 	a.Error(err)
 	a.EqualError(password.ErrUnsafePassword, err.Error())
 
-	err = password.EvaluatePasswordStrength([]byte("s@fer!@()*!p@ssw0rd"), []string{})
-	a.Error(err)
+	err = password.EvaluatePasswordStrength([]byte("s@fer!@()*!p@ssw0rd*!jahaajk8!*@^%"), []string{})
 	a.NoError(err)
 }

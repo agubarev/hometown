@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 
-	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -24,7 +24,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newPhone.UserID,
 		PhoneEssential: newPhone.PhoneEssential,
 		PhoneMetadata: PhoneMetadata{
-			CreatedAt: util.NowUnixU32(),
+			CreatedAt: timestamp.Now(),
 		},
 	}
 
@@ -97,7 +97,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number bytearray.ByteString16
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = util.NowUnixU32()
+	updated.UpdatedAt = timestamp.Now()
 
 	/*
 		// acquiring changelog of essential changes

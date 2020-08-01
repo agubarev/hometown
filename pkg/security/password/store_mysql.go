@@ -30,7 +30,7 @@ func (s *MySQLStore) Upsert(ctx context.Context, p Password) (err error) {
 		ExecContext(
 			ctx,
 			"INSERT INTO `password`(`kind`, `owner_id`, `hash`, `is_change_required`, `created_at`, `expire_at`) VALUES(?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE `hash`=?, `updated_at`=?, `expire_at`=?",
-			p.Kind, p.OwnerID, p.Hash, p.IsChangeRequired, p.CreatedAt, p.ExpireAt, p.Hash, p.UpdatedAt, p.ExpireAt,
+			p.OwnerKind, p.OwnerID, p.Hash, p.IsChangeRequired, p.CreatedAt, p.ExpireAt, p.Hash, p.UpdatedAt, p.ExpireAt,
 		)
 
 	if err != nil {
@@ -41,7 +41,7 @@ func (s *MySQLStore) Upsert(ctx context.Context, p Password) (err error) {
 }
 
 // UpdatePolicy updates an existing password record
-func (s *MySQLStore) Update(ctx context.Context, k Kind, ownerID uint32, newpass []byte) (err error) {
+func (s *MySQLStore) Update(ctx context.Context, k OwnerKind, ownerID uint32, newpass []byte) (err error) {
 	if len(newpass) == 0 {
 		return ErrEmptyPassword
 	}
@@ -62,7 +62,7 @@ func (s *MySQLStore) Update(ctx context.Context, k Kind, ownerID uint32, newpass
 }
 
 // Get retrieves a stored password
-func (s *MySQLStore) Get(ctx context.Context, k Kind, userID uint32) (p Password, err error) {
+func (s *MySQLStore) Get(ctx context.Context, k OwnerKind, userID uint32) (p Password, err error) {
 	// retrieving password
 	err = s.db.NewSession(nil).
 		Select("*").
@@ -82,7 +82,7 @@ func (s *MySQLStore) Get(ctx context.Context, k Kind, userID uint32) (p Password
 }
 
 // DeletePolicy deletes a stored password
-func (s *MySQLStore) Delete(ctx context.Context, k Kind, ownerID uint32) (err error) {
+func (s *MySQLStore) Delete(ctx context.Context, k OwnerKind, ownerID uint32) (err error) {
 	_, err = s.db.NewSession(nil).
 		DeleteFrom("password").
 		Where("kind = ? AND owner_id = ?", k, ownerID).

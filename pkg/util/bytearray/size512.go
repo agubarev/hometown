@@ -2,6 +2,7 @@ package bytearray
 
 import (
 	"bytes"
+	"encoding/json"
 
 	"github.com/jackc/pgx/pgtype"
 )
@@ -51,5 +52,14 @@ func (bs ByteString512) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []
 
 func (bs *ByteString512) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	copy(bs[:], src)
+	return nil
+}
+
+func (bs ByteString512) MarshalJSON() ([]byte, error) {
+	return json.Marshal(bs.String())
+}
+
+func (bs *ByteString512) UnmarshalJSON(data []byte) error {
+	copy(bs[:], bytes.Trim(data, "\\\" "))
 	return nil
 }

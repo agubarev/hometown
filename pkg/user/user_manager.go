@@ -5,8 +5,8 @@ import (
 	"context"
 
 	"github.com/agubarev/hometown/pkg/security/password"
-	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -61,7 +61,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 		ID:        uuid.New(),
 		Essential: newUser.Essential,
 		Metadata: Metadata{
-			CreatedAt: util.NowUnixU32(),
+			CreatedAt: timestamp.Now(),
 		},
 	}
 
@@ -120,7 +120,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 			}
 
 			// deleting password
-			if xerr := m.passwords.Delete(ctx, password.KUser, u.ID); xerr != nil {
+			if xerr := m.passwords.Delete(ctx, password.OKUser, u.ID); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete password during recovery from panic: %s", xerr)
 				l.Warn("failed to delete password during recovery from panic", zap.Error(err))
 			}
@@ -213,7 +213,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	}
 
 	// initializing new password
-	p, err := password.New(password.KUser, u.ID, newUser.Password, userdata)
+	p, err := password.New(password.OKUser, u.ID, newUser.Password, userdata)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to initialize new password"))
 	}
@@ -310,7 +310,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = util.NowUnixU32()
+	updated.UpdatedAt = timestamp.Now()
 
 	/*
 		// acquiring changelog of essential changes
@@ -358,7 +358,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 		// and finally deleting user's password if the password manager is present
 		// NOTE: it should be possible that the user could not have a password
 		if m.passwords != nil {
-			err = m.passwords.Delete(ctx, password.KUser, id)
+			err = m.passwords.Delete(ctx, password.OKUser, id)
 			if err != nil {
 				return u, errors.Wrap(err, "failed to delete user password")
 			}
@@ -375,7 +375,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 
 	// updating to mark this object as deleted
 	u, _, err = m.UpdateUser(ctx, id, func(ctx context.Context, u User) (_ User, err error) {
-		u.DeletedAt = util.NowUnixU32()
+		u.DeletedAt = timestamp.Now()
 
 		return u, nil
 	})

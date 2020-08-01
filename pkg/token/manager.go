@@ -50,6 +50,10 @@ func NewHash() (h Hash) {
 }
 
 func (h Hash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	if h[0] == 0 {
+		return nil, nil
+	}
+
 	zpos := bytes.IndexByte(h[:], byte(0))
 	if zpos == -1 {
 		return append(buf, h[:]...), nil
@@ -59,7 +63,12 @@ func (h Hash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err 
 }
 
 func (h Hash) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+	if src == nil {
+		return nil
+	}
+
 	copy(h[:], src)
+
 	return nil
 }
 

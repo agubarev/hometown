@@ -6,6 +6,7 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/security/password"
+	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -13,7 +14,7 @@ import (
 func TestPasswordStorePut(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -21,18 +22,18 @@ func TestPasswordStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	p, err := password.New(password.KUser, 1, []byte("namelimilenivonalimalovili"), nil)
+	p, err := password.New(password.OKUser, uuid.New(), []byte("namelimilenivonalimalovili"), nil)
 	a.NoError(err)
 	a.NotNil(p)
 
 	a.NoError(s.Upsert(context.Background(), p))
-	a.NoError(s.Delete(context.Background(), password.KUser, p.OwnerID))
+	a.NoError(s.Delete(context.Background(), password.OKUser, p.OwnerID))
 }
 
 func TestPasswordStoreGet(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -40,17 +41,17 @@ func TestPasswordStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	ownerID := int64(1)
+	ownerID := uuid.New()
 	pass := []byte("namelimilenivonalimalovili")
 
-	p, err := password.New(password.KUser, ownerID, pass, nil)
+	p, err := password.New(password.OKUser, ownerID, pass, nil)
 	a.NoError(err)
 	a.NotNil(p)
 
 	err = s.Upsert(context.Background(), p)
 	a.NoError(err)
 
-	p2, err := s.Get(context.Background(), password.KUser, ownerID)
+	p2, err := s.Get(context.Background(), password.OKUser, ownerID)
 	a.NoError(err)
 	a.Len(p.Hash, len(p2.Hash))
 	a.Equal(p.Hash, p2.Hash)
@@ -59,7 +60,7 @@ func TestPasswordStoreGet(t *testing.T) {
 func TestPasswordStoreDelete(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.MySQLForTesting()
+	db, err := database.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -67,25 +68,24 @@ func TestPasswordStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	ownerID := int64(1)
+	ownerID := uuid.New()
 	pass := []byte("namelimilenivonalimalovili")
 
-	original, err := password.New(password.KUser, ownerID, pass, nil)
+	original, err := password.New(password.OKUser, ownerID, pass, nil)
 	a.NoError(err)
 	a.NotNil(original)
 
 	err = s.Upsert(context.Background(), original)
 	a.NoError(err)
 
-	p, err := s.Get(context.Background(), password.KUser, ownerID)
+	p, err := s.Get(context.Background(), password.OKUser, ownerID)
 	a.NoError(err)
 	a.Len(p.Hash, len(original.Hash))
 	a.Equal(p.Hash, original.Hash)
 
-	err = s.Delete(context.Background(), password.KUser, ownerID)
+	err = s.Delete(context.Background(), password.OKUser, ownerID)
 	a.NoError(err)
 
-	p2, err := s.Get(context.Background(), password.KUser, ownerID)
+	_, err = s.Get(context.Background(), password.OKUser, ownerID)
 	a.Error(err)
-	a.Nil(p2)
 }

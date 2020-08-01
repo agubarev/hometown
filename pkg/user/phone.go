@@ -1,8 +1,8 @@
 package user
 
 import (
-	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/asaskevich/govalidator"
 	"github.com/google/uuid"
 	"github.com/r3labs/diff"
@@ -23,9 +23,9 @@ type PhoneEssential struct {
 
 // PhoneMetadata contains generic metadata of the primary object
 type PhoneMetadata struct {
-	CreatedAt   util.Timestamp `db:"created_at" json:"created_at"`
-	ConfirmedAt util.Timestamp `db:"confirmed_at" json:"confirmed_at"`
-	UpdatedAt   util.Timestamp `db:"updated_at" json:"updated_at"`
+	CreatedAt   timestamp.Timestamp `db:"created_at" json:"created_at"`
+	ConfirmedAt timestamp.Timestamp `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   timestamp.Timestamp `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -60,11 +60,11 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "Number":
 			p.Number = change.To.(bytearray.ByteString16)
 		case "CreatedAt":
-			p.CreatedAt = change.To.(util.Timestamp)
+			p.CreatedAt = change.To.(timestamp.Timestamp)
 		case "Confirmed_at":
-			p.ConfirmedAt = change.To.(util.Timestamp)
+			p.ConfirmedAt = change.To.(timestamp.Timestamp)
 		case "UpdatedAt":
-			p.UpdatedAt = change.To.(util.Timestamp)
+			p.UpdatedAt = change.To.(timestamp.Timestamp)
 		}
 	}
 

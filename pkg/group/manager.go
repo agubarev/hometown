@@ -17,7 +17,6 @@ import (
 // errors
 var (
 	ErrNilDatabase            = errors.New("database is nil")
-	ErrNothingChanged         = errors.New("nothing changed")
 	ErrNoParent               = errors.New("no parent group")
 	ErrNilGroupID             = errors.New("role group id is zero")
 	ErrZeroRoleID             = errors.New("role id is zero")
@@ -687,7 +686,7 @@ func (m *Manager) CreateRelation(ctx context.Context, rel Relation) (err error) 
 	l := m.Logger()
 
 	if s != nil {
-		l.Info("creating asset relationship",
+		l.Debug("creating asset relationship",
 			zap.String("group_id", rel.GroupID.String()),
 			zap.String("asset_id", rel.Asset.ID.String()),
 			zap.String("asset_kind", rel.Asset.Kind.String()),
@@ -696,7 +695,7 @@ func (m *Manager) CreateRelation(ctx context.Context, rel Relation) (err error) 
 
 		// persisting relation in the store
 		if err = s.CreateRelation(ctx, rel); err != nil {
-			l.Info("failed to store asset relation",
+			l.Debug("failed to store asset relation",
 				zap.String("group_id", rel.GroupID.String()),
 				zap.String("asset_id", rel.Asset.ID.String()),
 				zap.String("asset_kind", rel.Asset.Kind.String()),
@@ -707,7 +706,7 @@ func (m *Manager) CreateRelation(ctx context.Context, rel Relation) (err error) 
 			return err
 		}
 	} else {
-		l.Info("creating asset relationship while store is not set",
+		l.Debug("creating asset relationship while store is not set",
 			zap.String("group_id", rel.GroupID.String()),
 			zap.String("asset_id", rel.Asset.ID.String()),
 			zap.String("asset_kind", rel.Asset.Kind.String()),
@@ -716,7 +715,6 @@ func (m *Manager) CreateRelation(ctx context.Context, rel Relation) (err error) 
 		)
 	}
 
-	// adding asset ActorID to group assets
 	if err = m.LinkAsset(ctx, rel.GroupID, rel.Asset); err != nil {
 		return err
 	}
@@ -759,7 +757,7 @@ func (m *Manager) DeleteRelation(ctx context.Context, rel Relation) (err error) 
 			return err
 		}
 	} else {
-		l.Info("deleting asset from group while store is not set",
+		l.Debug("deleting asset from group while store is not set",
 			zap.String("group_id", rel.GroupID.String()),
 			zap.String("asset_id", rel.Asset.ID.String()),
 			zap.String("asset_kind", rel.Asset.Kind.String()),
