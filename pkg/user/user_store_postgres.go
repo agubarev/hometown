@@ -150,7 +150,7 @@ func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err e
 				deleted_at				= EXCLUDED.deleted_at,
 				deleted_by_id			= EXCLUDED.deleted_by_id`
 
-	cmd, err := s.db.ExecEx(
+	_, err = s.db.ExecEx(
 		ctx,
 		q,
 		nil,
@@ -163,10 +163,6 @@ func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err e
 
 	if err != nil {
 		return u, errors.Wrap(err, "failed to execute upsert user")
-	}
-
-	if cmd.RowsAffected() == 0 {
-		return u, ErrNothingChanged
 	}
 
 	return u, nil

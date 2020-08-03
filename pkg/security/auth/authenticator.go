@@ -5,20 +5,17 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/rsa"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
-	"github.com/agubarev/hometown/pkg/util"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/dgrijalva/jwt-go"
@@ -37,8 +34,8 @@ type Context struct {
 type Domain uint8
 
 const (
-	DGeneric Domain = 0
-	DAdmin   Domain = 1 << (iota - Domain(1))
+	DGeneric Domain = 1 << iota
+	DAdmin
 )
 
 func (d Domain) String() string {
@@ -64,48 +61,11 @@ const (
 
 // Claims holds required JWT claims
 type Claims struct {
-	UserID uuid.UUID                `json:"uid"`
-	Roles  []bytearray.ByteString32 `json:"rs,omitempty"`
-	Groups []bytearray.ByteString32 `json:"gs,omitempty"`
+	UserID uuid.UUID   `json:"u"`
+	Roles  []uuid.UUID `json:"rs,omitempty"`
+	Groups []uuid.UUID `json:"gs,omitempty"`
 
 	jwt.StandardClaims
-}
-
-// Session represents a user session
-// NOTE: the session is used only to identify the session owner (user),
-// verify the user's IPAddr and UserAgent, and when to expire
-// WARNING: session object must never be shared with the client,
-// because it contains the refresh token
-type Session struct {
-	UserAgent     bytearray.ByteString64 `json:"ua,omitempty"`
-	RefreshToken  token.Hash             `json:"rtok,omitempty"`
-	Token         token.Hash             `json:"t,omitempty"`
-	AccessTokenID uuid.UUID              `json:"jti,omitempty"`
-	UserID        uuid.UUID              `json:"uid,omitempty"`
-	IP            user.IPAddr            `json:"ip,omitempty"`
-	CreatedAt     timestamp.Timestamp    `json:"cat,omitempty"`
-	ExpireAt      timestamp.Timestamp    `json:"eat,omitempty"`
-}
-
-// SanitizeAndValidate validates the session
-func (s *Session) Validate() error {
-	if s.Token[0] == 0 {
-		return errors.New("empty token hash")
-	}
-
-	if s.UserID == uuid.Nil {
-		return errors.New("user id not set")
-	}
-
-	if s.ExpireAt == 0 {
-		return errors.New("expiration time is not set")
-	}
-
-	if s.ExpireAt < timestamp.Now() {
-		return ErrTokenExpired
-	}
-
-	return nil
 }
 
 // RefreshTokenPayload represents the payload of a refresh token
@@ -119,15 +79,14 @@ type RefreshTokenPayload struct {
 // authentication by credentials, or by using a refresh token
 // NOTE: typically, refresh token stays the same when obtained via refresh token
 type TokenTrinity struct {
-	SessionToken token.Hash `json:"session_token,omitempty"`
 	AccessToken  token.Hash `json:"access_token,omitempty"`
 	RefreshToken token.Hash `json:"refresh_token,omitempty"`
 }
 
 // ClientCredentials represents client authentication credentials
 type ClientCredentials struct {
-	ClientID string `json:"client_id"`
-	Secret   string `json:"secret"`
+	ClientID uuid.UUID  `json:"client_id"`
+	Secret   token.Hash `json:"secret"`
 }
 
 // UserCredentials represents user authentication credentials
@@ -176,7 +135,7 @@ type RevokedAccessToken struct {
 // RequestMetadata holds request information
 type RequestMetadata struct {
 	IP        user.IPAddr
-	UserAgent bytearray.ByteString32
+	UserAgent bytearray.ByteString64
 }
 
 // NewRequestInfo initializes RequestInfo from a given http.Request
@@ -185,7 +144,7 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 	if r == nil {
 		return &RequestMetadata{
 			IP:        user.IPAddr{},
-			UserAgent: bytearray.NilByteString32,
+			UserAgent: bytearray.NilByteString64,
 		}
 	}
 
@@ -197,20 +156,17 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 
 	return &RequestMetadata{
 		IP:        user.NewIPAddrFromString(net.ParseIP(sip).String()),
-		UserAgent: bytearray.NewByteString32(r.UserAgent()),
+		UserAgent: bytearray.NewByteString64(r.UserAgent()),
 	}
 }
 
 // SanitizeAndValidate validates revoked token
 func (ri *RevokedAccessToken) Validate() error {
-	// a little side-effect that won't hurt
-	ri.AccessTokenID = strings.TrimSpace(ri.AccessTokenID)
-
-	if ri.AccessTokenID == "" {
+	if ri.AccessTokenID == uuid.Nil {
 		return ErrInvalidTokenID
 	}
 
-	if ri.ExpireAt.IsZero() {
+	if ri.ExpireAt == 0 {
 		return ErrInvalidExpirationTime
 	}
 
@@ -379,7 +335,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.Byt
 }
 
 // AuthenticateByRefreshToken authenticates a user by a given refresh token
-func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token.Token, ri *RequestMetadata) (u user.User, err error) {
+func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t token.Token, ri *RequestMetadata) (u user.User, err error) {
 	tm := a.TokenManager()
 
 	// validating refresh token
@@ -404,18 +360,18 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 	l := a.Logger().With(
 		zap.Uint32("user_id", u.ID),
 		zap.String("username", u.Username),
-		zap.String("ip", ri.IP.String()),
-		zap.String("user_agent", ri.UserAgent),
+		zap.String("ip", ri.IP.StringIPv4()),
+		zap.String("user_agent", ri.UserAgent.String()),
 	)
 
 	// comparing IPs
 	if a.config.CompareIP {
 		// TODO implement a more flexible way instead of comparing just strings
-		if payload.IP != ri.IP.String() {
+		if payload.IP != ri.IP {
 			// IPs don't match, thus deleting this refresh token
 			// to prevent any further use (safety first)
 			if err = tm.Delete(ctx, t); err != nil {
-				l.Warn("IPAddr MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash))
+				l.Warn("IPAddr MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash.String()))
 				return u, fmt.Errorf("failed to delete refresh token: %s", t.Hash)
 			}
 
@@ -429,7 +385,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 			// given user agent doesn't match to what's saved in the session
 			// deleting session because it could've been exposed (safety first)
 			if err = tm.Delete(ctx, t); err != nil {
-				l.Warn("USER-AGENT MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash))
+				l.Warn("USER-AGENT MISMATCH: failed to delete refresh token", zap.Error(err), zap.String("token", t.Hash.String()))
 				return u, fmt.Errorf("failed to delete refresh token: %s", t.Hash)
 			}
 		}
@@ -439,8 +395,8 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t *token
 	if u.IsSuspended {
 		l.Info(
 			"suspended user signin attempt (via refresh token)",
-			zap.Time("suspended_at", u.SuspendedAt.Time),
-			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time),
+			zap.Time("suspended_at", u.SuspendedAt.Time()),
+			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time()),
 		)
 
 		// since this user is suspended, then it's safe to assume
@@ -502,7 +458,7 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uuid.U
 	// verifying refresh token ownership
 
 	// revoking a corresponding accesspolicy token
-	err = a.RevokeAccessToken(s.AccessTokenID, s.ExpireAt)
+	err = a.RevokeAccessToken(s.JTI, s.ExpireAt)
 	if err != nil {
 		return err
 	}
@@ -512,28 +468,28 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uuid.U
 
 // GenerateAccessToken generates accesspolicy token for a given user
 // TODO: add dynamic token realm
-func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (string, string, error) {
+func (a *Authenticator) GenerateAccessToken(ctx context.Context, realm string, u user.User) (signedString string, jti uuid.UUID, err error) {
 	if u.ID == uuid.Nil {
-		return "", "", user.ErrNilUser
+		return signedString, uuid.Nil, user.ErrNilUser
 	}
 
 	gm := a.GroupManager()
 
 	// slicing group names
-	gs := make([]bytearray.ByteString32, 0)
-	rs := make([]bytearray.ByteString32, 0)
+	gs := make([]uuid.UUID, 0)
+	rs := make([]uuid.UUID, 0)
 
-	for _, g := range gm.GroupsByAssetID(ctx, group.FAllGroups, u.ID) {
+	for _, g := range gm.GroupsByAssetID(ctx, group.FAllGroups, group.UserAsset(u.ID)) {
 		switch g.Flags {
 		case group.FRole:
-			rs = append(rs, g.Key)
+			rs = append(rs, g.ID)
 		case group.FGroup:
-			gs = append(gs, g.Key)
+			gs = append(gs, g.ID)
 		}
 	}
 
 	// token id
-	jti := util.NewULID().String()
+	jti = uuid.New()
 
 	// generating and signing a new token
 	atok := jwt.NewWithClaims(jwt.SigningMethodRS256, Claims{
@@ -541,45 +497,37 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, u user.User) (s
 		Roles:  rs,
 		Groups: gs,
 		StandardClaims: jwt.StandardClaims{
-			Issuer:    "hometown",
+			Issuer:    realm,
 			IssuedAt:  time.Now().Unix(),
 			ExpiresAt: time.Now().Add(a.AccessTokenTTL).Unix(),
-			Id:        jti,
+			Id:        jti.String(),
 		},
 	})
 
 	// obtaining private key
 	pk, err := a.PrivateKey()
 	if err != nil {
-		return "", "", fmt.Errorf("failed to obtain private key: %s", err)
+		return signedString, jti, errors.Wrap(err, "failed to obtain private key")
 	}
 
 	// creating an accesspolicy token
-	ss, err := atok.SignedString(pk)
+	signedString, err = atok.SignedString(pk)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to obtain a signed token string: %s", err)
+		return signedString, jti, fmt.Errorf("failed to obtain a signed token string: %s", err)
 	}
 
-	return ss, jti, nil
+	return signedString, jti, nil
 }
 
 // GenerateRefreshToken generates a refresh token for a given user
-func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, ri *RequestMetadata) (*token.Token, error) {
+func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, rm RequestMetadata) (tok token.Token, err error) {
 	if u.ID == uuid.Nil {
-		return nil, user.ErrZeroUserID
+		return tok, user.ErrZeroUserID
 	}
 
-	// obtaining token manager
-	tm := a.TokenManager()
-
-	return tm.Create(
+	return a.TokenManager().Create(
 		ctx,
 		token.TRefreshToken,
-		RefreshTokenPayload{
-			UserID:    u.ID,
-			UserAgent: ri.UserAgent,
-			IP:        ri.IP.String(),
-		},
 		a.RefreshTokenTTL,
 		-1,
 	)
@@ -587,27 +535,22 @@ func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, r
 
 // CreateSession generates a user session
 // NOTE: the session uses AccessTokenTTL for its own expiry
-func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri *RequestMetadata, jti string, rtok *token.Token) (sess Session, err error) {
-	if u.ID == 0 {
+func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri RequestMetadata, jti uuid.UUID, rtok token.Token) (sess Session, err error) {
+	if u.ID == uuid.Nil {
 		return sess, user.ErrZeroUserID
-	}
-
-	// generating token
-	buf, err := util.NewCSPRNG(24)
-	if err != nil {
-		return sess, errors.Wrap(err, "failed to generate CSPRNG token")
 	}
 
 	// initializing the actual session
 	sess = Session{
-		Token:         base64.URLEncoding.EncodeToString(buf),
-		UserID:        u.ID,
-		IP:            ri.IP.String(),
-		UserAgent:     ri.UserAgent,
-		AccessTokenID: jti,
-		CreatedAt:     time.Now(),
-		ExpireAt:      time.Now().Add(a.AccessTokenTTL),
-		RefreshToken:  rtok.Hash,
+		JTI:          uuid.New(),
+		RefreshToken: token.NewHash(),
+		UserID:       u.ID,
+		IP:           ri.IP,
+		UserAgent:    ri.UserAgent,
+		JTI:          jti,
+		CreatedAt:    timestamp.Now(),
+		ExpireAt:     timestamp.Timestamp(time.Now().Add(a.AccessTokenTTL).Unix()),
+		RefreshToken: rtok.Hash,
 	}
 
 	// adding session to the registry
@@ -619,24 +562,23 @@ func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri *Requ
 }
 
 // GenerateTokenTrinity generates a trinity of tokens: session, accesspolicy and refresh
-func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, user user.User, ri *RequestMetadata) (*TokenTrinity, error) {
-	atok, jti, err := a.GenerateAccessToken(ctx, user)
+func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, realm string, user user.User, ri RequestMetadata) (tt TokenTrinity, err error) {
+	atok, jti, err := a.GenerateAccessToken(ctx, realm, user)
 	if err != nil {
-		return nil, err
+		return tt, err
 	}
 
 	rtok, err := a.GenerateRefreshToken(ctx, user, ri)
 	if err != nil {
-		return nil, err
+		return tt, err
 	}
 
 	session, err := a.CreateSession(ctx, user, ri, jti, rtok)
 	if err != nil {
-		return nil, err
+		return tt, err
 	}
 
-	tt := &TokenTrinity{
-		SessionToken: session.Token,
+	tt = TokenTrinity{
 		AccessToken:  atok,
 		RefreshToken: rtok.Hash,
 	}

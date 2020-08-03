@@ -25,7 +25,10 @@ type Backend interface {
 
 // DefaultBackend is a default in-memory implementation
 type DefaultBackend struct {
-	// blacklist is a map of revoked accesspolicy token IDs
+	// a map of JTI to an actual session
+	sessions map[uuid.UUID]Session
+
+	// blacklist is a map of revoked session IDs
 	blacklist map[uuid.UUID]RevokedAccessToken
 
 	// session token map, token hash to session ID
@@ -36,9 +39,6 @@ type DefaultBackend struct {
 
 	// refresh token map, token to session ID
 	rtokenMap map[token.Hash]uuid.UUID
-
-	// a map of JTI to an actual session
-	sessions map[uuid.UUID]Session
 
 	// is a map of user IDs to a map of tokens, containing the actual session
 	// NOTE: this is a map of { user ID -> token hash -> session ID (JTI) }
@@ -168,7 +168,7 @@ func (b *DefaultBackend) PutSession(s Session) error {
 
 	// mapping token to this session
 	b.tokenMap[s.Token] = s
-	b.jtiMap[s.AccessTokenID] = s.AccessTokenID
+	b.jtiMap[s.JTI] = s.JTI
 
 	b.Unlock()
 

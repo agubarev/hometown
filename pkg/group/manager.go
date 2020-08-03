@@ -76,6 +76,13 @@ func NewAsset(k AssetKind, id uuid.UUID) Asset {
 	}
 }
 
+func UserAsset(id uuid.UUID) Asset {
+	return Asset{
+		Kind: AKUser,
+		ID:   id,
+	}
+}
+
 type Relation struct {
 	GroupID uuid.UUID
 	Asset   Asset

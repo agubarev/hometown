@@ -230,5 +230,5 @@ func TestDestroySession(t *testing.T) {
 	a.Nil(s)
 
 	// checking whether the accesspolicy token is revoked
-	a.True(am.IsRevoked(s.AccessTokenID))
+	a.True(am.IsRevoked(s.JTI))
 }
