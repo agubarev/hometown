@@ -83,7 +83,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 
 	// constructing a new trinity by combining a new session and accesspolicy tokens,
 	// along with an existing refresh token
-	response, err := json.Marshal(auth.TokenTrinity{
+	response, err := json.Marshal(auth.TokenPair{
 		SessionToken: s.Token,
 		AccessToken:  atok,
 		RefreshToken: rtok.Hash,

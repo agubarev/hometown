@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"log"
 	"sync"
 	"time"
@@ -13,14 +14,15 @@ import (
 
 // Backend is an interface contract for an auth backend
 type Backend interface {
-	PutRevokedAccessToken(RevokedAccessToken) error
-	IsRevoked(hash token.Hash) bool
-	DeleteRevokedAccessItem(hash token.Hash) error
-	PutSession(Session) error
-	GetSession(hash token.Hash) (Session, error)
-	GetSessionByAccessToken(hash token.Hash) (Session, error)
-	GetSessionByRefreshToken(hash token.Hash) (Session, error)
-	DeleteSession(Session) error
+	UpsertSession(ctx context.Context, s Session) (err error)
+	UpsertRefreshToken(ctx context.Context, refreshToken RefreshToken) (err error)
+	GetSession(ctx context.Context, hash token.Hash) (Session, error)
+	GetSessionByID(ctx context.Context, hash token.Hash) (Session, error)
+	GetSessionByRefreshToken(ctx context.Context, hash token.Hash) (Session, error)
+	GetRefreshToken(ctx context.Context)
+	IsRevoked(ctx context.Context, hash token.Hash) bool
+	DeleteSession(ctx context.Context, s Session) (err error)
+	DeleteRefreshToken(ctx context.Context, hash token.Hash) (err error)
 }
 
 // DefaultBackend is a default in-memory implementation
@@ -28,21 +30,14 @@ type DefaultBackend struct {
 	// a map of JTI to an actual session
 	sessions map[uuid.UUID]Session
 
-	// blacklist is a map of revoked session IDs
-	blacklist map[uuid.UUID]RevokedAccessToken
+	// blacklist is a map of a tokens JTI to its expiration time
+	blacklist map[uuid.UUID]timestamp.Timestamp
 
-	// session token map, token hash to session ID
-	tokenMap map[token.Hash]uuid.UUID
+	// refresh token map { hash -> token }
+	refreshTokens map[token.Hash]token.Token
 
-	// access token ID (JTI) to session ID
-	jtiMap map[uuid.UUID]uuid.UUID
-
-	// refresh token map, token to session ID
-	rtokenMap map[token.Hash]uuid.UUID
-
-	// is a map of user IDs to a map of tokens, containing the actual session
-	// NOTE: this is a map of { user ID -> token hash -> session ID (JTI) }
-	userSessions map[uuid.UUID]map[token.Hash]uuid.UUID
+	// a map of user ID to a slice of session IDs
+	userSessions map[uuid.UUID][]uuid.UUID
 
 	// hasWorker flags whether this backend has a cleaner worker started
 	hasWorker bool
@@ -54,9 +49,10 @@ type DefaultBackend struct {
 // NewDefaultRegistryBackend initializes a default in-memory registry
 func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
-		blacklist:      make(map[token.Hash]RevokedAccessToken),
-		tokenMap:       make(map[token.Hash]uuid.UUID),
-		userSessions:   make(map[uuid.UUID]map[token.Hash]uuid.UUID),
+		sessions:       make(map[uuid.UUID]Session),
+		refreshTokens:  make(map[token.Hash]token.Token),
+		blacklist:      make(map[uuid.UUID]timestamp.Timestamp),
+		userSessions:   make(map[uuid.UUID][]uuid.UUID),
 		workerInterval: 1 * time.Minute,
 	}
 
@@ -98,9 +94,9 @@ func (b *DefaultBackend) cleanup() (err error) {
 	defer b.Unlock()
 
 	// clearing out expired items
-	for k, v := range b.blacklist {
-		if v.ExpireAt > timestamp.Now() {
-			if err = b.DeleteRevokedAccessItem(k); err != nil {
+	for jti, expireAt := range b.blacklist {
+		if expireAt > timestamp.Now() {
+			if err = b.DeleteRevokedAccessItem(jti); err != nil {
 				return err
 			}
 		}
@@ -142,9 +138,9 @@ func (b *DefaultBackend) IsRevoked(tokenID uuid.UUID) bool {
 }
 
 // DeleteRevokedAccessItem deletes a revoked item from the registry
-func (b *DefaultBackend) DeleteRevokedAccessItem(tokenID uuid.UUID) error {
+func (b *DefaultBackend) DeleteRevokedAccessItem(jti uuid.UUID) error {
 	b.Lock()
-	delete(b.blacklist, tokenID)
+	delete(b.blacklist, jti)
 	b.Unlock()
 
 	return nil
@@ -218,7 +214,7 @@ func (b *DefaultBackend) GetSessionByAccessToken(jti uuid.UUID) (sess Session, e
 // GetSessionByRefreshToken retrieves session by a refresh token
 func (b *DefaultBackend) GetSessionByRefreshToken(rtok string) (sess Session, err error) {
 	b.RLock()
-	sess, ok := b.rtokenMap[rtok]
+	sess, ok := b.refreshTokens[rtok]
 	b.RUnlock()
 
 	if !ok {

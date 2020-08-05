@@ -123,7 +123,7 @@ func TestHandleRefreshToken(t *testing.T) {
 		a.NoError(err)
 		a.NotEmpty(rbody)
 
-		rtp := auth.TokenTrinity{}
+		rtp := auth.TokenPair{}
 		a.NoError(json.Unmarshal(rbody, &rtp))
 		a.Empty(rtp.AccessToken)
 		a.Empty(rtp.RefreshToken)
@@ -162,7 +162,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NoError(err)
 	a.NotEmpty(rbody)
 
-	rtp := auth.TokenTrinity{}
+	rtp := auth.TokenPair{}
 	a.NoError(json.Unmarshal(rbody, &rtp))
 	a.Empty(rtp.AccessToken)
 	a.Empty(rtp.RefreshToken)
@@ -204,7 +204,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NoError(err)
 	a.NotEmpty(rbody)
 
-	rtp = auth.TokenTrinity{}
+	rtp = auth.TokenPair{}
 	a.NoError(json.Unmarshal(rbody, &rtp))
 	a.NotEmpty(rtp.SessionToken)
 	a.NotEmpty(rtp.AccessToken)

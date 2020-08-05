@@ -5,13 +5,27 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 
+	"github.com/agubarev/hometown/pkg/util/timestamp"
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 )
 
 const Length = 32
 
-type RefreshToken [Length]byte
+// Hash represents the very secret essence of a refresh token
+// TODO: implement hash encryption for the store
+// TODO: implement hash signature and verification
+type Hash [Length]byte
+
+type RefreshToken struct {
+	Token     [Length]byte `db:"token" json:"token"`
+	Client    Client       `db:"client" json:"client"`
+	ID        uuid.UUID
+	Flags     uint8
+	CreatedAt timestamp.Timestamp
+	ExpireAt  timestamp.Timestamp
+}
 
 func NewRefreshToken() (rtok RefreshToken) {
 	if _, err := rand.Read(rtok[:]); err != nil {

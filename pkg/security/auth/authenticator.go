@@ -24,9 +24,21 @@ import (
 	"go.uber.org/zap"
 )
 
+type Flags uint8
+
+const (
+	FExpired Flags = 1 << iota
+	FExtended
+	FIdle
+	FRevokedByLogout
+	FRevokedByExpiry
+	FRevokedBySystem
+	FRevokedByClient
+)
+
 // Context holds metadata which describes authenticated session
 type Context struct {
-	UserID uint32
+	Identity
 	Domain
 }
 
@@ -34,18 +46,18 @@ type Context struct {
 type Domain uint8
 
 const (
-	DGeneric Domain = 1 << iota
+	DGeneral Domain = 1 << iota
 	DAdmin
 )
 
 func (d Domain) String() string {
 	switch d {
-	case DGeneric:
-		return "generic domain"
+	case DGeneral:
+		return "general"
 	case DAdmin:
-		return "administrative domain"
+		return "administrative"
 	default:
-		return "unrecognized domain"
+		return "unrecognized"
 	}
 }
 
@@ -61,24 +73,14 @@ const (
 
 // Claims holds required JWT claims
 type Claims struct {
-	UserID uuid.UUID   `json:"u"`
-	Roles  []uuid.UUID `json:"rs,omitempty"`
-	Groups []uuid.UUID `json:"gs,omitempty"`
+	Identity `json:"id"`
 
 	jwt.StandardClaims
 }
 
-// RefreshTokenPayload represents the payload of a refresh token
-type RefreshTokenPayload struct {
-	UserAgent bytearray.ByteString64 `json:"ua,omitempty"`
-	UserID    uuid.UUID              `json:"uid,omitempty"`
-	IP        user.IPAddr            `json:"ip,omitempty"`
-}
-
-// TokenTrinity is what is returned upon a successful
-// authentication by credentials, or by using a refresh token
-// NOTE: typically, refresh token stays the same when obtained via refresh token
-type TokenTrinity struct {
+// TokenPair contains a pair of access and refresh tokens which
+// are returned back to the client upon successful authentication
+type TokenPair struct {
 	AccessToken  token.Hash `json:"access_token,omitempty"`
 	RefreshToken token.Hash `json:"refresh_token,omitempty"`
 }
@@ -126,12 +128,6 @@ func (c *UserCredentials) SanitizeAndValidate() error {
 	return nil
 }
 
-// RevokedAccessToken represents a blacklisted accesspolicy token
-type RevokedAccessToken struct {
-	AccessTokenID uuid.UUID
-	ExpireAt      timestamp.Timestamp
-}
-
 // RequestMetadata holds request information
 type RequestMetadata struct {
 	IP        user.IPAddr
@@ -158,19 +154,6 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 		IP:        user.NewIPAddrFromString(net.ParseIP(sip).String()),
 		UserAgent: bytearray.NewByteString64(r.UserAgent()),
 	}
-}
-
-// SanitizeAndValidate validates revoked token
-func (ri *RevokedAccessToken) Validate() error {
-	if ri.AccessTokenID == uuid.Nil {
-		return ErrInvalidTokenID
-	}
-
-	if ri.ExpireAt == 0 {
-		return ErrInvalidExpirationTime
-	}
-
-	return nil
 }
 
 // Authenticator represents an authenticator which is responsible
@@ -283,6 +266,9 @@ func (a *Authenticator) PrivateKey() (*rsa.PrivateKey, error) {
 }
 
 // Authenticate authenticates a user by a given username and password
+// each successful authentication generates a new access token and spawns
+// a new session identified by that token's JTI (JWT ID).
+// NOTE: the number of active sessions should be limited by a sensible amount
 func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.ByteString32, rawpass []byte, ri *RequestMetadata) (u user.User, err error) {
 	u, err = a.UserManager().UserByUsername(ctx, username)
 	if err != nil {
@@ -299,7 +285,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.Byt
 
 	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
-		l.Info(
+		l.Debug(
 			"suspended user signin attempt",
 			zap.Time("suspended_at", u.SuspendedAt.Time()),
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time()),
@@ -315,7 +301,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.Byt
 	userpass, err := pm.Get(ctx, password.OKUser, u.ID)
 	if err != nil {
 		if err == password.ErrPasswordNotFound {
-			l.Info("password not found", zap.Error(err))
+			l.Debug("password not found", zap.Error(err))
 		} else {
 			l.Warn("failed to obtain password", zap.Error(err))
 		}
@@ -325,11 +311,15 @@ func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.Byt
 
 	// comparing passwords
 	if !userpass.Compare(rawpass) {
-		l.Info("wrong password signin attempt")
+		l.Debug("wrong password signin attempt")
 		return u, ErrAuthenticationFailed
 	}
 
-	l.Info("authenticated by credentials")
+	l.Debug("authenticated by credentials",
+		zap.String("username", username.String()),
+		zap.String("ip", ri.IP.StringIPv4()),
+		zap.String("user_agent", ri.UserAgent.String()),
+	)
 
 	return u, nil
 }
@@ -393,7 +383,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t token.
 
 	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
-		l.Info(
+		l.Debug(
 			"suspended user signin attempt (via refresh token)",
 			zap.Time("suspended_at", u.SuspendedAt.Time()),
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt.Time()),
@@ -410,7 +400,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t token.
 		return u, ErrUserSuspended
 	}
 
-	l.Info("authenticated by refresh token")
+	l.Debug("authenticated by refresh token")
 
 	return u, nil
 }
@@ -562,7 +552,7 @@ func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri Reque
 }
 
 // GenerateTokenTrinity generates a trinity of tokens: session, accesspolicy and refresh
-func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, realm string, user user.User, ri RequestMetadata) (tt TokenTrinity, err error) {
+func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, realm string, user user.User, ri RequestMetadata) (tt TokenPair, err error) {
 	atok, jti, err := a.GenerateAccessToken(ctx, realm, user)
 	if err != nil {
 		return tt, err
@@ -578,7 +568,7 @@ func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, realm string, 
 		return tt, err
 	}
 
-	tt = TokenTrinity{
+	tt = TokenPair{
 		AccessToken:  atok,
 		RefreshToken: rtok.Hash,
 	}
@@ -643,7 +633,7 @@ func (a *Authenticator) UserFromToken(ctx context.Context, tok string) (u user.U
 // RevokeAccessToken adds a given token ObjectID to the blacklist for the duration
 // of an accesspolicy token expiration time + 1 minute
 func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
-	return a.backend.PutRevokedAccessToken(RevokedAccessToken{
+	return a.backend.UpsertRefreshToken(RevokedAccessToken{
 		AccessTokenID: id,
 		ExpireAt:      eat,
 	})
@@ -662,7 +652,7 @@ func (a *Authenticator) RegisterSession(sess Session) (err error) {
 		return err
 	}
 
-	return a.backend.PutSession(sess)
+	return a.backend.UpsertSession(sess)
 }
 
 // GetSession returns a session if it's found in the backend

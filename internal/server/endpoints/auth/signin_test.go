@@ -212,7 +212,7 @@ func TestSignin(t *testing.T) {
 	a.NoError(err)
 	a.NotEmpty(rbody)
 
-	rtp := auth.TokenTrinity{}
+	rtp := auth.TokenPair{}
 	a.NoError(json.Unmarshal(rbody, &rtp))
 	a.NotEmpty(rtp.AccessToken)
 	a.NotEmpty(rtp.RefreshToken)

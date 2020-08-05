@@ -1,6 +1,8 @@
 package auth
 
 import (
+	"time"
+
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
@@ -8,39 +10,66 @@ import (
 	"github.com/pkg/errors"
 )
 
-type SessionOwner uint8
+// TODO: consider storing some client fingerprint inside the session
+
+// IdentityKind represents an identity kind (i.e.: user/service/application)
+type IdentityKind uint8
 
 const (
-	DGeneric SessionOwner = 0
-	DAdmin   SessionOwner = 1 << (iota - SessionOwner(1))
+	IKUser = iota
+	IKService
+	IKApplication
 )
 
-func (k SessionOwner) String() string {
+func (k IdentityKind) String() string {
 	switch k {
-	case CKUser:
+	case IKUser:
 		return "user"
+	case IKService:
+		return "service"
+	case IKApplication:
+		return "application"
 	default:
-		return "unrecognized session owner kind"
+		return "unrecognized identity"
 	}
 }
 
-// Session represents a user session
-// NOTE: the session is used only to identify the session owner (user),
-// verify the user's IPAddr and UserAgent, and when to expire
-// WARNING: session object must never be shared with the client,
-// because it contains the refresh token
+// Identity represents a session owner
+type Identity struct {
+	ID   uuid.UUID    `json:"id"`
+	Kind IdentityKind `json:"kind"`
+}
+
+func UserIdentity(id uuid.UUID) Identity {
+	return Identity{
+		ID:   id,
+		Kind: IKUser,
+	}
+}
+
+func ServiceIdentity(id uuid.UUID) Identity {
+	return Identity{
+		ID:   id,
+		Kind: IKService,
+	}
+}
+
+func AppIdentity(id uuid.UUID) Identity {
+	return Identity{
+		ID:   id,
+		Kind: IKApplication,
+	}
+}
+
+// Session represents an authenticated session
 type Session struct {
+	Owner Identity `db:"owner" json:"owner"`
+
 	// ID is also used as JTI (JWT ID)
 	ID uuid.UUID `db:"id" json:"id"`
 
 	// UserAgent is the user agent taken from the client at the time of authentication
 	UserAgent bytearray.ByteString64 `db:"user_agent" json:"user_agent"`
-
-	// RefreshToken is generated specifically for this session
-	RefreshToken RefreshToken `db:"refresh_token" json:"refresh_token"`
-
-	// UserID is the ID of a user that owns this session
-	UserID uuid.UUID `db:"user_id" json:"user_id"`
 
 	// IP is the IP address from which this session has been initiated
 	IP user.IPAddr `db:"ip" json:"ip"`
@@ -52,7 +81,17 @@ type Session struct {
 	ExpireAt    timestamp.Timestamp `db:"expire_at" json:"expire_at"`
 }
 
-func NewSession(userID uuid.UUID, agent bytearray.ByteString64, ip user.IPAddr) (s Session, err error) {
+func NewSession(jti uuid.UUID, ident Identity, agent bytearray.ByteString64, ip user.IPAddr, ttl time.Duration) (s Session, err error) {
+	s = Session{
+		Owner:       ident,
+		ID:          jti,
+		UserAgent:   agent,
+		IP:          ip,
+		CreatedAt:   timestamp.Now(),
+		RefreshedAt: 0,
+		RevokedAt:   0,
+		ExpireAt:    timestamp.Timestamp(ttl.Nanoseconds()),
+	}
 
 	return s, nil
 }
@@ -61,10 +100,6 @@ func NewSession(userID uuid.UUID, agent bytearray.ByteString64, ip user.IPAddr) 
 func (s *Session) Validate() error {
 	if s.ID == uuid.Nil {
 		return errors.New("session id not set")
-	}
-
-	if s.UserID == uuid.Nil {
-		return errors.New("user id is not set")
 	}
 
 	if s.ExpireAt == 0 {
