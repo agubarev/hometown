@@ -25,4 +25,7 @@ var (
 	ErrInvalidTokenID             = errors.New("invalid token id")
 	ErrNilSession                 = errors.New("session is nil")
 	ErrSessionNotFound            = errors.New("session not found")
+	ErrSessionAlreadyRevoked      = errors.New("session is already revoked")
+	ErrInvalidRevocationFlag      = errors.New("invalid revocation flag")
+	ErrInvalidIdentityID          = errors.New("invalid identity id")
 )

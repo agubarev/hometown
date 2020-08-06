@@ -69,19 +69,8 @@ type Asset struct {
 	ID   uuid.UUID
 }
 
-func NewAsset(k AssetKind, id uuid.UUID) Asset {
-	return Asset{
-		Kind: k,
-		ID:   id,
-	}
-}
-
-func UserAsset(id uuid.UUID) Asset {
-	return Asset{
-		Kind: AKUser,
-		ID:   id,
-	}
-}
+func NewAsset(k AssetKind, id uuid.UUID) Asset { return Asset{Kind: k, ID: id} }
+func UserAsset(id uuid.UUID) Asset             { return Asset{Kind: AKUser, ID: id} }
 
 type Relation struct {
 	GroupID uuid.UUID

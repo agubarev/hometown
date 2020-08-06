@@ -117,21 +117,10 @@ func (g *Group) Validate() (err error) {
 	return nil
 }
 
-func (g Group) IsDefault() bool {
-	return g.Flags&FDefault == FDefault
-}
-
-func (g Group) IsEnabled() bool {
-	return g.Flags&FEnabled == FEnabled
-}
-
-func (g Group) IsGroup() bool {
-	return g.Flags&FGroup == FGroup
-}
-
-func (g Group) IsRole() bool {
-	return g.Flags&FRole == FRole
-}
+func (g Group) IsDefault() bool { return g.Flags&FDefault == FDefault }
+func (g Group) IsEnabled() bool { return g.Flags&FEnabled == FEnabled }
+func (g Group) IsGroup() bool   { return g.Flags&FGroup == FGroup }
+func (g Group) IsRole() bool    { return g.Flags&FRole == FRole }
 
 // SetKey assigns a key name to the group
 func (g *Group) SetKey(key interface{}, maxLen int) error {

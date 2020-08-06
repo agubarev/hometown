@@ -24,18 +24,6 @@ import (
 	"go.uber.org/zap"
 )
 
-type Flags uint8
-
-const (
-	FExpired Flags = 1 << iota
-	FExtended
-	FIdle
-	FRevokedByLogout
-	FRevokedByExpiry
-	FRevokedBySystem
-	FRevokedByClient
-)
-
 // Context holds metadata which describes authenticated session
 type Context struct {
 	Identity
@@ -458,24 +446,9 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uuid.U
 
 // GenerateAccessToken generates accesspolicy token for a given user
 // TODO: add dynamic token realm
-func (a *Authenticator) GenerateAccessToken(ctx context.Context, realm string, u user.User) (signedString string, jti uuid.UUID, err error) {
-	if u.ID == uuid.Nil {
-		return signedString, uuid.Nil, user.ErrNilUser
-	}
-
-	gm := a.GroupManager()
-
-	// slicing group names
-	gs := make([]uuid.UUID, 0)
-	rs := make([]uuid.UUID, 0)
-
-	for _, g := range gm.GroupsByAssetID(ctx, group.FAllGroups, group.UserAsset(u.ID)) {
-		switch g.Flags {
-		case group.FRole:
-			rs = append(rs, g.ID)
-		case group.FGroup:
-			gs = append(gs, g.ID)
-		}
+func (a *Authenticator) GenerateAccessToken(ctx context.Context, realm string, ident Identity) (signedString string, jti uuid.UUID, err error) {
+	if ident.ID == uuid.Nil {
+		return signedString, uuid.Nil, ErrInvalidIdentityID
 	}
 
 	// token id
@@ -483,9 +456,7 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, realm string, u
 
 	// generating and signing a new token
 	atok := jwt.NewWithClaims(jwt.SigningMethodRS256, Claims{
-		UserID: u.ID,
-		Roles:  rs,
-		Groups: gs,
+		Identity: ident,
 		StandardClaims: jwt.StandardClaims{
 			Issuer:    realm,
 			IssuedAt:  time.Now().Unix(),
@@ -630,15 +601,6 @@ func (a *Authenticator) UserFromToken(ctx context.Context, tok string) (u user.U
 	return u, nil
 }
 
-// RevokeAccessToken adds a given token ObjectID to the blacklist for the duration
-// of an accesspolicy token expiration time + 1 minute
-func (a *Authenticator) RevokeAccessToken(id string, eat time.Time) error {
-	return a.backend.UpsertRefreshToken(RevokedAccessToken{
-		AccessTokenID: id,
-		ExpireAt:      eat,
-	})
-}
-
 // IsRevoked checks whether a given token ObjectID is among the blacklisted tokens
 // NOTE: blacklisted token IDs are cleansed from the registry shortly
 // after their respective accesspolicy tokens expire
@@ -668,5 +630,5 @@ func (a *Authenticator) GetSessionByAccessToken(jti string) (Session, error) {
 
 // GetSessionBySessionToken returns a session by accesspolicy token
 func (a *Authenticator) GetSessionBySessionToken(rtok string) (Session, error) {
-	return a.backend.GetSessionByRefreshToken(rtok)
+	return a.backend.SessionByRefreshToken(rtok)
 }

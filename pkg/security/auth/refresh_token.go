@@ -11,32 +11,26 @@ import (
 	"github.com/pkg/errors"
 )
 
-const Length = 32
+const (
+	Length = 32
+	DefaultRefreshTokenTTL
+)
 
 // Hash represents the very secret essence of a refresh token
 // TODO: implement hash encryption for the store
 // TODO: implement hash signature and verification
 type Hash [Length]byte
 
-type RefreshToken struct {
-	Token     [Length]byte `db:"token" json:"token"`
-	Client    Client       `db:"client" json:"client"`
-	ID        uuid.UUID
-	Flags     uint8
-	CreatedAt timestamp.Timestamp
-	ExpireAt  timestamp.Timestamp
-}
-
-func NewRefreshToken() (rtok RefreshToken) {
-	if _, err := rand.Read(rtok[:]); err != nil {
-		panic(errors.Wrap(err, "failed to generate refresh token"))
-		return rtok
+func NewHash() (hash Hash) {
+	if _, err := rand.Read(hash[:]); err != nil {
+		panic(errors.Wrap(err, "failed to generate refresh token hash"))
+		return hash
 	}
 
-	return rtok
+	return hash
 }
 
-func (h RefreshToken) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+func (h Hash) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
 	if h[0] == 0 {
 		return nil, nil
 	}
@@ -49,7 +43,7 @@ func (h RefreshToken) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []by
 	return append(buf, h[0:zpos]...), nil
 }
 
-func (h RefreshToken) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
+func (h Hash) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	if src == nil {
 		return nil
 	}
@@ -59,6 +53,18 @@ func (h RefreshToken) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 	return nil
 }
 
-func (h RefreshToken) String() string {
+func (h Hash) String() string {
 	return hex.EncodeToString(h[:])
 }
+
+type RefreshToken struct {
+	Token       Hash                `db:"token" json:"token"`
+	Owner       Client              `db:"owner" json:"owner"`
+	ID          uuid.UUID           `db:"id" json:"id"`
+	LastTokenID uuid.UUID           `db:"last_token_id" json:"last_token_id"`
+	CreatedAt   timestamp.Timestamp `db:"created_at" json:"created_at"`
+	ExpireAt    timestamp.Timestamp `db:"expire_at" json:"expire_at"`
+	Flags       uint8               `db:"flags" json:"flags"`
+}
+
+func NewRefreshToken()

@@ -16,10 +16,9 @@ import (
 type Backend interface {
 	UpsertSession(ctx context.Context, s Session) (err error)
 	UpsertRefreshToken(ctx context.Context, refreshToken RefreshToken) (err error)
-	GetSession(ctx context.Context, hash token.Hash) (Session, error)
-	GetSessionByID(ctx context.Context, hash token.Hash) (Session, error)
-	GetSessionByRefreshToken(ctx context.Context, hash token.Hash) (Session, error)
-	GetRefreshToken(ctx context.Context)
+	SessionByID(ctx context.Context, hash token.Hash) (Session, error)
+	SessionByRefreshToken(ctx context.Context, token RefreshToken) (Session, error)
+	RefreshToken(ctx context.Context)
 	IsRevoked(ctx context.Context, hash token.Hash) bool
 	DeleteSession(ctx context.Context, s Session) (err error)
 	DeleteRefreshToken(ctx context.Context, hash token.Hash) (err error)
@@ -30,11 +29,8 @@ type DefaultBackend struct {
 	// a map of JTI to an actual session
 	sessions map[uuid.UUID]Session
 
-	// blacklist is a map of a tokens JTI to its expiration time
-	blacklist map[uuid.UUID]timestamp.Timestamp
-
 	// refresh token map { hash -> token }
-	refreshTokens map[token.Hash]token.Token
+	refreshTokens map[Hash]RefreshToken
 
 	// a map of user ID to a slice of session IDs
 	userSessions map[uuid.UUID][]uuid.UUID
@@ -50,8 +46,7 @@ type DefaultBackend struct {
 func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
 		sessions:       make(map[uuid.UUID]Session),
-		refreshTokens:  make(map[token.Hash]token.Token),
-		blacklist:      make(map[uuid.UUID]timestamp.Timestamp),
+		refreshTokens:  make(map[Hash]RefreshToken),
 		userSessions:   make(map[uuid.UUID][]uuid.UUID),
 		workerInterval: 1 * time.Minute,
 	}
