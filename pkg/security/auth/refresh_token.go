@@ -21,7 +21,7 @@ const (
 // TODO: implement hash signature and verification
 type Hash [Length]byte
 
-func NewHash() (hash Hash) {
+func NewTokenHash() (hash Hash) {
 	if _, err := rand.Read(hash[:]); err != nil {
 		panic(errors.Wrap(err, "failed to generate refresh token hash"))
 		return hash
@@ -58,13 +58,29 @@ func (h Hash) String() string {
 }
 
 type RefreshToken struct {
-	Token       Hash                `db:"token" json:"token"`
-	Owner       Client              `db:"owner" json:"owner"`
-	ID          uuid.UUID           `db:"id" json:"id"`
-	LastTokenID uuid.UUID           `db:"last_token_id" json:"last_token_id"`
-	CreatedAt   timestamp.Timestamp `db:"created_at" json:"created_at"`
-	ExpireAt    timestamp.Timestamp `db:"expire_at" json:"expire_at"`
-	Flags       uint8               `db:"flags" json:"flags"`
+	Hash          Hash                `db:"hash" json:"hash"`
+	Owner         Client              `db:"owner" json:"owner"`
+	ID            uuid.UUID           `db:"id" json:"id"`
+	LastSessionID uuid.UUID           `db:"last_token_id" json:"last_token_id"`
+	CreatedAt     timestamp.Timestamp `db:"created_at" json:"created_at"`
+	ExpireAt      timestamp.Timestamp `db:"expire_at" json:"expire_at"`
+	Flags         uint8               `db:"flags" json:"flags"`
 }
 
-func NewRefreshToken()
+func NewRefreshToken(jti uuid.UUID, c Client, ttl timestamp.Timestamp) (t RefreshToken, err error) {
+	if ttl == 0 {
+		ttl = DefaultSessionTTL
+	}
+
+	t = RefreshToken{
+		Hash:          NewTokenHash(),
+		Owner:         c,
+		ID:            uuid.New(),
+		LastSessionID: jti,
+		CreatedAt:     timestamp.Now(),
+		ExpireAt:      timestamp.Now() + ttl,
+		Flags:         0,
+	}
+
+	return t, nil
+}

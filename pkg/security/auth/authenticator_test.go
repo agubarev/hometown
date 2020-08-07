@@ -187,7 +187,7 @@ func TestDestroySession(t *testing.T) {
 	a.NotNil(tokenTrinity)
 
 	// fetching session from the backend
-	bs, err := am.GetSession(tokenTrinity.SessionToken)
+	bs, err := am.SessionByID(tokenTrinity.SessionToken)
 	a.NoError(err)
 	a.NotNil(bs)
 	a.Equal(u.ID, bs.UserID)
@@ -200,19 +200,19 @@ func TestDestroySession(t *testing.T) {
 	// by "testuser2"
 	a.EqualError(
 		am.DestroySession(ctx, testuser2.ID, bs.Token, correctMD),
-		auth.ErrWrongUser.Error(),
+		auth.ErrIdentityMismatch.Error(),
 	)
 
 	// correct user but wrong IPAddr
 	a.EqualError(
 		am.DestroySession(ctx, testuser.ID, bs.Token, wrongIP),
-		auth.ErrWrongIP.Error(),
+		auth.ErrIPAddrMismatch.Error(),
 	)
 
 	// correct user but wrong user agent
 	a.EqualError(
 		am.DestroySession(ctx, testuser.ID, bs.Token, wrongUserAgent),
-		auth.ErrWrongUserAgent.Error(),
+		auth.ErrUserAgentMismatch.Error(),
 	)
 
 	spew.Dump(tokenTrinity)
@@ -225,7 +225,7 @@ func TestDestroySession(t *testing.T) {
 	// making sure that session doesn't exist anymore and its
 	// corresponding accesspolicy token is revoked properly
 	// ====================================================================================
-	s, err := am.GetSession(bs.Token)
+	s, err := am.SessionByID(bs.Token)
 	a.EqualError(err, auth.ErrSessionNotFound.Error())
 	a.Nil(s)
 

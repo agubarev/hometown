@@ -17,7 +17,6 @@ import (
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -66,11 +65,11 @@ type Claims struct {
 	jwt.StandardClaims
 }
 
-// TokenPair contains a pair of access and refresh tokens which
+// TokenPair contains access and refresh tokens which
 // are returned back to the client upon successful authentication
 type TokenPair struct {
-	AccessToken  token.Hash `json:"access_token,omitempty"`
-	RefreshToken token.Hash `json:"refresh_token,omitempty"`
+	AccessToken  string `json:"access_token"`
+	RefreshToken Hash   `json:"refresh_token,omitempty"`
 }
 
 // ClientCredentials represents client authentication credentials
@@ -119,7 +118,7 @@ func (c *UserCredentials) SanitizeAndValidate() error {
 // RequestMetadata holds request information
 type RequestMetadata struct {
 	IP        user.IPAddr
-	UserAgent bytearray.ByteString64
+	UserAgent bytearray.ByteString32
 }
 
 // NewRequestInfo initializes RequestInfo from a given http.Request
@@ -128,7 +127,7 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 	if r == nil {
 		return &RequestMetadata{
 			IP:        user.IPAddr{},
-			UserAgent: bytearray.NilByteString64,
+			UserAgent: bytearray.NilByteString32,
 		}
 	}
 
@@ -140,7 +139,7 @@ func NewRequestInfo(r *http.Request) *RequestMetadata {
 
 	return &RequestMetadata{
 		IP:        user.NewIPAddrFromString(net.ParseIP(sip).String()),
-		UserAgent: bytearray.NewByteString64(r.UserAgent()),
+		UserAgent: bytearray.NewByteString32(r.UserAgent()),
 	}
 }
 
@@ -313,15 +312,7 @@ func (a *Authenticator) Authenticate(ctx context.Context, username bytearray.Byt
 }
 
 // AuthenticateByRefreshToken authenticates a user by a given refresh token
-func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t token.Token, ri *RequestMetadata) (u user.User, err error) {
-	tm := a.TokenManager()
-
-	// validating refresh token
-	err = t.Validate()
-	if err != nil {
-		return u, ErrInvalidRefreshToken
-	}
-
+func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t Hash, ri *RequestMetadata) (u user.User, err error) {
 	// unmarshaling the payload
 	payload := RefreshTokenPayload{}
 	if err = json.Unmarshal(t.Payload, &payload); err != nil {
@@ -353,7 +344,7 @@ func (a *Authenticator) AuthenticateByRefreshToken(ctx context.Context, t token.
 				return u, fmt.Errorf("failed to delete refresh token: %s", t.Hash)
 			}
 
-			return u, ErrWrongIP
+			return u, ErrIPAddrMismatch
 		}
 	}
 
@@ -410,15 +401,15 @@ func (a *Authenticator) DestroySession(ctx context.Context, destroyedByID uuid.U
 
 	// verifying whether this session belongs to this revoker
 	if s.UserID != destroyedByID {
-		return ErrWrongUser
+		return ErrIdentityMismatch
 	}
 
 	if s.UserAgent != ri.UserAgent {
-		return ErrWrongUserAgent
+		return ErrUserAgentMismatch
 	}
 
 	if s.IP != ri.IP {
-		return ErrWrongIP
+		return ErrIPAddrMismatch
 	}
 
 	// obtaining refresh token
@@ -480,38 +471,16 @@ func (a *Authenticator) GenerateAccessToken(ctx context.Context, realm string, i
 	return signedString, jti, nil
 }
 
-// GenerateRefreshToken generates a refresh token for a given user
-func (a *Authenticator) GenerateRefreshToken(ctx context.Context, u user.User, rm RequestMetadata) (tok token.Token, err error) {
-	if u.ID == uuid.Nil {
-		return tok, user.ErrZeroUserID
-	}
-
-	return a.TokenManager().Create(
-		ctx,
-		token.TRefreshToken,
-		a.RefreshTokenTTL,
-		-1,
-	)
-}
-
 // CreateSession generates a user session
 // NOTE: the session uses AccessTokenTTL for its own expiry
-func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri RequestMetadata, jti uuid.UUID, rtok token.Token) (sess Session, err error) {
+func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri RequestMetadata, jti uuid.UUID, rtok token.Token) (s *Session, err error) {
 	if u.ID == uuid.Nil {
-		return sess, user.ErrZeroUserID
+		return s, user.ErrZeroUserID
 	}
 
-	// initializing the actual session
-	sess = Session{
-		JTI:          uuid.New(),
-		RefreshToken: token.NewHash(),
-		UserID:       u.ID,
-		IP:           ri.IP,
-		UserAgent:    ri.UserAgent,
-		JTI:          jti,
-		CreatedAt:    timestamp.Now(),
-		ExpireAt:     timestamp.Timestamp(time.Now().Add(a.AccessTokenTTL).Unix()),
-		RefreshToken: rtok.Hash,
+	s, err = NewSession()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialize new session")
 	}
 
 	// adding session to the registry
@@ -519,32 +488,7 @@ func (a *Authenticator) CreateSession(ctx context.Context, u user.User, ri Reque
 		return sess, fmt.Errorf("failed to add user session to the registry: %s", err)
 	}
 
-	return sess, nil
-}
-
-// GenerateTokenTrinity generates a trinity of tokens: session, accesspolicy and refresh
-func (a *Authenticator) GenerateTokenTrinity(ctx context.Context, realm string, user user.User, ri RequestMetadata) (tt TokenPair, err error) {
-	atok, jti, err := a.GenerateAccessToken(ctx, realm, user)
-	if err != nil {
-		return tt, err
-	}
-
-	rtok, err := a.GenerateRefreshToken(ctx, user, ri)
-	if err != nil {
-		return tt, err
-	}
-
-	session, err := a.CreateSession(ctx, user, ri, jti, rtok)
-	if err != nil {
-		return tt, err
-	}
-
-	tt = TokenPair{
-		AccessToken:  atok,
-		RefreshToken: rtok.Hash,
-	}
-
-	return tt, nil
+	return s, nil
 }
 
 // ParseToken validates and parses a JWT token and returns its claims
@@ -617,10 +561,10 @@ func (a *Authenticator) RegisterSession(sess Session) (err error) {
 	return a.backend.UpsertSession(sess)
 }
 
-// GetSession returns a session if it's found in the backend
+// SessionByID returns a session if it's found in the backend
 // by its token string
-func (a *Authenticator) GetSession(stok string) (Session, error) {
-	return a.backend.GetSession(stok)
+func (a *Authenticator) SessionByID(ctx context.Context, jti uuid.UUID) (Session, error) {
+	return a.backend.SessionByID(ctx, jti)
 }
 
 // GetSessionByAccessToken returns a session by accesspolicy token

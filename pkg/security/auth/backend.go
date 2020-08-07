@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/agubarev/hometown/pkg/token"
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -15,11 +14,9 @@ import (
 // Backend is an interface contract for an auth backend
 type Backend interface {
 	UpsertSession(ctx context.Context, s Session) (err error)
-	UpsertRefreshToken(ctx context.Context, refreshToken RefreshToken) (err error)
-	SessionByID(ctx context.Context, hash token.Hash) (Session, error)
-	SessionByRefreshToken(ctx context.Context, token RefreshToken) (Session, error)
-	RefreshToken(ctx context.Context)
-	IsRevoked(ctx context.Context, hash token.Hash) bool
+	UpsertRefreshToken(ctx context.Context, t RefreshToken) (err error)
+	SessionByID(ctx context.Context, jti uuid.UUID) (Session, error)
+	RefreshTokenByHash(ctx context.Context, hash Hash) (t RefreshToken, err error)
 	DeleteSession(ctx context.Context, s Session) (err error)
 	DeleteRefreshToken(ctx context.Context, hash token.Hash) (err error)
 }
@@ -33,7 +30,7 @@ type DefaultBackend struct {
 	refreshTokens map[Hash]RefreshToken
 
 	// a map of user ID to a slice of session IDs
-	userSessions map[uuid.UUID][]uuid.UUID
+	identitySessions map[Identity][]uuid.UUID
 
 	// hasWorker flags whether this backend has a cleaner worker started
 	hasWorker bool
@@ -45,21 +42,21 @@ type DefaultBackend struct {
 // NewDefaultRegistryBackend initializes a default in-memory registry
 func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
-		sessions:       make(map[uuid.UUID]Session),
-		refreshTokens:  make(map[Hash]RefreshToken),
-		userSessions:   make(map[uuid.UUID][]uuid.UUID),
-		workerInterval: 1 * time.Minute,
+		sessions:         make(map[uuid.UUID]Session),
+		refreshTokens:    make(map[Hash]RefreshToken),
+		identitySessions: make(map[Identity][]uuid.UUID),
+		workerInterval:   1 * time.Minute,
 	}
 
 	// starting the maintenance worker
-	if err := b.startWorker(); err != nil {
+	if err := b.startWorker(context.TODO()); err != nil {
 		panic(errors.Wrap(err, "AuthRegistryBackend: failed to start worker"))
 	}
 
 	return b
 }
 
-func (b *DefaultBackend) startWorker() error {
+func (b *DefaultBackend) startWorker(ctx context.Context) error {
 	if b.hasWorker {
 		return errors.New("worker has already been started")
 	}
@@ -71,7 +68,7 @@ func (b *DefaultBackend) startWorker() error {
 		b.hasWorker = true
 		for {
 			// running a blacklist cleanup
-			if err := b.cleanup(); err != nil {
+			if err := b.cleanup(ctx); err != nil {
 				log.Printf("WARNING: auth registry worker has failed to cleanup: %s", err)
 			}
 
@@ -84,82 +81,60 @@ func (b *DefaultBackend) startWorker() error {
 
 // cleanup performs registry in-memory cleanup over time
 // NOTE: this is the default, but not the most optimal approach
-func (b *DefaultBackend) cleanup() (err error) {
+func (b *DefaultBackend) cleanup(ctx context.Context) (err error) {
 	b.Lock()
 	defer b.Unlock()
 
 	// clearing out expired items
-	for jti, expireAt := range b.blacklist {
-		if expireAt > timestamp.Now() {
-			if err = b.DeleteRevokedAccessItem(jti); err != nil {
-				return err
+	for _, s := range b.sessions {
+		if s.IsExpired() {
+			if err = b.DeleteSession(ctx, s); err != nil {
+				return errors.Wrapf(err, "failed to delete expired session: %s", s.ID)
 			}
+
+			b.Lock()
+			delete(b.sessions, s.ID)
+			b.Unlock()
 		}
 	}
 
-	// clearing out expired userSessions
-	for userID, sessionMap := range b.userSessions {
-		for tokenHash, s := range sessionMap {
-			if s.ExpireAt < timestamp.Now() {
-				delete(b.userSessions[userID], tokenHash)
+	// clearing out expired identitySessions
+	for _, sessionIDs := range b.identitySessions {
+		for i := range sessionIDs {
+			b.Lock()
+			s, ok := b.sessions[sessionIDs[i]]
+			b.Unlock()
+
+			if !ok {
+
+			}
+
+			if s.IsExpired() {
+				if err = b.DeleteSession(ctx, s); err != nil {
+					return errors.Wrapf(err, "failed to delete expired session: %s", s.ID)
+				}
 			}
 		}
 	}
-
-	return nil
-}
-
-// PutRevokedAccessToken stores a registry item
-func (b *DefaultBackend) PutRevokedAccessToken(item RevokedAccessToken) error {
-	if err := item.Validate(); err != nil {
-		return err
-	}
-
-	b.Lock()
-	b.blacklist[item.AccessTokenID] = item
-	b.Unlock()
-
-	return nil
-}
-
-// IsRevoked returns true if an item with such ObjectID is found
-// NOTE: function doesn't care whether this item has expired or not
-func (b *DefaultBackend) IsRevoked(tokenID uuid.UUID) bool {
-	b.RLock()
-	_, ok := b.blacklist[tokenID]
-	b.RUnlock()
-
-	return ok
-}
-
-// DeleteRevokedAccessItem deletes a revoked item from the registry
-func (b *DefaultBackend) DeleteRevokedAccessItem(jti uuid.UUID) error {
-	b.Lock()
-	delete(b.blacklist, jti)
-	b.Unlock()
 
 	return nil
 }
 
 // PutSession stores a given session to a temporary registry backend
-func (b *DefaultBackend) PutSession(s Session) error {
+func (b *DefaultBackend) PutSession(ctx context.Context, s *Session) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
 
 	b.Lock()
 
-	// initializing a nested map if it hasn't been yet
-	if b.userSessions[s.UserID] == nil {
-		b.userSessions[s.UserID] = make(map[token.Hash]Session)
+	// initializing a nested map and storing first value
+	if b.identitySessions[s.Owner] == nil {
+		b.identitySessions[s.Owner] = []uuid.UUID{s.ID}
+	} else {
+		// storing session until it's expired and removed
+		b.identitySessions[s.Owner] = append(b.identitySessions[s.Owner], s.ID)
 	}
-
-	// storing session until it's expired and removed
-	b.userSessions[s.UserID][s.Token] = s
-
-	// mapping token to this session
-	b.tokenMap[s.Token] = s
-	b.jtiMap[s.JTI] = s.JTI
 
 	b.Unlock()
 
@@ -167,54 +142,57 @@ func (b *DefaultBackend) PutSession(s Session) error {
 }
 
 // GetSession fetches a session by a given token hash from the registry backend
-func (b *DefaultBackend) GetSession(token token.Hash) (sess Session, err error) {
+func (b *DefaultBackend) SessionByID(ctx context.Context, jti uuid.UUID) (s Session, err error) {
+	if jti == uuid.Nil {
+		return s, ErrInvalidJTI
+	}
+
 	b.RLock()
-	sess, ok := b.tokenMap[token]
+	s, ok := b.sessions[jti]
 	b.RUnlock()
 
 	if !ok {
-		return sess, ErrSessionNotFound
+		return s, ErrSessionNotFound
 	}
 
-	return sess, nil
+	return s, nil
 }
 
 // DeleteSession deletes a given session from the backend registry
-func (b *DefaultBackend) DeleteSession(sess Session) error {
-	if err := sess.Validate(); err != nil {
-		return err
+func (b *DefaultBackend) DeleteSession(ctx context.Context, s Session) error {
+	if s.ID == uuid.Nil {
+		return ErrInvalidSessionID
 	}
 
 	b.Lock()
-	delete(b.userSessions[sess.UserID], sess.Token)
-	delete(b.tokenMap, sess.Token)
+
+	// from the main map
+	delete(b.sessions, s.ID)
+
+	// user-linked
+	for i := range b.identitySessions[s.Owner] {
+		if s.ID == b.identitySessions[s.Owner][i] {
+			b.identitySessions[s.Owner] = append(
+				b.identitySessions[s.Owner][:i],
+				b.identitySessions[s.Owner][i+1:]...,
+			)
+		}
+	}
+
 	b.Unlock()
 
 	return nil
 }
 
-// GetSessionByAccessToken retrieves session by an accesspolicy token ObjectID (JTI: JWT Hash ObjectID)
-func (b *DefaultBackend) GetSessionByAccessToken(jti uuid.UUID) (sess Session, err error) {
-	b.RLock()
-	sess, ok := b.jtiMap[jti]
-	b.RUnlock()
-
-	if !ok {
-		return sess, ErrSessionNotFound
-	}
-
-	return sess, nil
-}
-
 // GetSessionByRefreshToken retrieves session by a refresh token
-func (b *DefaultBackend) GetSessionByRefreshToken(rtok string) (sess Session, err error) {
+func (b *DefaultBackend) RefreshTokenByHash(ctx context.Context, hash Hash) (t RefreshToken, err error) {
 	b.RLock()
-	sess, ok := b.refreshTokens[rtok]
+	t, ok := b.refreshTokens[hash]
 	b.RUnlock()
 
 	if !ok {
-		return sess, ErrSessionNotFound
+		return t, ErrRefreshTokenNotFound
 	}
 
-	return sess, nil
+	return t, nil
 }

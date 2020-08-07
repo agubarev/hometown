@@ -7,7 +7,6 @@ import (
 	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 )
 
 // TODO: consider storing some client fingerprint inside the session
@@ -36,6 +35,7 @@ const (
 	IKUser = iota
 	IKService
 	IKApplication
+	IKUnknown
 )
 
 func (k IdentityKind) String() string {
@@ -60,6 +60,7 @@ type Identity struct {
 func UserIdentity(id uuid.UUID) Identity    { return Identity{ID: id, Kind: IKUser} }
 func ServiceIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKService} }
 func AppIdentity(id uuid.UUID) Identity     { return Identity{ID: id, Kind: IKApplication} }
+func UnknownIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKUnknown} }
 
 // Session represents an authenticated session
 type Session struct {
@@ -87,7 +88,6 @@ type Session struct {
 }
 
 func NewSession(jti uuid.UUID, ident Identity, ip user.IPAddr, agent bytearray.ByteString32, ttl timestamp.Timestamp) (s *Session, err error) {
-	// NOTE: ttl is in nanoseconds
 	if ttl == 0 {
 		ttl = DefaultSessionTTL
 	}
@@ -111,15 +111,15 @@ func NewSession(jti uuid.UUID, ident Identity, ip user.IPAddr, agent bytearray.B
 // SanitizeAndValidate validates the session
 func (s *Session) Validate() error {
 	if s.ID == uuid.Nil {
-		return errors.New("session id not set")
+		return ErrInvalidSessionID
 	}
 
 	if s.ExpireAt == 0 {
-		return errors.New("expiration time is not set")
+		return ErrZeroExpiration
 	}
 
-	if s.ExpireAt < timestamp.Now() {
-		return ErrTokenExpired
+	if s.Owner.ID == uuid.Nil {
+		return ErrInvalidIdentityID
 	}
 
 	return nil
