@@ -28,7 +28,7 @@ func TestAuthenticate(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -49,7 +49,7 @@ func TestAuthenticate(t *testing.T) {
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal(testuser.ID, u.ID)
@@ -58,13 +58,13 @@ func TestAuthenticate(t *testing.T) {
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
-	u, err = am.Authenticate(ctx, "wrongusername", testpass, auth.NewRequestInfo(nil))
+	u, err = am.AuthenticateByCredentials(ctx, "wrongusername", testpass, auth.NewRequestMetadata(nil))
 	a.EqualError(user.ErrUserNotFound, errors.Cause(err).Error())
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
-	u, err = am.Authenticate(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestInfo(nil))
+	u, err = am.AuthenticateByCredentials(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestMetadata(nil))
 	a.EqualError(auth.ErrAuthenticationFailed, errors.Cause(err).Error())
 }
 
@@ -82,7 +82,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -103,7 +103,7 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
 	a.NoError(err)
 	a.NotZero(u.ID)
 	a.Equal(testuser.ID, u.ID)
@@ -112,13 +112,13 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
-	u, err = am.Authenticate(ctx, "wrongusername", testpass, auth.NewRequestInfo(nil))
+	u, err = am.AuthenticateByCredentials(ctx, "wrongusername", testpass, auth.NewRequestMetadata(nil))
 	a.EqualError(user.ErrUserNotFound, errors.Cause(err).Error())
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
-	u, err = am.Authenticate(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestInfo(nil))
+	u, err = am.AuthenticateByCredentials(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestMetadata(nil))
 	a.EqualError(auth.ErrAuthenticationFailed, errors.Cause(err).Error())
 }
 
@@ -136,7 +136,7 @@ func TestDestroySession(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -176,7 +176,7 @@ func TestDestroySession(t *testing.T) {
 	}
 
 	// authentication is not necessary for this test, just keeps things consistent
-	u, err := am.Authenticate(ctx, testuser.Username, testpass, correctMD)
+	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, correctMD)
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(testuser, u))

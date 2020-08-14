@@ -18,7 +18,7 @@ var json = jsoniter.ConfigCompatibleWithStandardLibrary
 func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	// unmarshaling credentials
 	creds := auth.UserCredentials{}
-	ri := auth.NewRequestInfo(r)
+	ri := auth.NewRequestMetadata(r)
 
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
@@ -45,7 +45,7 @@ func HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// authenticating
-	u, err := a.Authenticate(r.Context(), creds.Username, creds.Password, ri)
+	u, err := a.AuthenticateByCredentials(r.Context(), creds.Username, creds.Password, ri)
 	if err != nil {
 		switch err {
 		case user.ErrUserNotFound:

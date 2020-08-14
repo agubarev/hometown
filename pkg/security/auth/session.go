@@ -3,6 +3,7 @@ package auth
 import (
 	"sync/atomic"
 
+	"github.com/agubarev/hometown/pkg/client"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
@@ -22,10 +23,10 @@ const (
 
 const (
 	// DefaultIdleTimeout is the time since the last session activity
-	DefaultIdleTimeout = timestamp.Timestamp(1e9 * 300)
+	DefaultIdleTimeout = timestamp.Timestamp(1e9 * 120) // 2 minutes
 
 	// DefaultSessionTTL is the default session lifetime
-	DefaultSessionTTL = timestamp.Timestamp(1e9 * 900)
+	DefaultSessionTTL = timestamp.Timestamp(1e9 * 600) // 10 minutes
 )
 
 // IdentityKind represents an identity kind (i.e.: user/service/application)
@@ -62,9 +63,23 @@ func ServiceIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKSe
 func AppIdentity(id uuid.UUID) Identity     { return Identity{ID: id, Kind: IKApplication} }
 func UnknownIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKUnknown} }
 
+// Owner represents a fusion of a remote client that acts
+// at the behest of an identity (typically the end user)
+type Owner struct {
+	Client   client.Client `json:"client"`
+	Identity Identity      `json:"id"`
+}
+
+func NewOwner(c client.Client, ident Identity) Owner {
+	return Owner{
+		Client:   c,
+		Identity: ident,
+	}
+}
+
 // Session represents an authenticated session
 type Session struct {
-	Owner Identity `db:"owner" json:"owner"`
+	Owner Owner `db:"owner" json:"owner"`
 
 	// ID is also used as JTI (JWT ID)
 	ID uuid.UUID `db:"id" json:"id"`
@@ -87,16 +102,16 @@ type Session struct {
 	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
 }
 
-func NewSession(jti uuid.UUID, ident Identity, ip user.IPAddr, agent bytearray.ByteString32, ttl timestamp.Timestamp) (s *Session, err error) {
+func NewSession(owner Owner, meta RequestMetadata, ttl timestamp.Timestamp) (s *Session, err error) {
 	if ttl == 0 {
 		ttl = DefaultSessionTTL
 	}
 
 	s = &Session{
-		Owner:        ident,
-		ID:           jti,
-		UserAgent:    agent,
-		IP:           ip,
+		Owner:        owner,
+		ID:           uuid.New(),
+		UserAgent:    meta.UserAgent,
+		IP:           meta.IP,
 		Flags:        0,
 		CreatedAt:    timestamp.Now(),
 		LastActiveAt: 0,
@@ -118,11 +133,22 @@ func (s *Session) Validate() error {
 		return ErrZeroExpiration
 	}
 
-	if s.Owner.ID == uuid.Nil {
+	if s.Owner.Identity.ID == uuid.Nil {
 		return ErrInvalidIdentityID
 	}
 
 	return nil
+}
+
+// TimeLeft returns the time remaining before it expires
+// NOTE: in nanoseconds
+func (s *Session) TimeLeft() timestamp.Timestamp {
+	ttl := int64(s.ExpireAt - timestamp.Now())
+	if ttl < 0 {
+		return timestamp.Timestamp(0)
+	}
+
+	return timestamp.Timestamp(ttl)
 }
 
 func (s *Session) revoke(rflags uint32) error {
@@ -130,10 +156,7 @@ func (s *Session) revoke(rflags uint32) error {
 		return ErrSessionAlreadyRevoked
 	}
 
-	// checking given flags
-	switch rflags {
-	case SRevokedByExpiry, SRevokedBySystem, SRevokedByClient:
-	default:
+	if rflags&(SRevokedByClient|SRevokedByLogout|SRevokedBySystem|SRevokedByExpiry) == 0 {
 		return ErrInvalidRevocationFlag
 	}
 

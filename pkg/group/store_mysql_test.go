@@ -155,7 +155,7 @@ func TestGroupStoreDelete(t *testing.T) {
 	a.NotNil(fg)
 	a.NoError(err)
 
-	err = s.DeleteByID(ctx, g.ActorID)
+	err = s.DeleteClientByID(ctx, g.ActorID)
 	a.NoError(err)
 
 	fg, err = s.FetchGroupByID(ctx, g.ActorID)

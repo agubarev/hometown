@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/agubarev/hometown/pkg/token"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -18,7 +17,7 @@ type Backend interface {
 	SessionByID(ctx context.Context, jti uuid.UUID) (Session, error)
 	RefreshTokenByHash(ctx context.Context, hash Hash) (t RefreshToken, err error)
 	DeleteSession(ctx context.Context, s Session) (err error)
-	DeleteRefreshToken(ctx context.Context, hash token.Hash) (err error)
+	DeleteRefreshToken(ctx context.Context, t RefreshToken) (err error)
 }
 
 // DefaultBackend is a default in-memory implementation
@@ -120,8 +119,8 @@ func (b *DefaultBackend) cleanup(ctx context.Context) (err error) {
 	return nil
 }
 
-// PutSession stores a given session to a temporary registry backend
-func (b *DefaultBackend) PutSession(ctx context.Context, s *Session) error {
+// UpsertSession stores a given session to a temporary registry backend
+func (b *DefaultBackend) UpsertSession(ctx context.Context, s Session) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
@@ -136,6 +135,17 @@ func (b *DefaultBackend) PutSession(ctx context.Context, s *Session) error {
 		b.identitySessions[s.Owner] = append(b.identitySessions[s.Owner], s.ID)
 	}
 
+	b.Unlock()
+
+	return nil
+}
+
+// UpsertRefreshToken stores refresh token
+func (b *DefaultBackend) UpsertRefreshToken(ctx context.Context, t RefreshToken) error {
+	// TODO: validation
+
+	b.Lock()
+	b.refreshTokens[t.Hash] = t
 	b.Unlock()
 
 	return nil
@@ -179,6 +189,15 @@ func (b *DefaultBackend) DeleteSession(ctx context.Context, s Session) error {
 		}
 	}
 
+	b.Unlock()
+
+	return nil
+}
+
+// DeleteSession deletes a given session from the backend registry
+func (b *DefaultBackend) DeleteRefreshToken(ctx context.Context, t RefreshToken) error {
+	b.Lock()
+	delete(b.refreshTokens, t.Hash)
 	b.Unlock()
 
 	return nil

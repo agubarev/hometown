@@ -27,4 +27,5 @@ var (
 	ErrInvalidSessionID      = errors.New("invalid session id")
 	ErrInvalidExpirationTime = errors.New("invalid expiration time")
 	ErrZeroExpiration        = errors.New("expiration time is zero")
+	ErrRefreshTokenIsEmpty   = errors.New("refresh token is empty")
 )

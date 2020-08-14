@@ -37,7 +37,7 @@ func TestSignin(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, nil, auth.NewDefaultConfig())
+	am, err := auth.NewAuthenticator(nil, um, nil, auth.DefaultOptions())
 	a.NoError(err)
 	a.NotNil(am)
 

@@ -23,7 +23,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// request info
-	ri := auth.NewRequestInfo(r)
+	ri := auth.NewRequestMetadata(r)
 
 	// obtaining an authenticator
 	a := r.Context().Value(auth.CKAuthenticator).(*auth.Authenticator)

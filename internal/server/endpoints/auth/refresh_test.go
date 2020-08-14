@@ -33,7 +33,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotNil(um)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.NewDefaultConfig())
+	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -93,12 +93,12 @@ func TestHandleRefreshToken(t *testing.T) {
 	// can be failed by specifying any IPAddr, i.e. 127.0.0.1
 	// ====================================================================================
 	/*
-		u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
+		u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
 		a.NoError(err)
 		a.NotNil(u)
 		a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-		tt, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
+		tt, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestMetadata(nil))
 		a.NoError(err)
 		a.NotNil(tt)
 
@@ -137,7 +137,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	// ====================================================================================
 	// invalid refresh token case
 	// ====================================================================================
-	u, err := am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
@@ -175,12 +175,12 @@ func TestHandleRefreshToken(t *testing.T) {
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	u, err = am.Authenticate(ctx, testuser.Username, testpass, auth.NewRequestInfo(nil))
+	u, err = am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-	tt, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestInfo(nil))
+	tt, err := am.GenerateTokenTrinity(ctx, u, auth.NewRequestMetadata(nil))
 	a.NoError(err)
 	a.NotNil(tt)
 

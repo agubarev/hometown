@@ -138,7 +138,7 @@ func (s *MySQLStore) FetchAllGroups(ctx context.Context) ([]Group, error) {
 }
 
 // DeletePolicy from the store by group ObjectID
-func (s *MySQLStore) DeleteByID(ctx context.Context, id uuid.UUID) (err error) {
+func (s *MySQLStore) DeleteClientByID(ctx context.Context, id uuid.UUID) (err error) {
 	g, err := s.FetchGroupByID(ctx, id)
 	if err != nil {
 		return err
