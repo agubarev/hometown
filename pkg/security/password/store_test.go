@@ -22,12 +22,17 @@ func TestPasswordStorePut(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	p, err := password.New(password.OKUser, uuid.New(), []byte("namelimilenivonalimalovili"), nil)
+	o := password.Owner{
+		ID:   uuid.New(),
+		Kind: password.OKUser,
+	}
+
+	p, err := password.NewFromInput(o, []byte("namelimilenivonalimalovili"), []string{})
 	a.NoError(err)
 	a.NotNil(p)
 
 	a.NoError(s.Upsert(context.Background(), p))
-	a.NoError(s.Delete(context.Background(), password.OKUser, p.OwnerID))
+	a.NoError(s.Delete(context.Background(), o))
 }
 
 func TestPasswordStoreGet(t *testing.T) {
@@ -41,17 +46,21 @@ func TestPasswordStoreGet(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	ownerID := uuid.New()
+	o := password.Owner{
+		ID:   uuid.New(),
+		Kind: password.OKUser,
+	}
+
 	pass := []byte("namelimilenivonalimalovili")
 
-	p, err := password.New(password.OKUser, ownerID, pass, nil)
+	p, err := password.NewFromInput(o, pass, []string{})
 	a.NoError(err)
 	a.NotNil(p)
 
 	err = s.Upsert(context.Background(), p)
 	a.NoError(err)
 
-	p2, err := s.Get(context.Background(), password.OKUser, ownerID)
+	p2, err := s.Get(context.Background(), o)
 	a.NoError(err)
 	a.Len(p.Hash, len(p2.Hash))
 	a.Equal(p.Hash, p2.Hash)
@@ -68,24 +77,28 @@ func TestPasswordStoreDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(s)
 
-	ownerID := uuid.New()
+	o := password.Owner{
+		ID:   uuid.New(),
+		Kind: password.OKUser,
+	}
+
 	pass := []byte("namelimilenivonalimalovili")
 
-	original, err := password.New(password.OKUser, ownerID, pass, nil)
+	original, err := password.NewFromInput(o, pass, []string{})
 	a.NoError(err)
 	a.NotNil(original)
 
 	err = s.Upsert(context.Background(), original)
 	a.NoError(err)
 
-	p, err := s.Get(context.Background(), password.OKUser, ownerID)
+	p, err := s.Get(context.Background(), o)
 	a.NoError(err)
 	a.Len(p.Hash, len(original.Hash))
 	a.Equal(p.Hash, original.Hash)
 
-	err = s.Delete(context.Background(), password.OKUser, ownerID)
+	err = s.Delete(context.Background(), o)
 	a.NoError(err)
 
-	_, err = s.Get(context.Background(), password.OKUser, ownerID)
+	_, err = s.Get(context.Background(), o)
 	a.Error(err)
 }

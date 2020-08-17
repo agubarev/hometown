@@ -28,4 +28,5 @@ var (
 	ErrInvalidExpirationTime = errors.New("invalid expiration time")
 	ErrZeroExpiration        = errors.New("expiration time is zero")
 	ErrRefreshTokenIsEmpty   = errors.New("refresh token is empty")
+	ErrNilPasswordManager    = errors.New("password manager is nil")
 )

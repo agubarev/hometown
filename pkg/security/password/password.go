@@ -9,23 +9,74 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+type GenFlags uint8
+
+var charPool []rune
+
+func init() {
+	// TODO: finish this
+	// TODO: finish this
+	// TODO: finish this
+	// TODO: finish this
+	// TODO: finish this
+	// TODO: finish this
+	// TODO: finish this
+	// TODO: finish this
+	panic("finish this")
+	for c := 'a'; c <= 'z'; c++ {
+		charPool = append(charPool, c)
+	}
+}
+
+const (
+	GFNumber GenFlags = 1 << iota
+	GFSpecial
+	GFMixCase
+)
+
 // constant rules
 const (
 	MinLength  = 8
 	MaxLength  = 64
-	defaultTTL = 24 * 182 * time.Hour
+	DefaultTTL = 24 * 182 * time.Hour
+)
+
+type Owner struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Kind Kind      `db:"kind" json:"kind"`
+}
+
+type Kind uint8
+
+// password owner kinds
+const (
+	OKUser Kind = 1
 )
 
 // Password object
 // TODO: use byte array instead of slice for password hash
 type Password struct {
-	Kind             OwnerKind           `db:"kind" json:"-"`
-	OwnerID          uuid.UUID           `db:"owner_id" json:"-"`
+	Owner
 	Hash             []byte              `db:"hash" json:"-"`
 	CreatedAt        timestamp.Timestamp `db:"created_at" json:"-"`
 	UpdatedAt        timestamp.Timestamp `db:"updated_at" json:"-"`
 	ExpireAt         timestamp.Timestamp `db:"expire_at" json:"-"`
 	IsChangeRequired bool                `db:"is_change_required" json:"-"`
+}
+
+func New(o Owner, l int, f GenFlags) (p Password, raw []byte) {
+	raw = make([]byte, l)
+
+	p = Password{
+		Owner:            o,
+		Hash:             nil,
+		CreatedAt:        0,
+		UpdatedAt:        0,
+		ExpireAt:         0,
+		IsChangeRequired: false,
+	}
+
+	return p, raw
 }
 
 // SanitizeAndValidate validates password
@@ -34,7 +85,7 @@ func (p Password) Validate() error {
 		return ErrZeroKind
 	}
 
-	if p.OwnerID == uuid.Nil {
+	if p.Owner.ID == uuid.Nil {
 		return ErrNilOwnerID
 	}
 
@@ -67,8 +118,8 @@ func EvaluatePasswordStrength(rawpass []byte, data []string) error {
 	return nil
 }
 
-// New creates a hash from a given raw password byte slice
-func New(k OwnerKind, ownerID uuid.UUID, rawpass []byte, data []string) (p Password, err error) {
+// NewFromInput creates a hash from a given raw password byte slice
+func NewFromInput(o Owner, rawpass []byte, data []string) (p Password, err error) {
 	if err = EvaluatePasswordStrength(rawpass, data); err != nil {
 		return p, err
 	}
@@ -79,11 +130,10 @@ func New(k OwnerKind, ownerID uuid.UUID, rawpass []byte, data []string) (p Passw
 	}
 
 	p = Password{
-		Kind:      k,
-		OwnerID:   ownerID,
+		Owner:     o,
 		Hash:      h,
 		CreatedAt: timestamp.Now(),
-		ExpireAt:  timestamp.Timestamp(time.Now().Add(defaultTTL).Unix()),
+		ExpireAt:  timestamp.Timestamp(time.Now().Add(DefaultTTL).Unix()),
 	}
 
 	return p, nil

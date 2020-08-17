@@ -20,7 +20,7 @@ func NewPostgreSQLStore(db *pgx.Conn) (Store, error) {
 // Upsert stores password
 // ObjectID must be equal to the user's ObjectID
 func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
-	if p.OwnerID == uuid.Nil {
+	if p.Owner.ID == uuid.Nil {
 		return ErrNilOwnerID
 	}
 
@@ -46,7 +46,7 @@ func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
 		ctx,
 		q,
 		nil,
-		p.Kind, p.OwnerID, p.Hash, p.IsChangeRequired, p.CreatedAt, p.UpdatedAt, p.ExpireAt,
+		p.Kind, p.Owner.ID, p.Hash, p.IsChangeRequired, p.CreatedAt, p.UpdatedAt, p.ExpireAt,
 	)
 
 	if err != nil {
@@ -57,15 +57,15 @@ func (s *PostgreSQLStore) Upsert(ctx context.Context, p Password) (err error) {
 }
 
 // Get retrieves a stored password
-func (s *PostgreSQLStore) Get(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (p Password, err error) {
+func (s *PostgreSQLStore) Get(ctx context.Context, o Owner) (p Password, err error) {
 	q := `
 	SELECT kind, owner_id, hash, is_change_required, created_at, updated_at, expire_at
 	FROM password
 	WHERE kind = $1 AND owner_id = $2
 	LIMIT 1`
 
-	err = s.db.QueryRowEx(ctx, q, nil, kind, ownerID).
-		Scan(&p.Kind, &p.OwnerID, &p.Hash, &p.IsChangeRequired,
+	err = s.db.QueryRowEx(ctx, q, nil, o.Kind, o.ID).
+		Scan(&p.Kind, &p.Owner.ID, &p.Hash, &p.IsChangeRequired,
 			&p.CreatedAt, &p.UpdatedAt, &p.ExpireAt)
 
 	switch err {
@@ -79,10 +79,10 @@ func (s *PostgreSQLStore) Get(ctx context.Context, kind OwnerKind, ownerID uuid.
 }
 
 // DeletePolicy deletes a stored password
-func (s *PostgreSQLStore) Delete(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (err error) {
+func (s *PostgreSQLStore) Delete(ctx context.Context, o Owner) (err error) {
 	q := `DELETE FROM password WHERE kind = $1 AND owner_id = $2`
 
-	_, err = s.db.ExecEx(ctx, q, nil, kind, ownerID)
+	_, err = s.db.ExecEx(ctx, q, nil, o.Kind, o.ID)
 	if err != nil {
 		return errors.Wrap(err, "failed to delete password")
 	}

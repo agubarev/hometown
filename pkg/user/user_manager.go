@@ -213,7 +213,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	}
 
 	// initializing new password
-	p, err := password.New(password.OKUser, u.ID, newUser.Password, userdata)
+	p, err := password.NewFromInput(
 	if err != nil {
 		panic(errors.Wrap(err, "failed to initialize new password"))
 	}

@@ -19,18 +19,11 @@ var (
 	ErrUnsafePassword   = errors.New("password is too unsafe")
 )
 
-type OwnerKind uint8
-
-// password owner kinds
-const (
-	OKUser OwnerKind = 1
-)
-
 // userManager describes the behaviour of a user password manager
 type Manager interface {
 	Upsert(ctx context.Context, p Password) error
-	Get(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (p Password, err error)
-	Delete(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) error
+	Get(ctx context.Context, o Owner) (p Password, err error)
+	Delete(ctx context.Context, o Owner) error
 }
 
 type defaultManager struct {
@@ -62,34 +55,26 @@ func (m *defaultManager) Upsert(ctx context.Context, p Password) (err error) {
 	return m.store.Upsert(ctx, p)
 }
 
-func (m *defaultManager) Get(ctx context.Context, kind OwnerKind, ownerID uuid.UUID) (p Password, err error) {
+func (m *defaultManager) Get(ctx context.Context, o Owner) (p Password, err error) {
 	if m.store == nil {
 		return p, ErrNilPasswordStore
 	}
 
-	if kind == 0 {
-		return p, ErrZeroKind
-	}
-
-	if ownerID == uuid.Nil {
+	if o.ID == uuid.Nil {
 		return p, ErrNilOwnerID
 	}
 
-	return m.store.Get(ctx, kind, ownerID)
+	return m.store.Get(ctx, o)
 }
 
-func (m *defaultManager) Delete(ctx context.Context, k OwnerKind, ownerID uuid.UUID) error {
+func (m *defaultManager) Delete(ctx context.Context, o Owner) error {
 	if m.store == nil {
 		return ErrNilPasswordStore
 	}
 
-	if k == 0 {
-		return ErrZeroKind
-	}
-
-	if ownerID == uuid.Nil {
+	if o.ID == uuid.Nil {
 		return ErrNilOwnerID
 	}
 
-	return m.store.Delete(ctx, k, ownerID)
+	return m.store.Delete(ctx, o)
 }

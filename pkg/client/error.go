@@ -10,4 +10,7 @@ var (
 	ErrRelationNotFound      = errors.New("relation is not found")
 	ErrRelationAlreadyExists = errors.New("relation already exists")
 	ErrNilDatabase           = errors.New("database is nil")
+	ErrNilStore              = errors.New("store is nil")
+	ErrNoName                = errors.New("name cannot be empty")
+	ErrNilPasswordManager    = errors.New("password is nil")
 )
