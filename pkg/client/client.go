@@ -8,6 +8,8 @@ import (
 	"github.com/google/uuid"
 )
 
+const PasswordLength = 32
+
 // Flags represent client flags
 type Flags uint8
 
@@ -25,9 +27,7 @@ type Client struct {
 	RegisteredAt timestamp.Timestamp    `db:"registered_at" json:"registered_at"`
 	ExpireAt     timestamp.Timestamp    `db:"expire_at" json:"expire_at"`
 	Flags        Flags                  `db:"flags" json:"flags"`
-
-	entropy [32]byte
-	_       struct{}
+	_            struct{}
 }
 
 func (c *Client) IsEnabled() bool      { return c.Flags&FEnabled == FEnabled }

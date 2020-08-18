@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/agubarev/hometown/pkg/security/password"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 
 	"github.com/stretchr/testify/assert"
@@ -37,15 +36,40 @@ func TestNew(t *testing.T) {
 		Kind: password.OKUser,
 	}
 
-	p, raw := password.New(o, 32, password.GFNumber)
+	// alpha
+	p, raw, err := password.New(o, 8, 3, 0)
+	a.NoError(err)
 	a.Equal(o, p.Owner)
 	a.NotEmpty(raw)
+
+	// alpha, mixed
+	p, raw, err = password.New(o, 8, 3, password.GFMixCase)
+	a.NoError(err)
+	a.Equal(o, p.Owner)
+	a.NotEmpty(raw)
+
+	// alpha, mixed, number
+	p, raw, err = password.New(o, 8, 3, password.GFMixCase|password.GFNumber)
+	a.NoError(err)
+	a.Equal(o, p.Owner)
+	a.NotEmpty(raw)
+
+	// alpha, mixed, number, special
+	p, raw, err = password.New(o, 8, 3, password.GFMixCase|password.GFNumber|password.GFSpecial)
+	a.NoError(err)
+	a.Equal(o, p.Owner)
+	a.NotEmpty(raw)
+
+	// checking safety feasibility (length: 8, passing score: 4)
+	p, raw, err = password.New(o, 8, 4, 0)
+	a.Error(err)
+	a.EqualError(password.ErrInfeasibleSafety, err.Error())
 }
 
 func TestEvaluatePassword(t *testing.T) {
 	a := assert.New(t)
 
-	err := password.EvaluatePasswordStrength([]byte("1234567"), []string{})
+	err := password.EvaluatePasswordStrength([]byte("1234567"), 3, []string{})
 	a.Error(err)
 	a.EqualError(password.ErrShortPassword, err.Error())
 
@@ -54,18 +78,18 @@ func TestEvaluatePassword(t *testing.T) {
 	_, err = rand.Read(pass)
 	a.NoError(err)
 
-	err = password.EvaluatePasswordStrength(pass, []string{})
+	err = password.EvaluatePasswordStrength(pass, 3, []string{})
 	a.Error(err)
 	a.EqualError(password.ErrLongPassword, err.Error())
 
-	err = password.EvaluatePasswordStrength([]byte("12345678"), []string{})
+	err = password.EvaluatePasswordStrength([]byte("12345678"), 3, []string{})
 	a.Error(err)
 	a.EqualError(password.ErrUnsafePassword, err.Error())
 
-	err = password.EvaluatePasswordStrength([]byte("123Andrei9991superp@ss"), []string{})
+	err = password.EvaluatePasswordStrength([]byte("123Andrei9991superp@ss"), 3, []string{})
 	a.Error(err)
 	a.EqualError(password.ErrUnsafePassword, err.Error())
 
-	err = password.EvaluatePasswordStrength([]byte("s@fer!@()*!p@ssw0rd*!jahaajk8!*@^%"), []string{})
+	err = password.EvaluatePasswordStrength([]byte("s@fer!@()*!p@ssw0rd*!jahaajk8!*@^%"), 3, []string{})
 	a.NoError(err)
 }

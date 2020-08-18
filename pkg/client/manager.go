@@ -85,6 +85,29 @@ func (m *Manager) CreateClient(ctx context.Context, isConfidential bool, name by
 	return c, nil
 }
 
+func (m *Manager) CreatePassword(ctx context.Context, clientID uuid.UUID) (raw []byte, err error) {
+	c, err := m.ClientByID(ctx, clientID)
+	if err != nil {
+		return raw, errors.Wrap(err, "failed to obtain client")
+	}
+
+	o := password.Owner{
+		ID:   c.ID,
+		Kind: password.OKApplication,
+	}
+
+	p, raw, err := password.New(o, PasswordLength, 3, password.GFNumber|password.GFMixCase|password.GFSpecial)
+	if err != nil {
+		return raw, err
+	}
+
+	if err = m.passwords.Upsert(ctx, p); err != nil {
+		return raw, errors.Wrap(err, "failed to set user password")
+	}
+
+	return raw, nil
+}
+
 func (m *Manager) ClientByID(ctx context.Context, clientID uuid.UUID) (c Client, err error) {
 	if clientID == uuid.Nil {
 		return c, ErrClientNotFound
@@ -110,20 +133,31 @@ func (m *Manager) ClientByID(ctx context.Context, clientID uuid.UUID) (c Client,
 	return c, nil
 }
 
-func (m *Manager) CreatePassword(ctx context.Context, clientID uuid.UUID) (p password.Password, raw []byte, err error) {
-	c, err := m.ClientByID(ctx, clientID)
-	if err != nil {
-		return nil, errors.Wrap(err, "failed to obtain client")
+func (m *Manager) DeleteClientByID(ctx context.Context, clientID uuid.UUID) (err error) {
+	if clientID == uuid.Nil {
+		return ErrClientNotFound
 	}
 
-	p, raw, err = m.passwords.Generate(ctx, 32)
-	if err != nil {
-		return p, raw, err
+	if err = m.store.DeleteClientByID(ctx, clientID); err != nil {
+		return errors.Wrapf(err, "failed to delete client: %s", clientID)
 	}
 
-	if err = m.passwords.Upsert(ctx, p); err != nil {
-		return p, raw, errors.Wrap(err, "failed to set user password")
+	o := password.Owner{
+		ID:   clientID,
+		Kind: password.OKApplication,
 	}
 
-	return p, raw, nil
+	if err = m.passwords.Delete(ctx, o); err != nil {
+		return errors.Wrapf(err, "failed to delete client password: %s", clientID)
+	}
+
+	m.Lock()
+	delete(m.clients, clientID)
+	m.Unlock()
+
+	if l := m.logger; l != nil {
+		l.Debug("client and password deleted", zap.String("id", clientID.String()))
+	}
+
+	return nil
 }
