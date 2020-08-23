@@ -34,7 +34,7 @@ type IdentityKind uint8
 
 const (
 	IKUser = iota
-	IKService
+	IKServer
 	IKApplication
 	IKUnknown
 )
@@ -43,8 +43,8 @@ func (k IdentityKind) String() string {
 	switch k {
 	case IKUser:
 		return "user"
-	case IKService:
-		return "service"
+	case IKServer:
+		return "server"
 	case IKApplication:
 		return "application"
 	default:
@@ -59,7 +59,7 @@ type Identity struct {
 }
 
 func UserIdentity(id uuid.UUID) Identity    { return Identity{ID: id, Kind: IKUser} }
-func ServiceIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKService} }
+func ServerIdentity(id uuid.UUID) Identity  { return Identity{ID: id, Kind: IKServer} }
 func AppIdentity(id uuid.UUID) Identity     { return Identity{ID: id, Kind: IKApplication} }
 func UnknownIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKUnknown} }
 

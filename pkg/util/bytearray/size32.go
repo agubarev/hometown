@@ -12,7 +12,7 @@ type ByteString32 [32]byte
 var NilByteString32 = ByteString32{}
 
 func NewByteString32(s string) (bs ByteString32) {
-	copy(bs[:], bytes.TrimSpace([]byte(s)))
+	copy(bs[:], s)
 	return bs
 }
 

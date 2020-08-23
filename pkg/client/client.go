@@ -16,8 +16,10 @@ type Flags uint8
 const (
 	FEnabled Flags = 1 << iota
 	FConfidential
-	FSecret
-	FEncrypted
+	FPassword
+	FPKI
+	FMutualTLS
+	FDynamic
 )
 
 // Client represents any external client that interfaces with this API

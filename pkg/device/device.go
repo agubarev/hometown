@@ -1,4 +1,4 @@
-package client
+package device
 
 import (
 	"github.com/agubarev/hometown/pkg/util/bytearray"

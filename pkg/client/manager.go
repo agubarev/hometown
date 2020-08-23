@@ -2,6 +2,8 @@ package client
 
 import (
 	"context"
+	"fmt"
+	"net/url"
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/security/password"
@@ -14,10 +16,12 @@ import (
 
 type Manager struct {
 	clients   map[uuid.UUID]Client
+	urls      map[uuid.UUID][]bytearray.ByteString128
 	passwords password.Manager
 	store     Store
 	logger    *zap.Logger
-	sync.RWMutex
+	clock     sync.RWMutex
+	ulock     sync.RWMutex
 }
 
 func NewManager(s Store) *Manager {
@@ -113,9 +117,9 @@ func (m *Manager) ClientByID(ctx context.Context, clientID uuid.UUID) (c Client,
 		return c, ErrClientNotFound
 	}
 
-	m.RLock()
+	m.clock.RLock()
 	c, ok := m.clients[clientID]
-	m.RUnlock()
+	m.clock.RUnlock()
 
 	if ok {
 		return c, nil
@@ -126,9 +130,9 @@ func (m *Manager) ClientByID(ctx context.Context, clientID uuid.UUID) (c Client,
 		return c, err
 	}
 
-	m.Lock()
+	m.clock.Lock()
 	m.clients[c.ID] = c
-	m.Unlock()
+	m.clock.Unlock()
 
 	return c, nil
 }
@@ -151,13 +155,91 @@ func (m *Manager) DeleteClientByID(ctx context.Context, clientID uuid.UUID) (err
 		return errors.Wrapf(err, "failed to delete client password: %s", clientID)
 	}
 
-	m.Lock()
+	m.clock.Lock()
 	delete(m.clients, clientID)
-	m.Unlock()
+	m.clock.Unlock()
 
 	if l := m.logger; l != nil {
 		l.Debug("client and password deleted", zap.String("id", clientID.String()))
 	}
 
 	return nil
+}
+
+// AddURL accepts a given URL string but stores only the scheme://hostname[:port] portion of it
+func (m *Manager) AddURL(ctx context.Context, clientID uuid.UUID, clientURL string) (err error) {
+	if clientID == uuid.Nil {
+		return ErrInvalidClientID
+	}
+
+	// NOTE: loading client because it also loads its URLs implicitly
+	_, err = m.ClientByID(ctx, clientID)
+	if err != nil {
+		return err
+	}
+
+	u, err := url.Parse(clientURL)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse client url")
+	}
+
+	host := bytearray.NewByteString128(fmt.Sprintf("%s://%s", u.Scheme, u.Host))
+
+	if m.HasURL(ctx, clientID, host) {
+		return nil
+	}
+
+	m.ulock.Lock()
+
+	if m.urls[clientID] == nil {
+		m.urls[clientID] = []bytearray.ByteString128{host}
+	} else {
+		m.urls[clientID] = append(m.urls[clientID], host)
+	}
+
+	m.ulock.Unlock()
+
+	return nil
+}
+
+func (m *Manager) URLsByClientID(ctx context.Context, clientID uuid.UUID) (urls []bytearray.ByteString128, err error) {
+	if clientID == uuid.Nil {
+		return nil, ErrInvalidClientID
+	}
+
+	// NOTE: loading client because it also loads its URLs implicitly
+	_, err = m.ClientByID(ctx, clientID)
+	if err != nil {
+		return nil, err
+	}
+
+	m.ulock.RLock()
+	defer m.ulock.RUnlock()
+
+	return m.urls[clientID], nil
+}
+
+func (m *Manager) HasURL(ctx context.Context, clientID uuid.UUID, clientURL bytearray.ByteString128) bool {
+	if clientID == uuid.Nil {
+		return false
+	}
+
+	// NOTE: loading client because it also loads its URLs implicitly
+	_, err := m.ClientByID(ctx, clientID)
+	if err != nil {
+		return false
+	}
+
+	m.ulock.RLock()
+	if urls, ok := m.urls[clientID]; ok {
+		for _, u := range urls {
+			if u == clientURL {
+				m.ulock.RUnlock()
+				return true
+			}
+		}
+	}
+	m.ulock.RUnlock()
+
+	return false
 }
