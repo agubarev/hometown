@@ -22,13 +22,13 @@ const (
 
 // Device represents
 type Device struct {
-	Name         bytearray.ByteString32 `db:"name" json:"name"`
-	ID           uuid.UUID              `db:"id" json:"id"`
-	IMEI         bytearray.ByteString16 `db:"imei" json:"imei"`
-	MEID         bytearray.ByteString16 `db:"meid" json:"meid"`
-	SerialNumber bytearray.ByteString16 `db:"esn" json:"esn"`
-	RegisteredAt timestamp.Timestamp    `db:"registered_at" json:"registered_at"`
-	ExpireAt     timestamp.Timestamp    `db:"expire_at" json:"expire_at"`
-	Flags        Flags                  `db:"flags" json:"flags"`
+	Name         string              `db:"name" json:"name"`
+	ID           uuid.UUID           `db:"id" json:"id"`
+	IMEI         string              `db:"imei" json:"imei"`
+	MEID         string              `db:"meid" json:"meid"`
+	SerialNumber string              `db:"esn" json:"esn"`
+	RegisteredAt timestamp.Timestamp `db:"registered_at" json:"registered_at"`
+	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
+	Flags        Flags               `db:"flags" json:"flags"`
 	_            struct{}
 }

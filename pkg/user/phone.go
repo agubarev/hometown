@@ -17,8 +17,8 @@ type NewPhoneObject struct {
 
 // PhoneEssential represents an essential part of the primary object
 type PhoneEssential struct {
-	Number    bytearray.ByteString16 `db:"number" json:"number"`
-	IsPrimary bool                   `db:"is_primary" json:"is_primary"`
+	Number    string `db:"number" json:"number"`
+	IsPrimary bool   `db:"is_primary" json:"is_primary"`
 }
 
 // PhoneMetadata contains generic metadata of the primary object
@@ -58,7 +58,7 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "UserID":
 			p.UserID = change.To.(uuid.UUID)
 		case "Number":
-			p.Number = change.To.(bytearray.ByteString16)
+			p.Number = change.To.(string)
 		case "CreatedAt":
 			p.CreatedAt = change.To.(timestamp.Timestamp)
 		case "Confirmed_at":

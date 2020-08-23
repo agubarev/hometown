@@ -119,7 +119,7 @@ func (s *PostgreSQLStore) FetchEmailsByUserID(ctx context.Context, userID uuid.U
 	return s.manyEmails(ctx, q, userID)
 }
 
-func (s *PostgreSQLStore) FetchEmailByAddr(ctx context.Context, addr bytearray.ByteString256) (e Email, err error) {
+func (s *PostgreSQLStore) FetchEmailByAddr(ctx context.Context, addr string) (e Email, err error) {
 	q := `
 	SELECT user_id, addr, is_primary, created_at, confirmed_at, updated_at
 	FROM user_email 
@@ -129,7 +129,7 @@ func (s *PostgreSQLStore) FetchEmailByAddr(ctx context.Context, addr bytearray.B
 	return s.oneEmail(ctx, q, addr)
 }
 
-func (s *PostgreSQLStore) DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr bytearray.ByteString256) (err error) {
+func (s *PostgreSQLStore) DeleteEmailByAddr(ctx context.Context, userID uuid.UUID, addr string) (err error) {
 	if userID == uuid.Nil {
 		return ErrZeroUserID
 	}

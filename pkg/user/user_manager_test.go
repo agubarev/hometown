@@ -64,7 +64,7 @@ func TestUserManagerCreate(t *testing.T) {
 			ProfileEssential: user.ProfileEssential{
 				Firstname:  bytearray.NewByteString16("Andrejs"),
 				Lastname:   bytearray.NewByteString16("Gubarevs"),
-				Middlename: bytearray.ByteString16{},
+				Middlename: string{},
 			},
 			EmailAddr:   bytearray.NewByteString256("testuser@hometown.local"),
 			PhoneNumber: bytearray.NewByteString16("12398543292"),

@@ -17,8 +17,8 @@ type NewEmailObject struct {
 
 // EmailEssential represents an essential part of the primary object
 type EmailEssential struct {
-	Addr      bytearray.ByteString256 `db:"addr" json:"addr"`
-	IsPrimary bool                    `db:"is_primary" json:"is_primary"`
+	Addr      string `db:"addr" json:"addr"`
+	IsPrimary bool   `db:"is_primary" json:"is_primary"`
 }
 
 // EmailMetadata contains generic metadata of the primary object
@@ -58,7 +58,7 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "UserID":
 			email.UserID = change.To.(uuid.UUID)
 		case "Addr":
-			email.Addr = change.To.(bytearray.ByteString256)
+			email.Addr = change.To.(string)
 		case "CreatedAt":
 			email.CreatedAt = change.To.(timestamp.Timestamp)
 		case "ConfirmedAt":

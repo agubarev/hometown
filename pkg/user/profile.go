@@ -21,9 +21,9 @@ type NewProfileObject struct {
 
 // ProfileEssential represents an essential part of the primary object
 type ProfileEssential struct {
-	Firstname  bytearray.ByteString16 `db:"firstname" json:"firstname"`
-	Lastname   bytearray.ByteString16 `db:"lastname" json:"lastname"`
-	Middlename bytearray.ByteString16 `db:"middlename" json:"middlename"`
+	Firstname  string `db:"firstname" json:"firstname"`
+	Lastname   string `db:"lastname" json:"lastname"`
+	Middlename string `db:"middlename" json:"middlename"`
 }
 
 // ProfileMetadata contains generic metadata of the primary object
@@ -82,11 +82,11 @@ func (p *Profile) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "Firstname":
-			p.Firstname = change.To.(bytearray.ByteString16)
+			p.Firstname = change.To.(string)
 		case "Middlename":
-			p.Middlename = change.To.(bytearray.ByteString16)
+			p.Middlename = change.To.(string)
 		case "Lastname":
-			p.Lastname = change.To.(bytearray.ByteString16)
+			p.Lastname = change.To.(string)
 		case "Checksum":
 			p.Checksum = change.To.(uint64)
 		}

@@ -119,7 +119,7 @@ func (s *PostgreSQLStore) FetchPhonesByUserID(ctx context.Context, userID uuid.U
 	return s.manyPhones(ctx, q, userID)
 }
 
-func (s *PostgreSQLStore) FetchPhoneByNumber(ctx context.Context, number bytearray.ByteString16) (e Phone, err error) {
+func (s *PostgreSQLStore) FetchPhoneByNumber(ctx context.Context, number string) (e Phone, err error) {
 	q := `
 	SELECT user_id, number, is_primary, created_at, confirmed_at, updated_at
 	FROM user_phone 
@@ -129,7 +129,7 @@ func (s *PostgreSQLStore) FetchPhoneByNumber(ctx context.Context, number bytearr
 	return s.onePhone(ctx, q, number)
 }
 
-func (s *PostgreSQLStore) DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number bytearray.ByteString16) (err error) {
+func (s *PostgreSQLStore) DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number string) (err error) {
 	if userID == uuid.Nil {
 		return ErrZeroUserID
 	}

@@ -1,11 +1,9 @@
 package group
 
 import (
-	"bytes"
 	"database/sql/driver"
 	"strings"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 )
 
@@ -73,15 +71,15 @@ func FlagDictionary() map[uint32]string {
 // TODO: replace Flags and IsDefault with a Flags bitmask
 // TODO: work out a simple Flags bit layout
 type Group struct {
-	DisplayName bytearray.ByteString128 `db:"name" json:"name"`
-	Key         bytearray.ByteString32  `db:"key" json:"key" valid:"required,ascii"`
-	ID          uuid.UUID               `db:"id" json:"id"`
-	ParentID    uuid.UUID               `db:"parent_id" json:"parent_id"`
-	Flags       Flags                   `db:"kind" json:"kind"`
+	DisplayName string    `db:"name" json:"name"`
+	Key         string    `db:"key" json:"key" valid:"required,ascii"`
+	ID          uuid.UUID `db:"id" json:"id"`
+	ParentID    uuid.UUID `db:"parent_id" json:"parent_id"`
+	Flags       Flags     `db:"kind" json:"kind"`
 	_           struct{}
 }
 
-func NewGroup(flags Flags, parentID uuid.UUID, key bytearray.ByteString32, name bytearray.ByteString128) (g Group, err error) {
+func NewGroup(flags Flags, parentID uuid.UUID, key string, name string) (g Group, err error) {
 	g = Group{
 		DisplayName: name,
 		Key:         key,
@@ -121,54 +119,6 @@ func (g Group) IsDefault() bool { return g.Flags&FDefault == FDefault }
 func (g Group) IsEnabled() bool { return g.Flags&FEnabled == FEnabled }
 func (g Group) IsGroup() bool   { return g.Flags&FGroup == FGroup }
 func (g Group) IsRole() bool    { return g.Flags&FRole == FRole }
-
-// SetKey assigns a key name to the group
-func (g *Group) SetKey(key interface{}, maxLen int) error {
-	switch v := key.(type) {
-	case string:
-		v = strings.ToLower(strings.TrimSpace(v))
-		if v == "" {
-			return ErrEmptyKey
-		}
-
-		copy(g.Key[:], v)
-	case []byte:
-		v = bytes.ToLower(bytes.TrimSpace(v))
-		if len(v) == 0 {
-			return ErrEmptyKey
-		}
-
-		copy(g.Key[:], v)
-	}
-
-	return nil
-}
-
-// SetName assigns a new name to the group
-func (g *Group) SetName(name interface{}, maxLen int) error {
-	switch v := name.(type) {
-	case string:
-		v = strings.TrimSpace(v)
-		if v == "" {
-			return ErrEmptyGroupName
-		}
-
-		copy(g.DisplayName[:], v)
-	case []byte:
-		v = bytes.TrimSpace(v)
-		if len(v) == 0 {
-			return ErrEmptyGroupName
-		}
-
-		copy(g.DisplayName[:], v)
-	}
-
-	return nil
-}
-
-//---------------------------------------------------------------------------
-// conversions
-//---------------------------------------------------------------------------
 
 func (ak AssetKind) Value() (driver.Value, error) {
 	return ak, nil

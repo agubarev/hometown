@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/asaskevich/govalidator"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -97,7 +97,7 @@ type Manager struct {
 	groups map[uuid.UUID]Group
 
 	// group key -> group ActorID
-	keyMap map[bytearray.ByteString32]uuid.UUID
+	keyMap map[string]uuid.UUID
 
 	// default group ids
 	// NOTE: all tracked assets belong to the groups whose IDs
@@ -122,7 +122,7 @@ func NewManager(ctx context.Context, s Store) (m *Manager, err error) {
 
 	m = &Manager{
 		groups:      make(map[uuid.UUID]Group, 0),
-		keyMap:      make(map[bytearray.ByteString32]uuid.UUID),
+		keyMap:      make(map[string]uuid.UUID),
 		defaultIDs:  make([]uuid.UUID, 0),
 		assetGroups: make(map[Asset][]uuid.UUID),
 		groupAssets: make(map[uuid.UUID][]Asset),
@@ -183,7 +183,7 @@ func (m *Manager) Init(ctx context.Context) error {
 				"Init() failed to add group to container",
 				zap.String("group_id", g.ID.String()),
 				zap.String("flags", g.Flags.Translate()),
-				zap.ByteString("key", g.Key[:]),
+				zap.String("key", g.Key[:]),
 				zap.Error(err),
 			)
 		}
@@ -221,7 +221,7 @@ func (m *Manager) Store() (Store, error) {
 }
 
 // Upsert creates new group
-func (m *Manager) Create(ctx context.Context, flags Flags, parentID uuid.UUID, key bytearray.ByteString32, name bytearray.ByteString128) (g Group, err error) {
+func (m *Manager) Create(ctx context.Context, flags Flags, parentID uuid.UUID, key string, name string) (g Group, err error) {
 	// checking parent id
 	if parentID != uuid.Nil {
 		parent, err := m.GroupByID(ctx, parentID)
@@ -247,10 +247,8 @@ func (m *Manager) Create(ctx context.Context, flags Flags, parentID uuid.UUID, k
 	}
 
 	// trimming and flattening case for key and name
-	key.Trim()
-	key.ToLower()
-	name.Trim()
-	name.ToLower()
+	key = strings.ToLower(strings.TrimSpace(key))
+	name = strings.ToLower(strings.TrimSpace(name))
 
 	// basic field validation
 	if ok, err := govalidator.ValidateStruct(g); !ok || err != nil {
@@ -401,7 +399,7 @@ func (m *Manager) GroupByID(ctx context.Context, id uuid.UUID) (g Group, err err
 }
 
 // PolicyByKey returns a group by name
-func (m *Manager) GroupByKey(ctx context.Context, key bytearray.ByteString32) (g Group, err error) {
+func (m *Manager) GroupByKey(ctx context.Context, key string) (g Group, err error) {
 	m.RLock()
 	g, ok := m.groups[m.keyMap[key]]
 	m.RUnlock()
@@ -425,7 +423,7 @@ func (m *Manager) GroupByKey(ctx context.Context, key bytearray.ByteString32) (g
 
 // GroupByName returns an accesspolicy policy by its key
 // TODO: add expirable caching
-func (m *Manager) GroupByName(ctx context.Context, name bytearray.ByteString128) (g Group, err error) {
+func (m *Manager) GroupByName(ctx context.Context, name string) (g Group, err error) {
 	return m.store.FetchGroupByName(ctx, name)
 }
 
@@ -504,24 +502,21 @@ func (m *Manager) setupDefaultGroups(ctx context.Context) error {
 	//---------------------------------------------------------------------------
 
 	// regular user
-	regularRole, err := m.Create(ctx, FRole, uuid.Nil,
-		bytearray.NewByteString32("regular"), bytearray.NewByteString128("Regular User"))
+	regularRole, err := m.Create(ctx, FRole, uuid.Nil, "regular", "Regular User")
 
 	if err != nil {
 		return errors.Wrap(err, "failed to create regular user role")
 	}
 
 	// manager
-	managerRole, err := m.Create(ctx, FRole, regularRole.ID,
-		bytearray.NewByteString32("manager"), bytearray.NewByteString128("Manager"))
+	managerRole, err := m.Create(ctx, FRole, regularRole.ID, "manager", "Manager")
 
 	if err != nil {
 		return fmt.Errorf("failed to create manager role: %s", err)
 	}
 
 	// super user
-	_, err = m.Create(ctx, FRole, managerRole.ID,
-		bytearray.NewByteString32("superuser"), bytearray.NewByteString128("Super User"))
+	_, err = m.Create(ctx, FRole, managerRole.ID, "superuser", "Super User")
 	if err != nil {
 		return fmt.Errorf("failed to create superuser role: %s", err)
 	}

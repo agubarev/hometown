@@ -85,7 +85,7 @@ type Session struct {
 	ID uuid.UUID `db:"id" json:"id"`
 
 	// UserAgent is the user agent taken from the client at the time of authentication
-	UserAgent bytearray.ByteString32 `db:"user_agent" json:"user_agent"`
+	UserAgent string `db:"user_agent" json:"user_agent"`
 
 	// IP is the IP address from which this session has been initiated
 	IP user.IPAddr `db:"ip" json:"ip"`

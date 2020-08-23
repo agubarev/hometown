@@ -340,7 +340,7 @@ func (s *PostgreSQLStore) FetchPolicyByID(ctx context.Context, id uuid.UUID) (Po
 	return s.onePolicy(ctx, q, id)
 }
 
-func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key bytearray.ByteString32) (p Policy, err error) {
+func (s *PostgreSQLStore) FetchPolicyByKey(ctx context.Context, key string) (p Policy, err error) {
 	q := `
 	SELECT id, parent_id, owner_id, key, object_name, object_id, flags 
 	FROM accesspolicy 

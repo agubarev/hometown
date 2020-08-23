@@ -253,7 +253,7 @@ func (m *Manager) UserByID(ctx context.Context, id uuid.UUID) (u User, err error
 }
 
 // UserByUsername returns a user if found by username
-func (m *Manager) UserByUsername(ctx context.Context, username bytearray.ByteString32) (u User, err error) {
+func (m *Manager) UserByUsername(ctx context.Context, username string) (u User, err error) {
 	username.Trim()
 	username.ToLower()
 
@@ -270,7 +270,7 @@ func (m *Manager) UserByUsername(ctx context.Context, username bytearray.ByteStr
 }
 
 // UserByEmailAddr returns a user if found by username
-func (m *Manager) UserByEmailAddr(ctx context.Context, addr bytearray.ByteString256) (u User, err error) {
+func (m *Manager) UserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
 	addr.Trim()
 	addr.ToLower()
 
@@ -384,7 +384,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 }
 
 // CheckAvailability tests whether someone with such username or email is already registered
-func (m *Manager) CheckAvailability(ctx context.Context, username bytearray.ByteString32, email bytearray.ByteString256) error {
+func (m *Manager) CheckAvailability(ctx context.Context, username string, email string) error {
 	store, err := m.Store()
 	if err != nil {
 		return err

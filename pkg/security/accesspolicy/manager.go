@@ -51,7 +51,7 @@ var (
 // Manager is the accesspolicy policy registry
 type Manager struct {
 	policies   map[uuid.UUID]Policy
-	keyMap     map[bytearray.ByteString32]uuid.UUID
+	keyMap     map[string]uuid.UUID
 	roster     map[uuid.UUID]*Roster
 	groups     *group.Manager
 	store      Store
@@ -68,7 +68,7 @@ func NewManager(store Store, gm *group.Manager) (*Manager, error) {
 	c := &Manager{
 		policies: make(map[uuid.UUID]Policy),
 		roster:   make(map[uuid.UUID]*Roster),
-		keyMap:   make(map[bytearray.ByteString32]uuid.UUID),
+		keyMap:   make(map[string]uuid.UUID),
 		groups:   gm,
 		store:    store,
 	}
@@ -125,7 +125,7 @@ func (m *Manager) removePolicy(policyID uuid.UUID) (err error) {
 }
 
 // Upsert creates a new accesspolicy policy
-func (m *Manager) Create(ctx context.Context, key bytearray.ByteString32, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
+func (m *Manager) Create(ctx context.Context, key string, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
 	p, err = NewPolicy(key, ownerID, parentID, obj, flags)
 	if err != nil {
 		return p, errors.Wrap(err, "failed to initialize new accesspolicy policy")
@@ -291,7 +291,7 @@ func (m *Manager) PolicyByID(ctx context.Context, id uuid.UUID) (p Policy, err e
 }
 
 // PolicyByKey returns an accesspolicy policy by its key
-func (m *Manager) PolicyByKey(ctx context.Context, name bytearray.ByteString32) (p Policy, err error) {
+func (m *Manager) PolicyByKey(ctx context.Context, name string) (p Policy, err error) {
 	m.RLock()
 	p, ok := m.policies[m.keyMap[name]]
 	m.RUnlock()

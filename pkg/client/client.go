@@ -24,11 +24,11 @@ const (
 
 // Client represents any external client that interfaces with this API
 type Client struct {
-	Name         bytearray.ByteString32 `db:"name" json:"name"`
-	ID           uuid.UUID              `db:"id" json:"id"`
-	RegisteredAt timestamp.Timestamp    `db:"registered_at" json:"registered_at"`
-	ExpireAt     timestamp.Timestamp    `db:"expire_at" json:"expire_at"`
-	Flags        Flags                  `db:"flags" json:"flags"`
+	Name         string              `db:"name" json:"name"`
+	ID           uuid.UUID           `db:"id" json:"id"`
+	RegisteredAt timestamp.Timestamp `db:"registered_at" json:"registered_at"`
+	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
+	Flags        Flags               `db:"flags" json:"flags"`
 	_            struct{}
 }
 

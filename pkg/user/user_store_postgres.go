@@ -172,15 +172,15 @@ func (s *PostgreSQLStore) FetchUserByID(ctx context.Context, id uuid.UUID) (u Us
 	return s.oneUserByWhere(ctx, "id = $1", id)
 }
 
-func (s *PostgreSQLStore) FetchUserByUsername(ctx context.Context, username bytearray.ByteString32) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByUsername(ctx context.Context, username string) (u User, err error) {
 	return s.oneUserByWhere(ctx, "SELECT * FROM user WHERE username = ? LIMIT 1", username)
 }
 
-func (s *PostgreSQLStore) FetchUserByEmailAddr(ctx context.Context, addr bytearray.ByteString256) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
 	return s.oneUserByWhere(ctx, "SELECT * FROM user u LEFT JOIN user_email e ON u.id=e.user_id WHERE e.addr = ? LIMIT 1", addr)
 }
 
-func (s *PostgreSQLStore) FetchUserByPhoneNumber(ctx context.Context, number bytearray.ByteString16) (u User, err error) {
+func (s *PostgreSQLStore) FetchUserByPhoneNumber(ctx context.Context, number string) (u User, err error) {
 	return s.oneUserByWhere(ctx, "SELECT * FROM user u LEFT JOIN user_phone e ON u.id=e.user_id WHERE e.number = ? LIMIT 1", number)
 }
 

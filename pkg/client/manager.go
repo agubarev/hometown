@@ -7,7 +7,6 @@ import (
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/security/password"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -16,7 +15,7 @@ import (
 
 type Manager struct {
 	clients   map[uuid.UUID]Client
-	urls      map[uuid.UUID][]bytearray.ByteString128
+	urls      map[uuid.UUID][]string
 	passwords password.Manager
 	store     Store
 	logger    *zap.Logger
@@ -64,7 +63,7 @@ func (m *Manager) Logger() *zap.Logger {
 	return m.logger
 }
 
-func (m *Manager) CreateClient(ctx context.Context, isConfidential bool, name bytearray.ByteString32) (c Client, err error) {
+func (m *Manager) CreateClient(ctx context.Context, isConfidential bool, name string) (c Client, err error) {
 	c = Client{
 		Name:         name,
 		ID:           uuid.New(),
@@ -192,7 +191,7 @@ func (m *Manager) AddURL(ctx context.Context, clientID uuid.UUID, clientURL stri
 	m.ulock.Lock()
 
 	if m.urls[clientID] == nil {
-		m.urls[clientID] = []bytearray.ByteString128{host}
+		m.urls[clientID] = []string{host}
 	} else {
 		m.urls[clientID] = append(m.urls[clientID], host)
 	}
@@ -202,7 +201,7 @@ func (m *Manager) AddURL(ctx context.Context, clientID uuid.UUID, clientURL stri
 	return nil
 }
 
-func (m *Manager) URLsByClientID(ctx context.Context, clientID uuid.UUID) (urls []bytearray.ByteString128, err error) {
+func (m *Manager) URLsByClientID(ctx context.Context, clientID uuid.UUID) (urls []string, err error) {
 	if clientID == uuid.Nil {
 		return nil, ErrInvalidClientID
 	}
@@ -219,7 +218,7 @@ func (m *Manager) URLsByClientID(ctx context.Context, clientID uuid.UUID) (urls 
 	return m.urls[clientID], nil
 }
 
-func (m *Manager) HasURL(ctx context.Context, clientID uuid.UUID, clientURL bytearray.ByteString128) bool {
+func (m *Manager) HasURL(ctx context.Context, clientID uuid.UUID, clientURL string) bool {
 	if clientID == uuid.Nil {
 		return false
 	}

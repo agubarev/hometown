@@ -156,15 +156,15 @@ func (s *PostgreSQLStore) FetchGroupByID(ctx context.Context, groupID uuid.UUID)
 	return s.oneGroup(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE id = $1 LIMIT 1`, groupID)
 }
 
-func (s *PostgreSQLStore) FetchGroupByKey(ctx context.Context, key bytearray.ByteString32) (Group, error) {
+func (s *PostgreSQLStore) FetchGroupByKey(ctx context.Context, key string) (Group, error) {
 	return s.oneGroup(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE key = $1 LIMIT 1`, key)
 }
 
-func (s *PostgreSQLStore) FetchGroupByName(ctx context.Context, name bytearray.ByteString128) (g Group, err error) {
+func (s *PostgreSQLStore) FetchGroupByName(ctx context.Context, name string) (g Group, err error) {
 	return s.oneGroup(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE name $1 LIMIT 1`, name)
 }
 
-func (s *PostgreSQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name bytearray.ByteString128) (gs []Group, err error) {
+func (s *PostgreSQLStore) FetchGroupsByName(ctx context.Context, isPartial bool, name string) (gs []Group, err error) {
 	if isPartial {
 		return s.manyGroups(ctx, `SELECT id, parent_id, name, key, flags FROM "group" WHERE name = '%' || $1 || '%'`, name)
 	}

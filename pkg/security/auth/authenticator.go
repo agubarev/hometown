@@ -80,8 +80,8 @@ type ClientCredentials struct {
 
 // UserCredentials represents user authentication credentials
 type UserCredentials struct {
-	Username bytearray.ByteString32 `json:"username"`
-	Password []byte                 `json:"password"`
+	Username string `json:"username"`
+	Password []byte `json:"password"`
 }
 
 type Options struct {
@@ -119,7 +119,7 @@ func (c *UserCredentials) SanitizeAndValidate() error {
 
 // RequestMetadata holds request information
 type RequestMetadata struct {
-	UserAgent bytearray.ByteString32
+	UserAgent string
 	IP        user.IPAddr
 }
 
@@ -259,7 +259,7 @@ func (a *Authenticator) PrivateKey() (*rsa.PrivateKey, error) {
 // each successful authentication generates a new access token and spawns
 // a new session identified by that token's JTI (JWT ID).
 // NOTE: the number of active sessions should be limited by a sensible amount
-func (a *Authenticator) AuthenticateByCredentials(ctx context.Context, username bytearray.ByteString32, rawpass []byte, meta *RequestMetadata) (u user.User, err error) {
+func (a *Authenticator) AuthenticateByCredentials(ctx context.Context, username string, rawpass []byte, meta *RequestMetadata) (u user.User, err error) {
 	u, err = a.UserManager().UserByUsername(ctx, username)
 	if err != nil {
 		return u, err

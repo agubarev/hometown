@@ -17,11 +17,11 @@ const (
 )
 
 type Object struct {
-	Name bytearray.ByteString32
+	Name string
 	ID   uuid.UUID
 }
 
-func NewObject(id uuid.UUID, name bytearray.ByteString32) Object {
+func NewObject(id uuid.UUID, name string) Object {
 	return Object{
 		Name: name,
 		ID:   id,
@@ -30,7 +30,7 @@ func NewObject(id uuid.UUID, name bytearray.ByteString32) Object {
 
 func NilObject() Object {
 	return Object{
-		Name: bytearray.ByteString32{},
+		Name: string{},
 		ID:   uuid.Nil,
 	}
 }
@@ -178,24 +178,24 @@ func (r Right) String() string {
 // NOTE: policy may be shared by multiple entities
 // NOTE: policy ownership basically is the ownership of it's main entity and only affects the very object alone
 // NOTE: owner is the original creator of an entity and has full rights for it
-// NOTE: an accesspolicy policy can have only one object identifier set, either ObjectID or abytearray.ByteString32
+// NOTE: an accesspolicy policy can have only one object identifier set, either ObjectID or astring
 // TODO: store object rights rosters, name and object name in separate maps
 // TODO: calculate extended rights instantly. rights must be recalculated through all the tree after each rosterChange
 // TODO: add caching mechanism to skip rights summarization
 // TODO: disable inheritance if anything is changed about the current policy and create its own rights rosters and enable extension by default
 type Policy struct {
-	Key        bytearray.ByteString32 `db:"key" json:"key"`
-	ObjectName bytearray.ByteString32 `db:"object_name" json:"object_name"`
-	ID         uuid.UUID              `db:"id" json:"id"`
-	ParentID   uuid.UUID              `db:"parent_id" json:"parent_id"`
-	OwnerID    uuid.UUID              `db:"owner_id" json:"owner_id"`
-	ObjectID   uuid.UUID              `db:"object_id" json:"object_id"`
-	Flags      uint8                  `db:"flags" json:"flags"`
+	Key        string    `db:"key" json:"key"`
+	ObjectName string    `db:"object_name" json:"object_name"`
+	ID         uuid.UUID `db:"id" json:"id"`
+	ParentID   uuid.UUID `db:"parent_id" json:"parent_id"`
+	OwnerID    uuid.UUID `db:"owner_id" json:"owner_id"`
+	ObjectID   uuid.UUID `db:"object_id" json:"object_id"`
+	Flags      uint8     `db:"flags" json:"flags"`
 	_          struct{}
 }
 
 // NewPolicy create a new Policy object
-func NewPolicy(key bytearray.ByteString32, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
+func NewPolicy(key string, ownerID, parentID uuid.UUID, obj Object, flags uint8) (p Policy, err error) {
 	// initializing new policy
 	// NOTE: the extension of parent's rights has higher precedence over using the inherited rights
 	// because this allows to create independent policies in the middle of a chain and still
@@ -249,9 +249,9 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "OwnerID":
 			ap.OwnerID = change.To.(uuid.UUID)
 		case "Key":
-			ap.Key = change.To.(bytearray.ByteString32)
+			ap.Key = change.To.(string)
 		case "ObjectName":
-			ap.ObjectName = change.To.(bytearray.ByteString32)
+			ap.ObjectName = change.To.(string)
 		case "ObjectID":
 			ap.ObjectID = change.To.(uuid.UUID)
 		case "Flags":
@@ -303,7 +303,7 @@ func (ap Policy) IsExtended() bool {
 }
 
 // SetKey sets a key name to the group
-func (ap *Policy) SetKey(key bytearray.ByteString32) error {
+func (ap *Policy) SetKey(key string) error {
 	if ap.ID != uuid.Nil {
 		return ErrForbiddenChange
 	}
@@ -315,7 +315,7 @@ func (ap *Policy) SetKey(key bytearray.ByteString32) error {
 }
 
 // SetObjectName sets an object name name
-func (ap *Policy) SetObjectName(name bytearray.ByteString32) error {
+func (ap *Policy) SetObjectName(name string) error {
 	if ap.ID != uuid.Nil {
 		return ErrForbiddenChange
 	}

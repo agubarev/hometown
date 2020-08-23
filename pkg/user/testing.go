@@ -135,7 +135,7 @@ func ManagerForTesting(db *pgx.Conn) (*Manager, context.Context, error) {
 	return um, ctx, nil
 }
 
-func CreateTestUser(ctx context.Context, m *Manager, username bytearray.ByteString32, email bytearray.ByteString256, pass []byte) (User, error) {
+func CreateTestUser(ctx context.Context, m *Manager, username string, email string, pass []byte) (User, error) {
 	if flag.Lookup("test.v") == nil {
 		log.Fatal("can only be called during testing")
 	}

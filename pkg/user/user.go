@@ -59,15 +59,15 @@ func (addr IPAddr) StringIPv4() string {
 type NewUserObject struct {
 	Essential
 	ProfileEssential
-	EmailAddr   bytearray.ByteString256 `json:"email_addr"`
-	PhoneNumber bytearray.ByteString16  `json:"phone_number"`
-	Password    []byte                  `json:"password"`
+	EmailAddr   string `json:"email_addr"`
+	PhoneNumber string `json:"phone_number"`
+	Password    []byte `json:"password"`
 }
 
 // Essential represents an essential part of the primary object
 type Essential struct {
-	Username    bytearray.ByteString32 `db:"username" json:"username"`
-	DisplayName bytearray.ByteString32 `db:"display_name" json:"display_name"`
+	Username    string `db:"username" json:"username"`
+	DisplayName string `db:"display_name" json:"display_name"`
 }
 
 // TODO: solve net.IPAddr field problem
@@ -91,11 +91,11 @@ type Metadata struct {
 	LastLoginAttempts uint8               `db:"last_login_attempts" json:"last_login_attempts"`
 
 	// account suspension
-	IsSuspended         bool                    `db:"is_suspended" json:"is_suspended"`
-	SuspendedAt         timestamp.Timestamp     `db:"suspended_at" json:"suspended_at"`
-	SuspendedByID       uuid.UUID               `db:"suspended_by_id" json:"suspended_by_id"`
-	SuspensionExpiresAt timestamp.Timestamp     `db:"suspension_expires_at" json:"suspension_expires_at"`
-	SuspensionReason    bytearray.ByteString128 `db:"suspension_reason" json:"suspension_reason"`
+	IsSuspended         bool                `db:"is_suspended" json:"is_suspended"`
+	SuspendedAt         timestamp.Timestamp `db:"suspended_at" json:"suspended_at"`
+	SuspendedByID       uuid.UUID           `db:"suspended_by_id" json:"suspended_by_id"`
+	SuspensionExpiresAt timestamp.Timestamp `db:"suspension_expires_at" json:"suspension_expires_at"`
+	SuspensionReason    string              `db:"suspension_reason" json:"suspension_reason"`
 }
 
 // User represents certain users which are custom
@@ -144,9 +144,9 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 	for _, change := range changelog {
 		switch change.Path[0] {
 		case "Username":
-			u.Username = change.To.(bytearray.ByteString32)
+			u.Username = change.To.(string)
 		case "DisplayName":
-			u.DisplayName = change.To.(bytearray.ByteString32)
+			u.DisplayName = change.To.(string)
 		case "LastLoginAt":
 			u.LastLoginAt = change.To.(timestamp.Timestamp)
 		case "LastLoginIP":

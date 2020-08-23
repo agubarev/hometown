@@ -75,7 +75,7 @@ func (m *Manager) PrimaryPhoneByUserID(ctx context.Context, userID uuid.UUID) (p
 
 // UpdatePhone updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdatePhone(ctx context.Context, number bytearray.ByteString16, fn func(ctx context.Context, phone Phone) (_ Phone, err error)) (phone Phone, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx context.Context, phone Phone) (_ Phone, err error)) (phone Phone, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, essentialChangelog, err
@@ -130,7 +130,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number bytearray.ByteString16
 
 // DeletePhoneByNumber deletes an object and returns an object,
 // which is an updated object if it's soft deleted, or nil otherwise
-func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number bytearray.ByteString16) (phone Phone, err error) {
+func (m *Manager) DeletePhoneByNumber(ctx context.Context, userID uuid.UUID, number string) (phone Phone, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return phone, errors.Wrap(err, "failed to obtain a store")

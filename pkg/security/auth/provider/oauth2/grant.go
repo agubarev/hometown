@@ -6,9 +6,9 @@ import (
 )
 
 type GrantAuthCode struct {
-	Type        bytearray.ByteString16   `json:"type"`
-	ClientID    uuid.UUID                `json:"client_id"`
-	RedirectURI bytearray.ByteString256  `json:"redirect_uri"`
-	Scope       []bytearray.ByteString16 `json:"scope"`
-	State       bytearray.ByteString64   `json:"state"`
+	Type        string    `json:"type"`
+	ClientID    uuid.UUID `json:"client_id"`
+	RedirectURI string    `json:"redirect_uri"`
+	Scope       []string  `json:"scope"`
+	State       string    `json:"state"`
 }
