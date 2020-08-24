@@ -12,5 +12,6 @@ var (
 	ErrNilDatabase           = errors.New("database is nil")
 	ErrNilStore              = errors.New("store is nil")
 	ErrNoName                = errors.New("name cannot be empty")
+	ErrEmptyEntropy          = errors.New("entropy is empty")
 	ErrNilPasswordManager    = errors.New("password is nil")
 )

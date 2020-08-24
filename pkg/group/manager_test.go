@@ -6,7 +6,6 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -33,23 +32,23 @@ func TestManager_Create(t *testing.T) {
 	// creating test groups and roles
 	//---------------------------------------------------------------------------
 
-	g1, err := m.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("group_1"), bytearray.NewByteString128("Group 1"))
+	g1, err := m.Create(ctx, group.FGroup, uuid.Nil, "group_1", "Group 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g2, err := m.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("group_2"), bytearray.NewByteString128("Group 2"))
+	g2, err := m.Create(ctx, group.FGroup, uuid.Nil, "group_2", "Group 2")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	g3, err := m.Create(ctx, group.FGroup, g2.ID, bytearray.NewByteString32("group_3"), bytearray.NewByteString128("Group 3 (sub-group of Group 2)"))
+	g3, err := m.Create(ctx, group.FGroup, g2.ID, "group_3", "Group 3 (sub-group of Group 2)")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r1, err := m.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("role_1"), bytearray.NewByteString128("Role 1"))
+	r1, err := m.Create(ctx, group.FRole, uuid.Nil, "role_1", "Role 1")
 	a.NoError(err)
 	a.NotNil(g1)
 
-	r2, err := m.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("role_2"), bytearray.NewByteString128("Role 2"))
+	r2, err := m.Create(ctx, group.FRole, uuid.Nil, "role_2", "Role 2")
 	a.NoError(err)
 	a.NotNil(g1)
 

@@ -1,4 +1,4 @@
-package auth_test
+package endpoints_test
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"reflect"
 	"testing"
 
-	auth2 "github.com/agubarev/hometown/internal/server/endpoints/auth"
+	"github.com/agubarev/hometown/internal/server/endpoints"
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/auth"
@@ -152,7 +152,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleRefreshToken(rr, req)
+	endpoints.HandleRefreshToken(rr, req)
 
 	resp := rr.Result()
 	a.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -194,7 +194,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleRefreshToken(rr, req)
+	endpoints.HandleRefreshToken(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusOK, resp.StatusCode)

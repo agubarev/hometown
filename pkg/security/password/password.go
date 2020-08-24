@@ -51,8 +51,15 @@ const (
 )
 
 type Owner struct {
-	ID   uuid.UUID `db:"id" json:"id"`
 	Kind Kind      `db:"kind" json:"kind"`
+	ID   uuid.UUID `db:"id" json:"id"`
+}
+
+func NewOwner(k Kind, id uuid.UUID) Owner {
+	return Owner{
+		Kind: k,
+		ID:   id,
+	}
 }
 
 type Kind uint8

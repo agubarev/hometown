@@ -2,8 +2,8 @@ package user
 
 import (
 	"context"
+	"strings"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -53,7 +53,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 	m.Logger().Debug(
 		"created new email",
 		zap.String("user_id", email.UserID.String()),
-		zap.String("addr", email.Addr.String()),
+		zap.String("addr", email.Addr),
 	)
 
 	return email, nil
@@ -61,8 +61,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 
 // EmailByAddr obtains an email by a given address
 func (m *Manager) EmailByAddr(ctx context.Context, addr string) (email Email, err error) {
-	addr.Trim()
-	addr.ToLower()
+	addr = strings.ToLower(strings.TrimSpace(addr))
 
 	if addr[0] == 0 {
 		return email, ErrEmptyEmailAddr
@@ -139,7 +138,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 	m.Logger().Debug(
 		"updated email",
 		zap.String("user_id", email.UserID.String()),
-		zap.String("addr", email.Addr.String()),
+		zap.String("addr", email.Addr),
 	)
 
 	return email, essentialChangelog, nil
@@ -188,7 +187,7 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 
 	m.Logger().Info("email confirmed",
 		zap.String("user_id", email.UserID.String()),
-		zap.String("email", email.Addr.String()),
+		zap.String("email", email.Addr),
 	)
 
 	return nil

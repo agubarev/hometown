@@ -8,7 +8,6 @@ import (
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -58,16 +57,16 @@ func TestUserManagerCreate(t *testing.T) {
 	u1, err := userManager.CreateUser(context.Background(), func(ctx context.Context) (object user.NewUserObject, err error) {
 		object = user.NewUserObject{
 			Essential: user.Essential{
-				Username:    bytearray.NewByteString32("testuser"),
-				DisplayName: bytearray.NewByteString32("test display name"),
+				Username:    "testuser",
+				DisplayName: "test display name",
 			},
 			ProfileEssential: user.ProfileEssential{
-				Firstname:  bytearray.NewByteString16("Andrejs"),
-				Lastname:   bytearray.NewByteString16("Gubarevs"),
-				Middlename: string{},
+				Firstname:  "Andrejs",
+				Lastname:   "Gubarevs",
+				Middlename: "",
 			},
-			EmailAddr:   bytearray.NewByteString256("testuser@hometown.local"),
-			PhoneNumber: bytearray.NewByteString16("12398543292"),
+			EmailAddr:   "testuser@hometown.local",
+			PhoneNumber: "12398543292",
 			Password:    util.NewULID().Entropy(),
 		}
 

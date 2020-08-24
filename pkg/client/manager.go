@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"crypto/rand"
 	"fmt"
 	"net/url"
 	"sync"
@@ -70,6 +71,11 @@ func (m *Manager) CreateClient(ctx context.Context, isConfidential bool, name st
 		RegisteredAt: timestamp.Now(),
 		ExpireAt:     0,
 		Flags:        FEnabled,
+		entropy:      make([]byte, 16),
+	}
+
+	if _, err := rand.Read(c.entropy); err != nil {
+		return c, errors.Wrap(err, "failed to generate entropy")
 	}
 
 	if isConfidential {
@@ -182,7 +188,7 @@ func (m *Manager) AddURL(ctx context.Context, clientID uuid.UUID, clientURL stri
 		return errors.Wrap(err, "failed to parse client url")
 	}
 
-	host := bytearray.NewByteString128(fmt.Sprintf("%s://%s", u.Scheme, u.Host))
+	host := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
 
 	if m.HasURL(ctx, clientID, host) {
 		return nil

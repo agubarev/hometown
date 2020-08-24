@@ -10,7 +10,6 @@ import (
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 )
@@ -148,15 +147,15 @@ func CreateTestUser(ctx context.Context, m *Manager, username string, email stri
 		userObject = NewUserObject{
 			Essential: Essential{
 				Username:    username,
-				DisplayName: bytearray.NewByteString32(uuid.New().String()),
+				DisplayName: uuid.New().String(),
 			},
 			ProfileEssential: ProfileEssential{
-				Firstname:  bytearray.NewByteString16("John"),
-				Lastname:   bytearray.NewByteString16("Smith"),
-				Middlename: bytearray.NewByteString16("Jack"),
+				Firstname:  "John",
+				Lastname:   "Smith",
+				Middlename: "Jack",
 			},
 			EmailAddr:   email,
-			PhoneNumber: bytearray.NewByteString16(uuid.New().String()[:15]),
+			PhoneNumber: uuid.New().String()[:15],
 			Password:    pass,
 		}
 

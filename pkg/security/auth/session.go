@@ -5,7 +5,6 @@ import (
 
 	"github.com/agubarev/hometown/pkg/client"
 	"github.com/agubarev/hometown/pkg/user"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 )

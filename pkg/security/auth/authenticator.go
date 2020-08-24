@@ -9,6 +9,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/agubarev/hometown/pkg/client"
@@ -16,7 +17,6 @@ import (
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -100,15 +100,12 @@ func DefaultOptions() Options {
 // TODO: consider preserving original username but still change case to lower
 // NOTE: trimming passwords whitespace to prevent problems when people copy+paste
 func (c *UserCredentials) SanitizeAndValidate() error {
-	c.Username.Trim()
-	c.Username.ToLower()
+	c.Username = strings.ToLower(strings.TrimSpace(c.Username))
 	c.Password = bytes.TrimSpace(c.Password)
 
-	if c.Username[0] == 0 {
+	if c.Username == "" {
 		return ErrEmptyUsername
 	}
-
-	bytes.Fields()
 
 	if len(c.Password) == 0 {
 		return ErrEmptyPassword
@@ -129,7 +126,7 @@ func NewRequestMetadata(r *http.Request) (meta RequestMetadata) {
 	if r == nil {
 		return RequestMetadata{
 			IP:        user.IPAddr{},
-			UserAgent: bytearray.NewByteString32("Test User-Agent"),
+			UserAgent: "Test User-Agent",
 		}
 	}
 
@@ -141,7 +138,7 @@ func NewRequestMetadata(r *http.Request) (meta RequestMetadata) {
 
 	return RequestMetadata{
 		IP:        user.NewIPAddrFromString(net.ParseIP(sip).String()),
-		UserAgent: bytearray.NewByteString32(r.UserAgent()),
+		UserAgent: r.UserAgent(),
 	}
 }
 
@@ -268,9 +265,9 @@ func (a *Authenticator) AuthenticateByCredentials(ctx context.Context, username 
 	// obtaining logger
 	l := a.Logger().With(
 		zap.String("user_id", u.ID.String()),
-		zap.String("username", u.Username.String()),
+		zap.String("username", u.Username),
 		zap.String("ip", meta.IP.StringIPv4()),
-		zap.String("user_agent", meta.UserAgent.String()),
+		zap.String("user_agent", meta.UserAgent),
 	)
 
 	// before authentication, checking whether this user is suspended
@@ -288,7 +285,7 @@ func (a *Authenticator) AuthenticateByCredentials(ctx context.Context, username 
 	pm := a.PasswordManager()
 
 	// obtaining user's password
-	userpass, err := pm.Get(ctx, password.OKUser, u.ID)
+	userpass, err := pm.Get(ctx, password.NewOwner(password.OKUser, u.ID))
 	if err != nil {
 		if err == password.ErrPasswordNotFound {
 			l.Debug("password not found", zap.Error(err))
@@ -306,9 +303,9 @@ func (a *Authenticator) AuthenticateByCredentials(ctx context.Context, username 
 	}
 
 	l.Debug("authenticated by credentials",
-		zap.String("username", username.String()),
+		zap.String("username", username),
 		zap.String("ip", meta.IP.StringIPv4()),
-		zap.String("user_agent", meta.UserAgent.String()),
+		zap.String("user_agent", meta.UserAgent),
 	)
 
 	return u, nil

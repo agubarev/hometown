@@ -6,7 +6,6 @@ import (
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/group"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -137,7 +136,7 @@ func (m *Manager) Create(ctx context.Context, key string, ownerID, parentID uuid
 	}
 
 	// checking whether the key is available in general
-	if p.Key[0] != 0 {
+	if p.Key != "" {
 		_, err = m.PolicyByKey(ctx, p.Key)
 		if err == nil {
 			return p, ErrPolicyKeyTaken
@@ -149,7 +148,7 @@ func (m *Manager) Create(ctx context.Context, key string, ownerID, parentID uuid
 	}
 
 	// checking by an object type and ActorID
-	if p.ObjectName[0] != 0 && p.ObjectID != uuid.Nil {
+	if p.ObjectName != "" && p.ObjectID != uuid.Nil {
 		_, err = m.PolicyByObject(ctx, obj)
 		if err == nil {
 			return p, ErrPolicyObjectConflict
@@ -215,7 +214,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	// checking whether name is available, and if it already
 	// exists and doesn't belong to this accesspolicy policy, then
 	// returning an error
-	if p.Key[0] != 0 {
+	if p.Key != "" {
 		existingPolicy, err := m.PolicyByKey(ctx, p.Key)
 		if err != nil {
 			if err != ErrPolicyNotFound {
@@ -230,7 +229,7 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 
 	// checking by an object, just in case kind and id changes,
 	// and new kind and object is already attached to a different accesspolicy policy
-	if p.ObjectName[0] != 0 && p.ObjectID != uuid.Nil {
+	if p.ObjectName != "" && p.ObjectID != uuid.Nil {
 		anotherPolicy, err := m.PolicyByObject(ctx, NewObject(p.ObjectID, p.ObjectName))
 		if err != nil {
 			if err != ErrPolicyNotFound {

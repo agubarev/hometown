@@ -1,4 +1,4 @@
-package auth_test
+package endpoints_test
 
 import (
 	"bytes"
@@ -9,7 +9,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	auth2 "github.com/agubarev/hometown/internal/server/endpoints/auth"
+	"github.com/agubarev/hometown/internal/server/endpoints"
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/auth"
@@ -110,7 +110,7 @@ func TestSignin(t *testing.T) {
 	rr := httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleSignin(rr, req)
+	endpoints.HandleSignin(rr, req)
 
 	resp := rr.Result()
 	a.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -133,7 +133,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleSignin(rr, req)
+	endpoints.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusBadRequest, resp.StatusCode)
@@ -156,7 +156,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleSignin(rr, req)
+	endpoints.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusBadRequest, resp.StatusCode)
@@ -179,7 +179,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleSignin(rr, req)
+	endpoints.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusUnauthorized, resp.StatusCode)
@@ -202,7 +202,7 @@ func TestSignin(t *testing.T) {
 	rr = httptest.NewRecorder()
 
 	// triggering the handler
-	auth2.HandleSignin(rr, req)
+	endpoints.HandleSignin(rr, req)
 
 	resp = rr.Result()
 	a.Equal(http.StatusOK, resp.StatusCode)

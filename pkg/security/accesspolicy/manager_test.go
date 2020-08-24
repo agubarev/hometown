@@ -8,7 +8,6 @@ import (
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/accesspolicy"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
@@ -84,8 +83,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	// proceeding with the test
 	// creating a normal policy with type name and ActorID set, no key
 	//---------------------------------------------------------------------------
-	key := bytearray.NilByteString32
-	objectName := bytearray.NewByteString32("with type and id, no key")
+	key := ""
+	objectName := "with type and id, no key"
 	objectID := uuid.New()
 
 	p, err := m.Create(
@@ -114,8 +113,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// policy without an owner
 	//---------------------------------------------------------------------------
-	key = bytearray.NilByteString32
-	objectName = bytearray.NewByteString32("policy without an owner")
+	key = ""
+	objectName = "policy without an owner"
 	objectID = uuid.New()
 
 	p, err = m.Create(
@@ -144,8 +143,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating a policy with a key,  object name and ActorID set
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("test key")
-	objectName = bytearray.NewByteString32("with type, id and key")
+	key = "test key"
+	objectName = "with type, id and key"
 	objectID = uuid.New()
 
 	p, err = m.Create(
@@ -168,8 +167,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating the same policy with the same  object name and id
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("test key (to attempt duplication)")
-	objectName = bytearray.NewByteString32("with type and id (to attempt duplication)")
+	key = "test key (to attempt duplication)"
+	objectName = "with type and id (to attempt duplication)"
 	objectID = uuid.New()
 
 	p, err = m.Create(
@@ -210,8 +209,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// attempting to create a policy with an object name without object
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("with name but without id")
-	objectName = bytearray.NewByteString32("test object")
+	key = "with name but without id"
+	objectName = "test object"
 	objectID = uuid.Nil
 
 	p, err = m.Create(
@@ -232,8 +231,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// attempting to create a policy without an object name but with object ID set
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("without name but with id")
-	objectName = bytearray.NilByteString32
+	key = "without name but with id"
+	objectName = ""
 	objectID = uuid.New()
 
 	p, err = m.Create(
@@ -253,7 +252,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating a re-usable parent policy
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("re-usable parent policy")
+	key = "re-usable parent policy"
 
 	basePolicy, err := m.Create(
 		ctx,
@@ -273,7 +272,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// attempting to create a proper policy but with a non-existing parent
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("policy with non-existing parent")
+	key = "policy with non-existing parent"
 
 	p, err = m.Create(
 		ctx,
@@ -288,8 +287,8 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// inheritance without a parent
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("policy inherits with no parent")
-	objectName = bytearray.NewByteString32("test object name 3")
+	key = "policy inherits with no parent"
+	objectName = "test object name 3"
 	objectID = uuid.Nil
 	ownerID := uuid.New()
 
@@ -306,7 +305,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// extension without a parent
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("policy extends with no parent")
+	key = "policy extends with no parent"
 	ownerID = uuid.New()
 
 	p, err = m.Create(
@@ -323,7 +322,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	// proper but inherits and extends at the same time
 	// NOTE: must fail
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("policy inherits and extends (must not be created)")
+	key = "policy inherits and extends (must not be created)"
 	ownerID = uuid.New()
 
 	p, err = m.Create(
@@ -339,7 +338,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// proper creation with inheritance only
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("proper policy with inheritance")
+	key = "proper policy with inheritance"
 	ownerID = uuid.New()
 
 	p, err = m.Create(
@@ -360,7 +359,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// proper creation with extension only
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("proper policy with extension")
+	key = "proper policy with extension"
 	ownerID = uuid.New()
 
 	p, err = m.Create(
@@ -419,8 +418,8 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// test policy
 	//---------------------------------------------------------------------------
-	key := bytearray.NewByteString32("test policy")
-	objectName := bytearray.NilByteString32
+	key := "test policy"
+	objectName := ""
 	objectID := uuid.Nil
 
 	p, err := m.Create(
@@ -449,8 +448,8 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// creating base policy (to be used as a parent)
 	//---------------------------------------------------------------------------
-	key = bytearray.NewByteString32("base policy")
-	objectName = bytearray.NilByteString32
+	key = "base policy"
+	objectName = ""
 	objectID = uuid.Nil
 
 	basePolicy, err := m.Create(
@@ -496,11 +495,11 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	a.Zero(p.ParentID)
 
 	// key, object name and id must not be changeable
-	a.Error(p.SetKey(bytearray.NewByteString32("new key")))
-	a.Error(p.SetObjectName(bytearray.NewByteString32("new object name")))
+	a.Error(p.SetKey("new key"))
+	a.Error(p.SetObjectName("new object name"))
 
 	// attempting to rosterChange object id and save
-	p.ObjectName = bytearray.NewByteString32("doesn't matter")
+	p.ObjectName = "doesn't matter"
 	p.ObjectID = uuid.New()
 	a.EqualError(accesspolicy.ErrForbiddenChange, m.Update(ctx, p).Error())
 
@@ -552,16 +551,16 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(m)
 
-	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test group 1"), bytearray.NewByteString128("test group 1"))
+	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test group 1", "test group 1")
 	a.NoError(err)
 
-	g2, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test group 2"), bytearray.NewByteString128("test group 2"))
+	g2, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test group 2", "test group 2")
 	a.NoError(err)
 
-	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test role 1"), bytearray.NewByteString128("test role 1"))
+	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, "test role 1", "test role 1")
 	a.NoError(err)
 
-	r2, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test role 2"), bytearray.NewByteString128("test role 2"))
+	r2, err := gm.Create(ctx, group.FRole, uuid.Nil, "test role 2", "test role 2")
 	a.NoError(err)
 
 	// expected rights
@@ -577,10 +576,10 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
-		accesspolicy.NewObject(uuid.Nil, bytearray.NilByteString32),
+		"test policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
+		accesspolicy.NewObject(uuid.Nil, ""),
 		0, // flags
 	)
 	a.NoError(err)
@@ -639,16 +638,16 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(m)
 
-	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test group 1"), bytearray.NewByteString128("test group 1"))
+	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test group 1", "test group 1")
 	a.NoError(err)
 
-	g2, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test group 2"), bytearray.NewByteString128("test group 2"))
+	g2, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test group 2", "test group 2")
 	a.NoError(err)
 
-	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test role 1"), bytearray.NewByteString128("test role 1"))
+	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, "test role 1", "test role 1")
 	a.NoError(err)
 
-	r2, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test role 2"), bytearray.NewByteString128("test role 2"))
+	r2, err := gm.Create(ctx, group.FRole, uuid.Nil, "test role 2", "test role 2")
 	a.NoError(err)
 
 	// expected rights
@@ -658,16 +657,16 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	act2 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
 	act3 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
 	act4 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	obj := accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("test object name"))
+	obj := accesspolicy.NewObject(uuid.New(), "test object name")
 
 	//---------------------------------------------------------------------------
 	// creating policy and setting rights
 	//---------------------------------------------------------------------------
 	p, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
+		"test policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
 		obj,
 		0, // flags
 	)

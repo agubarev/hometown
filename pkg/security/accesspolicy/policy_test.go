@@ -7,7 +7,6 @@ import (
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/group"
 	"github.com/agubarev/hometown/pkg/security/accesspolicy"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 )
@@ -45,15 +44,15 @@ func TestNewAccessPolicy(t *testing.T) {
 
 	p, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key"), // key
-		uuid.Nil,                              // owner
-		uuid.Nil,                              // parent
-		accesspolicy.NewObject(uuid.Nil, bytearray.NewByteString32("")),
+		"test_key", // key
+		uuid.Nil,   // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(uuid.Nil, ""),
 		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(bytearray.NewByteString32("test_key"), p.Key)
+	a.Equal("test_key", p.Key)
 	a.Zero(p.OwnerID)
 	a.Zero(p.ParentID)
 	a.Zero(p.ObjectID)
@@ -64,15 +63,15 @@ func TestNewAccessPolicy(t *testing.T) {
 
 	p, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key2"), // key
-		ownerID,                                // owner
-		uuid.Nil,                               // parent
-		accesspolicy.NewObject(uuid.Nil, bytearray.NewByteString32("")),
+		"test_key2", // key
+		ownerID,     // owner
+		uuid.Nil,    // parent
+		accesspolicy.NewObject(uuid.Nil, ""),
 		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(p)
-	a.Equal(bytearray.NewByteString32("test_key2"), p.Key)
+	a.Equal("test_key2", p.Key)
 	a.Equal(ownerID, p.OwnerID)
 	a.Zero(p.ParentID)
 	a.Zero(p.ObjectID)
@@ -82,15 +81,15 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with parent
 	pWithParent, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key3"), // key
-		ownerID,                                // owner
-		p.ID,                                   // parent
-		accesspolicy.NewObject(uuid.Nil, bytearray.NewByteString32("")),
+		"test_key3", // key
+		ownerID,     // owner
+		p.ID,        // parent
+		accesspolicy.NewObject(uuid.Nil, ""),
 		0, // flags
 	)
 	a.NoError(err)
 	a.NotNil(pWithParent)
-	a.Equal(bytearray.NewByteString32("test_key3"), pWithParent.Key)
+	a.Equal("test_key3", pWithParent.Key)
 	a.Equal(ownerID, pWithParent.OwnerID)
 	a.Equal(p.ID, pWithParent.ParentID)
 	a.False(pWithParent.IsInherited())
@@ -99,10 +98,10 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with inheritance (without a parent)
 	_, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key4"), // key
-		ownerID,                                // owner
-		uuid.Nil,                               // parent
-		accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("test object")),
+		"test_key4", // key
+		ownerID,     // owner
+		uuid.Nil,    // parent
+		accesspolicy.NewObject(uuid.New(), "test object"),
 		accesspolicy.FInherit, // flags
 	)
 	a.Error(err)
@@ -110,10 +109,10 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with extension (without a parent)
 	_, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key5"), // key
-		ownerID,                                // owner
-		uuid.Nil,                               // parent
-		accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("test object")),
+		"test_key5", // key
+		ownerID,     // owner
+		uuid.Nil,    // parent
+		accesspolicy.NewObject(uuid.New(), "test object"),
 		accesspolicy.FExtend, // flags
 	)
 	a.Error(err)
@@ -121,10 +120,10 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with inheritance (with a parent)
 	pInheritedWithParent, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key6"), // key
-		ownerID,                                // owner
-		p.ID,                                   // parent
-		accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("test object")),
+		"test_key6", // key
+		ownerID,     // owner
+		p.ID,        // parent
+		accesspolicy.NewObject(uuid.New(), "test object"),
 		accesspolicy.FInherit, // flags
 	)
 	a.NoError(err)
@@ -133,10 +132,10 @@ func TestNewAccessPolicy(t *testing.T) {
 	// with extension (with a parent)
 	pExtendedWithParent, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key7"), // key
-		ownerID,                                // owner
-		p.ID,                                   // parent
-		accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("another test object")),
+		"test_key7", // key
+		ownerID,     // owner
+		p.ID,        // parent
+		accesspolicy.NewObject(uuid.New(), "another test object"),
 		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
@@ -188,10 +187,10 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	p, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key"), // key
-		act1.ID,                               // owner
-		uuid.Nil,                              // parent
-		accesspolicy.NewObject(uuid.Nil, bytearray.NewByteString32("")),
+		"test_key", // key
+		act1.ID,    // owner
+		uuid.Nil,   // parent
+		accesspolicy.NewObject(uuid.Nil, ""),
 		0, // flags
 	)
 	a.NoError(err)
@@ -212,10 +211,10 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInheritance, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test_key_w_inheritance"), // key
-		ownerID, // owner
-		p.ID,    // parent
-		accesspolicy.NewObject(uuid.Nil, bytearray.NewByteString32("")),
+		"test_key_w_inheritance", // key
+		ownerID,                  // owner
+		p.ID,                     // parent
+		accesspolicy.NewObject(uuid.Nil, ""),
 		accesspolicy.FInherit, // flags
 	)
 	// not granting it's own rights as it must inherit them from a parent
@@ -235,10 +234,10 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32(""), // key
-		uuid.Nil,                      // owner
-		parent.ID,                     // parent
-		accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("some object")),
+		"",        // key
+		uuid.Nil,  // owner
+		parent.ID, // parent
+		accesspolicy.NewObject(uuid.New(), "some object"),
 		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
@@ -260,10 +259,10 @@ func TestSetPublicRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32(""), // key
-		act1.ID,                       // owner
-		parent.ID,                     // parent
-		accesspolicy.NewObject(uuid.New(), bytearray.NewByteString32("and another object")),
+		"",        // key
+		act1.ID,   // owner
+		parent.ID, // parent
+		accesspolicy.NewObject(uuid.New(), "and another object"),
 		accesspolicy.FExtend, // flags
 	)
 	a.NoError(err)
@@ -330,9 +329,9 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("parent"), // key
-		act1.ID,                             // owner
-		uuid.Nil,                            // parent
+		"parent", // key
+		act1.ID,  // owner
+		uuid.Nil, // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -342,13 +341,13 @@ func TestSetGroupRights(t *testing.T) {
 	// adding the user to 2 groups but granting rights to only one
 	//---------------------------------------------------------------------------
 	// group 1
-	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test_group_1"), bytearray.NewByteString128("test group 1"))
+	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test_group_1", "test group 1")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g1.ID, group.AKUser, act1.ID)))
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g1.ID, group.AKUser, act2.ID)))
 
 	// group 2
-	g2, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test_group_2"), bytearray.NewByteString128("test group 2"))
+	g2, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test_group_2", "test group 2")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g2.ID, group.AKUser, act1.ID)))
 
@@ -364,9 +363,9 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInherit, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("with inherit"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"with inherit", // key
+		act1.ID,        // owner
+		basePolicy.ID,  // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FInherit, // flags
 	)
@@ -384,9 +383,9 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("with extend, no own rights"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"with extend, no own rights", // key
+		act1.ID,                      // owner
+		basePolicy.ID,                // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
 	)
@@ -403,9 +402,9 @@ func TestSetGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("with extend and own rights"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"with extend and own rights", // key
+		act1.ID,                      // owner
+		basePolicy.ID,                // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
 	)
@@ -465,9 +464,9 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("parent"), // key
-		act1.ID,                             // owner
-		uuid.Nil,                            // parent
+		"parent", // key
+		act1.ID,  // owner
+		uuid.Nil, // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -477,13 +476,13 @@ func TestSetRoleRights(t *testing.T) {
 	// adding the user to 2 groups but granting rights to only one
 	//---------------------------------------------------------------------------
 	// role 1
-	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test_group_1"), bytearray.NewByteString128("test group 1"))
+	r1, err := gm.Create(ctx, group.FRole, uuid.Nil, "test_group_1", "test group 1")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(r1.ID, group.AKUser, act1.ID)))
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(r1.ID, group.AKUser, act2.ID)))
 
 	// role 2
-	r2, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test_group_2"), bytearray.NewByteString128("test group 2"))
+	r2, err := gm.Create(ctx, group.FRole, uuid.Nil, "test_group_2", "test group 2")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(r2.ID, group.AKUser, act1.ID)))
 
@@ -499,9 +498,9 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInherit, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("with inherit"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"with inherit", // key
+		act1.ID,        // owner
+		basePolicy.ID,  // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FInherit, // flags
 	)
@@ -519,9 +518,9 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("with extend, no own rights"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"with extend, no own rights", // key
+		act1.ID,                      // owner
+		basePolicy.ID,                // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
 	)
@@ -538,9 +537,9 @@ func TestSetRoleRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("with extend and own rights"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"with extend and own rights", // key
+		act1.ID,                      // owner
+		basePolicy.ID,                // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
 	)
@@ -601,9 +600,9 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	basePolicy, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("base policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
+		"base policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -619,9 +618,9 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pWithInheritance, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("inheritance only"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"inheritance only", // key
+		act1.ID,            // owner
+		basePolicy.ID,      // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FInherit, // flags
 	)
@@ -636,9 +635,9 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedNoOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("extension only"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"extension only", // key
+		act1.ID,          // owner
+		basePolicy.ID,    // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
 	)
@@ -654,9 +653,9 @@ func TestSetUserRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	pExtendedWithOwn, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("extension with own rights"), // key
-		act1.ID,       // owner
-		basePolicy.ID, // parent
+		"extension with own rights", // key
+		act1.ID,                     // owner
+		basePolicy.ID,               // parent
 		accesspolicy.NilObject(),
 		accesspolicy.FExtend, // flags
 	)
@@ -711,9 +710,9 @@ func TestIsOwner(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
+		"test policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -782,9 +781,9 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
+		"test policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -888,12 +887,12 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// creating test role and a group
 	//---------------------------------------------------------------------------
 	// role
-	r, err := gm.Create(ctx, group.FRole, uuid.Nil, bytearray.NewByteString32("test_role"), bytearray.NewByteString128("test role"))
+	r, err := gm.Create(ctx, group.FRole, uuid.Nil, "test_role", "test role")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(r.ID, group.AKUser, act1.ID)))
 
 	// group
-	g, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test_group"), bytearray.NewByteString128("test group"))
+	g, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test_group", "test group")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g.ID, group.AKUser, act1.ID)))
 
@@ -904,9 +903,9 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	p, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
+		"test policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -1021,15 +1020,15 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	// adding the user to 2 groups but granting rights to only one
 	//---------------------------------------------------------------------------
-	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, bytearray.NewByteString32("test group 1"), bytearray.NewByteString128("test group 1"))
+	g1, err := gm.Create(ctx, group.FGroup, uuid.Nil, "test group 1", "test group 1")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g1.ID, group.AKUser, act2.ID)))
 
-	g2, err := gm.Create(ctx, group.FGroup, g1.ID, bytearray.NewByteString32("test group 2"), bytearray.NewByteString128("test group 2"))
+	g2, err := gm.Create(ctx, group.FGroup, g1.ID, "test group 2", "test group 2")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g2.ID, group.AKUser, act2.ID)))
 
-	g3, err := gm.Create(ctx, group.FGroup, g2.ID, bytearray.NewByteString32("test group 3"), bytearray.NewByteString128("test group 3"))
+	g3, err := gm.Create(ctx, group.FGroup, g2.ID, "test group 3", "test group 3")
 	a.NoError(err)
 	a.NoError(gm.CreateRelation(ctx, group.NewRelation(g3.ID, group.AKUser, act2.ID)))
 
@@ -1042,9 +1041,9 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err := m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy"), // key
-		act1.ID,                                  // owner
-		uuid.Nil,                                 // parent
+		"test policy", // key
+		act1.ID,       // owner
+		uuid.Nil,      // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -1063,9 +1062,9 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy 2"), // key
-		act1.ID,  // owner
-		uuid.Nil, // parent
+		"test policy 2", // key
+		act1.ID,         // owner
+		uuid.Nil,        // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -1084,9 +1083,9 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy 3"), // key
-		act1.ID,  // owner
-		uuid.Nil, // parent
+		"test policy 3", // key
+		act1.ID,         // owner
+		uuid.Nil,        // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -1105,9 +1104,9 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy 4"), // key
-		act1.ID,  // owner
-		uuid.Nil, // parent
+		"test policy 4", // key
+		act1.ID,         // owner
+		uuid.Nil,        // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)
@@ -1136,9 +1135,9 @@ func TestHasGroupRights(t *testing.T) {
 	//---------------------------------------------------------------------------
 	ap, err = m.Create(
 		ctx,
-		bytearray.NewByteString32("test policy 5"), // key
-		act1.ID,  // owner
-		uuid.Nil, // parent
+		"test policy 5", // key
+		act1.ID,         // owner
+		uuid.Nil,        // parent
 		accesspolicy.NilObject(),
 		0, // flags
 	)

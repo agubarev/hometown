@@ -3,9 +3,9 @@ package user
 import (
 	"bytes"
 	"context"
+	"strings"
 
 	"github.com/agubarev/hometown/pkg/security/password"
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -27,25 +27,23 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	// basic cleaning and validation
 	//---------------------------------------------------------------------------
 	// username
-	newUser.Username.Trim()
-	newUser.Username.ToLower()
+	newUser.Username = strings.ToLower(strings.TrimSpace(newUser.Username))
 
 	// trimming password
 	newUser.Password = bytes.TrimSpace(newUser.Password)
 
 	// email
-	newUser.EmailAddr.Trim()
-	newUser.EmailAddr.ToLower()
+	newUser.EmailAddr = strings.ToLower(strings.TrimSpace(newUser.EmailAddr))
 
 	// phone
-	newUser.PhoneNumber.Trim()
+	newUser.EmailAddr = strings.ToLower(strings.TrimSpace(newUser.EmailAddr))
 
 	// name
-	newUser.Firstname.Trim()
-	newUser.Middlename.Trim()
-	newUser.Lastname.Trim()
+	newUser.Firstname = strings.TrimSpace(newUser.Firstname)
+	newUser.Middlename = strings.TrimSpace(newUser.Middlename)
+	newUser.Lastname = strings.TrimSpace(newUser.Lastname)
 
-	if newUser.EmailAddr[0] == 0 {
+	if newUser.EmailAddr == "" {
 		return u, ErrEmptyEmailAddr
 	}
 
@@ -120,7 +118,7 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 			}
 
 			// deleting password
-			if xerr := m.passwords.Delete(ctx, password.OKUser, u.ID); xerr != nil {
+			if xerr := m.passwords.Delete(ctx, password.NewOwner(password.OKUser, u.ID)); xerr != nil {
 				err = errors.Wrapf(err, "failed to delete password during recovery from panic: %s", xerr)
 				l.Warn("failed to delete password during recovery from panic", zap.Error(err))
 			}
@@ -205,15 +203,15 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	//---------------------------------------------------------------------------
 	// initializing user input slice to check password safety
 	userdata := []string{
-		newUser.Username.String(),
-		newUser.DisplayName.String(),
-		newUser.Firstname.String(),
-		newUser.Middlename.String(),
-		newUser.Lastname.String(),
+		newUser.Username,
+		newUser.DisplayName,
+		newUser.Firstname,
+		newUser.Middlename,
+		newUser.Lastname,
 	}
 
 	// initializing new password
-	p, err := password.NewFromInput(
+	p, err := password.NewFromInput(password.NewOwner(password.OKUser, u.ID), newUser.Password, userdata)
 	if err != nil {
 		panic(errors.Wrap(err, "failed to initialize new password"))
 	}
@@ -231,8 +229,8 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 	m.Logger().Debug(
 		"created new user",
 		zap.String("id", u.ID.String()),
-		zap.String("username", u.Username.String()),
-		zap.String("email", newUser.EmailAddr.String()),
+		zap.String("username", u.Username),
+		zap.String("email", newUser.EmailAddr),
 	)
 
 	return u, nil
@@ -254,10 +252,9 @@ func (m *Manager) UserByID(ctx context.Context, id uuid.UUID) (u User, err error
 
 // UserByUsername returns a user if found by username
 func (m *Manager) UserByUsername(ctx context.Context, username string) (u User, err error) {
-	username.Trim()
-	username.ToLower()
+	username = strings.ToLower(strings.TrimSpace(username))
 
-	if username[0] == 0 {
+	if username == "" {
 		return u, ErrUserNotFound
 	}
 
@@ -271,10 +268,9 @@ func (m *Manager) UserByUsername(ctx context.Context, username string) (u User, 
 
 // UserByEmailAddr returns a user if found by username
 func (m *Manager) UserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
-	addr.Trim()
-	addr.ToLower()
+	addr = strings.ToLower(strings.TrimSpace(addr))
 
-	if addr[0] == 0 {
+	if addr == "" {
 		return u, ErrUserNotFound
 	}
 
@@ -335,7 +331,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	m.Logger().Debug(
 		"updated user",
 		zap.String("id", u.ID.String()),
-		zap.String("username", u.Username.String()),
+		zap.String("username", u.Username),
 	)
 
 	return u, essentialChangelog, nil
@@ -358,7 +354,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 		// and finally deleting user's password if the password manager is present
 		// NOTE: it should be possible that the user could not have a password
 		if m.passwords != nil {
-			err = m.passwords.Delete(ctx, password.OKUser, id)
+			err = m.passwords.Delete(ctx, password.NewOwner(password.OKUser, id))
 			if err != nil {
 				return u, errors.Wrap(err, "failed to delete user password")
 			}

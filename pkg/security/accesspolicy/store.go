@@ -3,7 +3,6 @@ package accesspolicy
 import (
 	"context"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 )
 

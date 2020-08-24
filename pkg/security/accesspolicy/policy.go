@@ -3,7 +3,6 @@ package accesspolicy
 import (
 	"strings"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -30,7 +29,7 @@ func NewObject(id uuid.UUID, name string) Object {
 
 func NilObject() Object {
 	return Object{
-		Name: string{},
+		Name: "",
 		ID:   uuid.Nil,
 	}
 }
@@ -210,7 +209,7 @@ func NewPolicy(key string, ownerID, parentID uuid.UUID, obj Object, flags uint8)
 	}
 
 	// NOTE: key may be optional
-	if key[0] != 0 {
+	if key != "" {
 		if err = p.SetKey(key); err != nil {
 			return p, errors.Wrap(err, "failed to set initial key")
 		}
@@ -265,18 +264,18 @@ func (ap *Policy) ApplyChangelog(changelog diff.Changelog) (err error) {
 // SanitizeAndValidate validates accesspolicy policy by performing basic self-check
 func (ap Policy) Validate() error {
 	// policy must have some designators
-	if ap.Key[0] == 0 && ap.ObjectName[0] == 0 {
+	if ap.Key == "" && ap.ObjectName == "" {
 		return errors.Wrap(ErrAccessPolicyEmptyDesignators, "policy cannot have both key and object name empty")
 	}
 
 	// making sure that both the object name and ActorID are set,
 	// if either one of them is provided
-	if ap.ObjectName[0] == 0 && ap.ObjectID != uuid.Nil {
+	if ap.ObjectName == "" && ap.ObjectID != uuid.Nil {
 		return errors.New("empty object name with a non-zero object id")
 	}
 
 	// if object name is set, then ObjectID must also be set
-	if ap.ObjectName[0] != 0 && ap.ObjectID == uuid.Nil {
+	if ap.ObjectName != "" && ap.ObjectID == uuid.Nil {
 		return errors.New("zero object id with a non-empty object name")
 	}
 

@@ -3,7 +3,6 @@ package client
 import (
 	"errors"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 )
@@ -29,6 +28,7 @@ type Client struct {
 	RegisteredAt timestamp.Timestamp `db:"registered_at" json:"registered_at"`
 	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
 	Flags        Flags               `db:"flags" json:"flags"`
+	entropy      []byte
 	_            struct{}
 }
 
@@ -45,7 +45,11 @@ func (c *Client) Validate() error {
 		return errors.New("registration timestamp is empty")
 	}
 
-	if c.Name[0] == 0 {
+	if len(c.entropy) == 0 {
+		return ErrEmptyEntropy
+	}
+
+	if c.Name == "" {
 		return ErrNoName
 	}
 

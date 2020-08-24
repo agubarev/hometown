@@ -1,111 +1,106 @@
 package endpoints
 
 import (
-	"bytes"
-	"database/sql/driver"
+	"context"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/agubarev/hometown/internal/core"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/agubarev/hometown/pkg/util/report"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-type TName [32]byte
-
-func NewName(s string) (name TName) {
-	copy(name[:], strings.ToLower(strings.TrimSpace(s)))
-	return name
-}
-
-func (name *TName) Scan(v interface{}) error {
-	copy(name[:], v.([]byte))
-	return nil
-}
-
-func (name TName) Value() (driver.Value, error) {
-	if name[0] == 0 {
-		return "", nil
-	}
-
-	// finding position of zero
-	zeroPos := bytes.IndexByte(name[:], byte(0))
-	if zeroPos == -1 {
-		return name[:], nil
-	}
-
-	return name[0:zeroPos], nil
-}
-
-type ContextKey int
+type contextKey uint
 
 // context keys
 const (
-	CKUserID ContextKey = iota
+	CKAuthenticator contextKey = iota
+	CKCore
 )
 
 type Endpoint struct {
-	name    TName
+	ctx     context.Context
 	core    *core.Core
+	name    string
 	handler Handler
 }
 
 // Handler represents a custom handler
-type Handler func(c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, code int, err error)
+type Handler func(ctx context.Context, c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, aux interface{}, code int, rep *report.Report)
 
-// Response is the main response wrapper
 type Response struct {
-	Error         error         `json:"error"`
-	Result        interface{}   `json:"result,omitempty"`
-	ExecutionTime time.Duration `json:"execution_time"`
+	Result        interface{}    `json:"result"`
+	Auxiliary     interface{}    `json:"aux"`
+	Report        *report.Report `json:"report"`
+	ExecutionTime time.Duration  `json:"exec_time"`
 }
 
-func NewEndpoint(name TName, c *core.Core, h Handler) Endpoint {
+// HTTPError represents a common error wrapper to be used
+// as an HTTP error response
+// WARNING: this is used only as a complete, and not an embedded error response
+type HTTPError struct {
+	Scope   string `json:"scope"`
+	Key     string `json:"key"`
+	Message string `json:"msg"`
+	Code    int    `json:"code"`
+}
+
+func NewEndpoint(ctx context.Context, c *core.Core, h Handler, name string) (e Endpoint) {
 	if c == nil {
 		panic(core.ErrNilCore)
 	}
 
-	return Endpoint{
+	// basic validation
+	name = strings.ToLower(strings.TrimSpace(name))
+
+	if name == "" {
+		panic(errors.New("empty endpoint name"))
+	}
+
+	e = Endpoint{
+		ctx:     ctx,
 		core:    c,
 		name:    name,
 		handler: h,
 	}
+
+	return e
 }
 
 func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	u, err := e.core.UserManager().UserByID(
-		r.Context(),
-		r.Context().Value(CKUserID).(uint32),
-	)
+	// TODO: preliminary checks (i.e.: authentication, etc...)
+	// TODO: ...
 
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusForbidden)
-		return
-	}
+	// injecting report into the context
+	_, e.ctx = report.NewWithContext(e.ctx, nil)
 
-	spew.Dump(u)
-
+	//---------------------------------------------------------------------------
+	// processing request
+	//---------------------------------------------------------------------------
 	start := time.Now()
 
 	// executing handler
-	result, code, err := e.handler(e.core, w, r)
-	if err != nil {
-		http.Error(w, err.Error(), code)
-		return
+	result, aux, code, rep := e.handler(e.ctx, e.core, w, r)
+
+	// initializing response
+	response := Response{
+		Result:        result,
+		Auxiliary:     aux,
+		ExecutionTime: time.Since(start),
+	}
+
+	// adding report to the response only if report contains an error
+	if rep.HasError() {
+		response.Report = rep
 	}
 
 	// marshaling handler's result
-	payload, err := json.Marshal(Response{
-		Error:         err,
-		Result:        result,
-		ExecutionTime: time.Since(start),
-	})
-
+	payload, err := json.Marshal(response)
 	if err != nil {
 		http.Error(
 			w,

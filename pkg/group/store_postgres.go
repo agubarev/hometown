@@ -3,7 +3,6 @@ package group
 import (
 	"context"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"

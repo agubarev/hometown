@@ -6,8 +6,6 @@ import (
 
 	"github.com/agubarev/hometown/internal/core"
 	"github.com/agubarev/hometown/internal/server/endpoints"
-	epauth "github.com/agubarev/hometown/internal/server/endpoints/auth"
-	epgroup "github.com/agubarev/hometown/internal/server/endpoints/group"
 	"github.com/go-chi/chi"
 )
 
@@ -39,11 +37,11 @@ func Run(ctx context.Context, c *core.Core, addr string) (err error) {
 
 		// authentication middleware
 		r.Use(func(next http.Handler) http.Handler {
-			return epauth.MiddlewareAuth(next)
+			return endpoints.MiddlewareAuth(next)
 		})
 
 		r.Route("/group", func(r chi.Router) {
-			r.Method(http.MethodPost, "/", endpoints.NewEndpoint(endpoints.NewName("post_group"), c, epgroup.Post))
+			r.Method(http.MethodPost, "/", endpoints.NewEndpoint(endpoints.NewName("post_group"), c, endpoints.Post))
 			//r.Method(http.MethodGet, "/{id}", endpoints.NewEndpoint(endpoints.Name("get_group"), c, epgroup.Get))
 			//r.Method(http.MethodPatch, "/{id}", endpoints.NewEndpoint(endpoints.Name("patch_group"), c, epgroup.Patch))
 			//r.Method(http.MethodDelete, "/{id}", endpoints.NewEndpoint(endpoints.Name("delete_group"), c, epgroup.Delete))

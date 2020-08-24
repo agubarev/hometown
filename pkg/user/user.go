@@ -5,7 +5,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
@@ -113,12 +112,12 @@ func (u *User) calculateChecksum() uint64 {
 	buf := new(bytes.Buffer)
 
 	fields := []interface{}{
-		u.Username,
-		u.DisplayName,
+		[]byte(u.Username),
+		[]byte(u.DisplayName),
 		u.IsSuspended,
 		u.SuspendedAt,
 		u.SuspensionExpiresAt,
-		u.SuspensionReason,
+		[]byte(u.SuspensionReason),
 	}
 
 	for _, field := range fields {

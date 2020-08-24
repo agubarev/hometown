@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
@@ -48,9 +47,9 @@ func (p *Profile) calculateChecksum() uint64 {
 	buf := new(bytes.Buffer)
 
 	fields := []interface{}{
-		p.Firstname,
-		p.Lastname,
-		p.Middlename,
+		[]byte(p.Firstname),
+		[]byte(p.Lastname),
+		[]byte(p.Middlename),
 	}
 
 	for _, field := range fields {

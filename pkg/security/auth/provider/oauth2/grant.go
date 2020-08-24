@@ -1,7 +1,6 @@
 package oauth2
 
 import (
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/google/uuid"
 )
 

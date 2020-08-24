@@ -3,7 +3,6 @@ package user
 import (
 	"context"
 
-	"github.com/agubarev/hometown/pkg/util/bytearray"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -53,7 +52,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 	m.Logger().Debug(
 		"created new phone",
 		zap.String("user_id", phone.UserID.String()),
-		zap.String("number", phone.Number.String()),
+		zap.String("number", phone.Number),
 	)
 
 	return phone, nil
@@ -122,7 +121,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 	m.Logger().Debug(
 		"updated phone",
 		zap.String("user_id", phone.UserID.String()),
-		zap.String("number", phone.Number.String()),
+		zap.String("number", phone.Number),
 	)
 
 	return phone, essentialChangelog, nil
