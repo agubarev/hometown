@@ -2,21 +2,16 @@ package client
 
 import (
 	"context"
-	"crypto/rand"
-	"fmt"
-	"net/url"
 	"sync"
 
 	"github.com/agubarev/hometown/pkg/security/password"
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
 type Manager struct {
-	clients   map[uuid.UUID]Client
-	urls      map[uuid.UUID][]string
+	clients   map[uuid.UUID]*Client
 	passwords password.Manager
 	store     Store
 	logger    *zap.Logger
@@ -26,7 +21,7 @@ type Manager struct {
 
 func NewManager(s Store) *Manager {
 	return &Manager{
-		clients: make(map[uuid.UUID]Client, 0),
+		clients: make(map[uuid.UUID]*Client, 0),
 		store:   s,
 	}
 }
@@ -64,22 +59,10 @@ func (m *Manager) Logger() *zap.Logger {
 	return m.logger
 }
 
-func (m *Manager) CreateClient(ctx context.Context, isConfidential bool, name string) (c Client, err error) {
-	c = Client{
-		Name:         name,
-		ID:           uuid.New(),
-		RegisteredAt: timestamp.Now(),
-		ExpireAt:     0,
-		Flags:        FEnabled,
-		entropy:      make([]byte, 16),
-	}
-
-	if _, err := rand.Read(c.entropy); err != nil {
-		return c, errors.Wrap(err, "failed to generate entropy")
-	}
-
-	if isConfidential {
-		c.Flags |= FConfidential
+func (m *Manager) CreateClient(ctx context.Context, name string, flags Flags) (c *Client, err error) {
+	c, err = New(name, flags)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to initialize new client")
 	}
 
 	if err = c.Validate(); err != nil {
@@ -117,7 +100,7 @@ func (m *Manager) CreatePassword(ctx context.Context, clientID uuid.UUID) (raw [
 	return raw, nil
 }
 
-func (m *Manager) ClientByID(ctx context.Context, clientID uuid.UUID) (c Client, err error) {
+func (m *Manager) ClientByID(ctx context.Context, clientID uuid.UUID) (c *Client, err error) {
 	if clientID == uuid.Nil {
 		return c, ErrClientNotFound
 	}
@@ -169,82 +152,4 @@ func (m *Manager) DeleteClientByID(ctx context.Context, clientID uuid.UUID) (err
 	}
 
 	return nil
-}
-
-// AddURL accepts a given URL string but stores only the scheme://hostname[:port] portion of it
-func (m *Manager) AddURL(ctx context.Context, clientID uuid.UUID, clientURL string) (err error) {
-	if clientID == uuid.Nil {
-		return ErrInvalidClientID
-	}
-
-	// NOTE: loading client because it also loads its URLs implicitly
-	_, err = m.ClientByID(ctx, clientID)
-	if err != nil {
-		return err
-	}
-
-	u, err := url.Parse(clientURL)
-	if err != nil {
-		return errors.Wrap(err, "failed to parse client url")
-	}
-
-	host := fmt.Sprintf("%s://%s", u.Scheme, u.Host)
-
-	if m.HasURL(ctx, clientID, host) {
-		return nil
-	}
-
-	m.ulock.Lock()
-
-	if m.urls[clientID] == nil {
-		m.urls[clientID] = []string{host}
-	} else {
-		m.urls[clientID] = append(m.urls[clientID], host)
-	}
-
-	m.ulock.Unlock()
-
-	return nil
-}
-
-func (m *Manager) URLsByClientID(ctx context.Context, clientID uuid.UUID) (urls []string, err error) {
-	if clientID == uuid.Nil {
-		return nil, ErrInvalidClientID
-	}
-
-	// NOTE: loading client because it also loads its URLs implicitly
-	_, err = m.ClientByID(ctx, clientID)
-	if err != nil {
-		return nil, err
-	}
-
-	m.ulock.RLock()
-	defer m.ulock.RUnlock()
-
-	return m.urls[clientID], nil
-}
-
-func (m *Manager) HasURL(ctx context.Context, clientID uuid.UUID, clientURL string) bool {
-	if clientID == uuid.Nil {
-		return false
-	}
-
-	// NOTE: loading client because it also loads its URLs implicitly
-	_, err := m.ClientByID(ctx, clientID)
-	if err != nil {
-		return false
-	}
-
-	m.ulock.RLock()
-	if urls, ok := m.urls[clientID]; ok {
-		for _, u := range urls {
-			if u == clientURL {
-				m.ulock.RUnlock()
-				return true
-			}
-		}
-	}
-	m.ulock.RUnlock()
-
-	return false
 }

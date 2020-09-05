@@ -3,6 +3,7 @@ package client
 import "github.com/pkg/errors"
 
 var (
+	ErrNilClient             = errors.New("client is nil")
 	ErrInvalidClientID       = errors.New("client id is invalid")
 	ErrInvalidDeviceID       = errors.New("device id is invalid")
 	ErrClientNotFound        = errors.New("client is not found")
@@ -14,4 +15,5 @@ var (
 	ErrNoName                = errors.New("name cannot be empty")
 	ErrEmptyEntropy          = errors.New("entropy is empty")
 	ErrNilPasswordManager    = errors.New("password is nil")
+	ErrDuplicateURL          = errors.New("duplicate url")
 )

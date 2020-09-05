@@ -8,9 +8,9 @@ import (
 )
 
 type Store interface {
-	UpsertClient(ctx context.Context, c Client) (Client, error)
-	FetchClientByID(ctx context.Context, clientID uuid.UUID) (c Client, err error)
-	FetchAllClients(ctx context.Context) (cs []Client, err error)
+	UpsertClient(ctx context.Context, c *Client) (*Client, error)
+	FetchClientByID(ctx context.Context, clientID uuid.UUID) (c *Client, err error)
+	FetchAllClients(ctx context.Context) (cs []*Client, err error)
 	DeleteClientByID(ctx context.Context, clientID uuid.UUID) error
 }
 
@@ -25,31 +25,36 @@ func NewMemoryStore() Store {
 	}
 }
 
-func (s *memoryStore) UpsertClient(ctx context.Context, c Client) (Client, error) {
+func (s *memoryStore) UpsertClient(ctx context.Context, c *Client) (*Client, error) {
+	if c == nil {
+		return nil, ErrNilClient
+	}
+
 	s.Lock()
-	s.clients[c.ID] = c
+	s.clients[c.ID] = *c
 	s.Unlock()
 
 	return c, nil
 }
 
-func (s *memoryStore) FetchClientByID(ctx context.Context, clientID uuid.UUID) (c Client, err error) {
+func (s *memoryStore) FetchClientByID(ctx context.Context, clientID uuid.UUID) (_ *Client, err error) {
 	s.RLock()
 	c, ok := s.clients[clientID]
 	s.RUnlock()
 
 	if ok {
-		return c, nil
+		return &c, nil
 	}
 
-	return c, ErrClientNotFound
+	return nil, ErrClientNotFound
 }
-func (s *memoryStore) FetchAllClients(ctx context.Context) (cs []Client, err error) {
-	cs = make([]Client, 0, len(s.clients))
+func (s *memoryStore) FetchAllClients(ctx context.Context) (cs []*Client, err error) {
+	cs = make([]*Client, 0, len(s.clients))
 
 	s.RLock()
 	for id := range s.clients {
-		cs = append(cs, s.clients[id])
+		c := s.clients[id]
+		cs = append(cs, &c)
 	}
 	s.RUnlock()
 

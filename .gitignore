@@ -15,3 +15,7 @@ config/
 .vscode/
 .idea/
 bin/
+
+# project related
+test.env
+dev.env

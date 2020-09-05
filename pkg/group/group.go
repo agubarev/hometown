@@ -103,12 +103,12 @@ func (g *Group) Validate() (err error) {
 	}
 
 	// group key must not be empty
-	if g.Key[0] == 0 {
+	if g.Key == "" {
 		return ErrEmptyKey
 	}
 
 	// group display name must not be empty
-	if g.DisplayName[0] == 0 {
+	if g.DisplayName == "" {
 		return ErrEmptyGroupName
 	}
 

@@ -29,7 +29,7 @@ type DefaultBackend struct {
 	refreshTokens map[Hash]RefreshToken
 
 	// a map of user ID to a slice of session IDs
-	identitySessions map[Identity][]uuid.UUID
+	ownerSessions map[Owner][]uuid.UUID
 
 	// hasWorker flags whether this backend has a cleaner worker started
 	hasWorker bool
@@ -41,10 +41,10 @@ type DefaultBackend struct {
 // NewDefaultRegistryBackend initializes a default in-memory registry
 func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
-		sessions:         make(map[uuid.UUID]Session),
-		refreshTokens:    make(map[Hash]RefreshToken),
-		identitySessions: make(map[Identity][]uuid.UUID),
-		workerInterval:   1 * time.Minute,
+		sessions:       make(map[uuid.UUID]Session),
+		refreshTokens:  make(map[Hash]RefreshToken),
+		ownerSessions:  make(map[Owner][]uuid.UUID),
+		workerInterval: 1 * time.Minute,
 	}
 
 	// starting the maintenance worker
@@ -97,8 +97,8 @@ func (b *DefaultBackend) cleanup(ctx context.Context) (err error) {
 		}
 	}
 
-	// clearing out expired identitySessions
-	for _, sessionIDs := range b.identitySessions {
+	// clearing out expired ownerSessions
+	for _, sessionIDs := range b.ownerSessions {
 		for i := range sessionIDs {
 			b.Lock()
 			s, ok := b.sessions[sessionIDs[i]]
@@ -128,11 +128,11 @@ func (b *DefaultBackend) UpsertSession(ctx context.Context, s Session) error {
 	b.Lock()
 
 	// initializing a nested map and storing first value
-	if b.identitySessions[s.Owner] == nil {
-		b.identitySessions[s.Owner] = []uuid.UUID{s.ID}
+	if b.ownerSessions[s.Owner] == nil {
+		b.ownerSessions[s.Owner] = []uuid.UUID{s.ID}
 	} else {
 		// storing session until it's expired and removed
-		b.identitySessions[s.Owner] = append(b.identitySessions[s.Owner], s.ID)
+		b.ownerSessions[s.Owner] = append(b.ownerSessions[s.Owner], s.ID)
 	}
 
 	b.Unlock()
@@ -180,11 +180,11 @@ func (b *DefaultBackend) DeleteSession(ctx context.Context, s Session) error {
 	delete(b.sessions, s.ID)
 
 	// user-linked
-	for i := range b.identitySessions[s.Owner] {
-		if s.ID == b.identitySessions[s.Owner][i] {
-			b.identitySessions[s.Owner] = append(
-				b.identitySessions[s.Owner][:i],
-				b.identitySessions[s.Owner][i+1:]...,
+	for i := range b.ownerSessions[s.Owner] {
+		if s.ID == b.ownerSessions[s.Owner][i] {
+			b.ownerSessions[s.Owner] = append(
+				b.ownerSessions[s.Owner][:i],
+				b.ownerSessions[s.Owner][i+1:]...,
 			)
 		}
 	}

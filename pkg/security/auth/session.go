@@ -3,7 +3,6 @@ package auth
 import (
 	"sync/atomic"
 
-	"github.com/agubarev/hometown/pkg/client"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
@@ -65,13 +64,13 @@ func UnknownIdentity(id uuid.UUID) Identity { return Identity{ID: id, Kind: IKUn
 // Owner represents a fusion of a remote client that acts
 // at the behest of an identity (typically the end user)
 type Owner struct {
-	Client   client.Client `json:"client"`
-	Identity Identity      `json:"id"`
+	ClientID uuid.UUID `json:"client_id"`
+	Identity Identity  `json:"identity"`
 }
 
-func NewOwner(c client.Client, ident Identity) Owner {
+func NewOwner(clientID uuid.UUID, ident Identity) Owner {
 	return Owner{
-		Client:   c,
+		ClientID: clientID,
 		Identity: ident,
 	}
 }
@@ -82,9 +81,6 @@ type Session struct {
 
 	// ID is also used as JTI (JWT ID)
 	ID uuid.UUID `db:"id" json:"id"`
-
-	// UserAgent is the user agent taken from the client at the time of authentication
-	UserAgent string `db:"user_agent" json:"user_agent"`
 
 	// IP is the IP address from which this session has been initiated
 	IP user.IPAddr `db:"ip" json:"ip"`
@@ -101,15 +97,14 @@ type Session struct {
 	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
 }
 
-func NewSession(owner Owner, meta RequestMetadata, ttl timestamp.Timestamp) (s *Session, err error) {
+func NewSession(owner Owner, meta RequestMetadata, ttl timestamp.Timestamp) (s Session, err error) {
 	if ttl == 0 {
 		ttl = DefaultSessionTTL
 	}
 
-	s = &Session{
+	s = Session{
 		Owner:        owner,
 		ID:           uuid.New(),
-		UserAgent:    meta.UserAgent,
 		IP:           meta.IP,
 		Flags:        0,
 		CreatedAt:    timestamp.Now(),

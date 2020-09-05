@@ -15,11 +15,11 @@ import (
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
-type contextKey uint
+type ContextKey int
 
 // context keys
 const (
-	CKAuthenticator contextKey = iota
+	CKAuthenticator ContextKey = iota
 	CKCore
 )
 
@@ -40,16 +40,6 @@ type Response struct {
 	ExecutionTime time.Duration  `json:"exec_time"`
 }
 
-// HTTPError represents a common error wrapper to be used
-// as an HTTP error response
-// WARNING: this is used only as a complete, and not an embedded error response
-type HTTPError struct {
-	Scope   string `json:"scope"`
-	Key     string `json:"key"`
-	Message string `json:"msg"`
-	Code    int    `json:"code"`
-}
-
 func NewEndpoint(ctx context.Context, c *core.Core, h Handler, name string) (e Endpoint) {
 	if c == nil {
 		panic(core.ErrNilCore)
@@ -57,7 +47,6 @@ func NewEndpoint(ctx context.Context, c *core.Core, h Handler, name string) (e E
 
 	// basic validation
 	name = strings.ToLower(strings.TrimSpace(name))
-
 	if name == "" {
 		panic(errors.New("empty endpoint name"))
 	}

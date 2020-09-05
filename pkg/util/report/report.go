@@ -27,10 +27,10 @@ type Error struct {
 
 // Entry represents a single Log entry of the report
 type Entry struct {
-	Timestamp timestamp.Timestamp `json:"timestamp"`
+	Timestamp timestamp.Timestamp `json:"ts"`
 	Level     zapcore.Level       `json:"lvl"`
 	Message   string              `json:"msg"`
-	Fields    []zap.Field         `json:"fields"`
+	Fields    []zap.Field         `json:"fs"`
 }
 
 // Log is a named slice used inside the report
@@ -86,7 +86,6 @@ func (rep *Report) HasError() bool {
 }
 
 func (rep *Report) WithError(token string, err error) *Report {
-	// doing nothing if error is nil
 	if err == nil {
 		return rep
 	}

@@ -20,9 +20,11 @@ func NewSQLStore(db *pgx.Conn) (Store, error) {
 	return &SQLStore{db}, nil
 }
 
-func (s *SQLStore) oneClient(ctx context.Context, q string, args ...interface{}) (c Client, err error) {
+func (s *SQLStore) oneClient(ctx context.Context, q string, args ...interface{}) (c *Client, err error) {
+	c = &Client{}
+
 	err = s.db.QueryRowEx(ctx, q, nil, args...).
-		Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.entropy)
+		Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.URLs, &c.entropy)
 
 	switch err {
 	case nil:
@@ -34,8 +36,8 @@ func (s *SQLStore) oneClient(ctx context.Context, q string, args ...interface{})
 	}
 }
 
-func (s *SQLStore) manyClients(ctx context.Context, q string, args ...interface{}) (cs []Client, err error) {
-	cs = make([]Client, 0)
+func (s *SQLStore) manyClients(ctx context.Context, q string, args ...interface{}) (cs []*Client, err error) {
+	cs = make([]*Client, 0)
 
 	rows, err := s.db.QueryEx(ctx, q, nil, args...)
 	if err != nil {
@@ -44,10 +46,10 @@ func (s *SQLStore) manyClients(ctx context.Context, q string, args ...interface{
 	defer rows.Close()
 
 	for rows.Next() {
-		var c Client
+		c := &Client{}
 
-		if err = rows.Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.entropy); err != nil {
-			return cs, errors.Wrap(err, "failed to scan clients")
+		if err = rows.Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.URLs, &c.entropy); err != nil {
+			return cs, errors.Wrap(err, "failed to scan client")
 		}
 
 		cs = append(cs, c)
@@ -56,28 +58,28 @@ func (s *SQLStore) manyClients(ctx context.Context, q string, args ...interface{
 	return cs, nil
 }
 
-func (s *SQLStore) UpsertClient(ctx context.Context, c Client) (_ Client, err error) {
+func (s *SQLStore) UpsertClient(ctx context.Context, c *Client) (_ *Client, err error) {
 	if c.ID == uuid.Nil {
 		return c, ErrInvalidClientID
 	}
 
 	q := `
-	INSERT INTO client(id, name, kind, flags, registered_at, expire_at, entropy) 
-	VALUES($1, $2, $3, $4, $5, $6)
+	INSERT INTO client(id, name, flags, registered_at, expire_at, urls, entropy) 
+	VALUES($1, $2, $3, $4, $5, $6, $7)
 	ON CONFLICT ON CONSTRAINT client_pk
 	DO UPDATE 
 		SET name			= EXCLUDED.name,
 			kind			= EXCLUDED.kind,
 			flags			= EXCLUDED.flags,
-			registered_at	= EXCLUDED.registered_at,
 			expire_at		= EXCLUDED.expire_at,
+			urls			= EXCLUDED.urls,
 			entropy			= EXCLUDED.entropy`
 
 	_, err = s.db.ExecEx(
 		ctx,
 		q,
 		nil,
-		c.ID, c.Name, c.Flags, c.RegisteredAt, c.ExpireAt, c.entropy,
+		c.ID, c.Name, c.Flags, c.RegisteredAt, c.ExpireAt, c.URLs, c.entropy,
 	)
 
 	if err != nil {
@@ -87,12 +89,12 @@ func (s *SQLStore) UpsertClient(ctx context.Context, c Client) (_ Client, err er
 	return c, nil
 }
 
-func (s *SQLStore) FetchClientByID(ctx context.Context, groupID uuid.UUID) (Client, error) {
-	return s.oneClient(ctx, `SELECT id, name, kind, flags, registered_at, expire_at, entropy FROM client WHERE id = $1 LIMIT 1`, groupID)
+func (s *SQLStore) FetchClientByID(ctx context.Context, clientID uuid.UUID) (*Client, error) {
+	return s.oneClient(ctx, `SELECT id, name, flags, registered_at, expire_at, urls, entropy FROM client WHERE id = $1 LIMIT 1`, clientID)
 }
 
-func (s *SQLStore) FetchAllClients(ctx context.Context) (gs []Client, err error) {
-	return s.manyClients(ctx, `SELECT id, name, kind, flags, registered_at, expire_at, entropy FROM client`)
+func (s *SQLStore) FetchAllClients(ctx context.Context) (gs []*Client, err error) {
+	return s.manyClients(ctx, `SELECT id, name, flags, registered_at, expire_at, urls, entropy FROM client`)
 }
 
 func (s *SQLStore) DeleteClientByID(ctx context.Context, clientID uuid.UUID) (err error) {
