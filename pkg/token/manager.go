@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -34,7 +35,7 @@ var (
 const Length = 32
 
 // DefaultTTL defines the default token longevity duration from the moment of its creation
-const DefaultTTL = 1 * time.Hour
+const DefaultTTL = timestamp.Timestamp(1 * time.Hour)
 
 // Hash represents a token hash
 type Hash [Length]byte
@@ -146,17 +147,17 @@ type Token struct {
 	CheckinRemainder int32 `db:"checkin_remainder" json:"checkin_remainder"`
 
 	// time when this token was created
-	CreatedAt int64 `db:"created_at" json:"created_at"`
+	CreatedAt timestamp.Timestamp `db:"created_at" json:"created_at"`
 
 	// denotes when this token becomes void and is removed
-	ExpireAt int64 `db:"expire_at" json:"expire_at"`
+	ExpireAt timestamp.Timestamp `db:"expire_at" json:"expire_at"`
 }
 
 // SanitizeAndValidate checks whether the token is expired or ran out of checkins left
 // NOTE: returns errors instead of booleans only for more flexible explicitness
 func (t Token) Validate() error {
 	// checking whether token's expiration time is behind current moment
-	if t.ExpireAt <= time.Now().Unix() {
+	if t.ExpireAt <= timestamp.Now() {
 		return ErrTokenExpired
 	}
 
@@ -179,11 +180,11 @@ func (t Token) Validate() error {
 	return nil
 }
 
-// NewToken creates a new CSPRNG token
-// NOTE: payload is whatever token metadata that can be JSON-encoded for further
+// New creates a new token object with CSPRNG hash
+// NOTE: payload is any token metadata that can be JSON-encoded for further
 // processing by checkin callbacks
 // NOTE: checkin remainder must be -1 (indefinite) or greater than 0 (default: 1)
-func NewToken(k Kind, ttl time.Duration, checkins int32) (t Token, err error) {
+func New(k Kind, ttl timestamp.Timestamp, checkins int32) (t Token, err error) {
 	if checkins == 0 {
 		return t, errors.New("failed to initialize new token: checkins remainder must be -1 or greater than 0")
 	}
@@ -195,13 +196,16 @@ func NewToken(k Kind, ttl time.Duration, checkins int32) (t Token, err error) {
 		ttl = DefaultTTL
 	}
 
+	// current timestamp
+	now := timestamp.Now()
+
 	t = Token{
 		Kind:             k,
 		Hash:             NewHash(),
 		CheckinTotal:     checkins,
 		CheckinRemainder: checkins,
-		CreatedAt:        time.Now().Unix(),
-		ExpireAt:         time.Now().Add(DefaultTTL).Unix(),
+		CreatedAt:        now,
+		ExpireAt:         now + ttl,
 	}
 
 	return t, nil
@@ -335,8 +339,8 @@ func (m *Manager) List(k Kind) []Token {
 }
 
 // Upsert initializes, registers and returns a new token
-func (m *Manager) Create(ctx context.Context, k Kind, ttl time.Duration, checkins int32) (t Token, err error) {
-	t, err = NewToken(k, ttl, checkins)
+func (m *Manager) Create(ctx context.Context, k Kind, ttl timestamp.Timestamp, checkins int32) (t Token, err error) {
+	t, err = New(k, ttl, checkins)
 	if err != nil {
 		return t, errors.Wrapf(err, "failed to initialize new token: %s", k)
 	}

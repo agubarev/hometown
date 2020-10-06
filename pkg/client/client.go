@@ -4,8 +4,9 @@ import (
 	"crypto/rand"
 	"net/url"
 	"strings"
+	"sync"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
@@ -26,19 +27,20 @@ const (
 
 // Client represents any external client that interfaces with this API
 type Client struct {
-	Name         string              `db:"name" json:"name"`
-	ID           uuid.UUID           `db:"id" json:"id"`
-	RegisteredAt timestamp.Timestamp `db:"registered_at" json:"registered_at"`
-	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
-	Flags        Flags               `db:"flags" json:"flags"`
-	URLs         []url.URL           `db:"urls" json:"urls"`
+	Name         string    `db:"name" json:"name"`
+	ID           uuid.UUID `db:"id" json:"id"`
+	RegisteredAt time.Time `db:"registered_at" json:"registered_at"`
+	ExpireAt     time.Time `db:"expire_at" json:"expire_at"`
+	Flags        Flags     `db:"flags" json:"flags"`
+	URLs         []url.URL `db:"urls" json:"urls"`
 	entropy      []byte
-	_            struct{}
+	sync.RWMutex
+	_ struct{}
 }
 
 func (c *Client) IsEnabled() bool      { return c.Flags&FEnabled == FEnabled }
 func (c *Client) IsConfidential() bool { return c.Flags&FConfidential == FConfidential }
-func (c *Client) IsExpired() bool      { return c.ExpireAt < timestamp.Now() }
+func (c *Client) IsExpired() bool      { return c.ExpireAt.After(time.Now()) }
 
 func New(name string, flags Flags) (c *Client, err error) {
 	e := make([]byte, 16)
@@ -49,8 +51,7 @@ func New(name string, flags Flags) (c *Client, err error) {
 	c = &Client{
 		Name:         strings.TrimSpace(name),
 		ID:           uuid.New(),
-		RegisteredAt: timestamp.Now(),
-		ExpireAt:     0,
+		RegisteredAt: time.Now(),
 		Flags:        flags,
 		URLs:         make([]url.URL, 0),
 		entropy:      e,
@@ -64,8 +65,8 @@ func (c *Client) Validate() error {
 		return ErrInvalidClientID
 	}
 
-	if c.RegisteredAt == 0 {
-		return errors.New("registration timestamp is empty")
+	if c.RegisteredAt.IsZero() {
+		return errors.New("registration timestamp is not set")
 	}
 
 	if len(c.entropy) == 0 {

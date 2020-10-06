@@ -7,6 +7,7 @@ import (
 
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/token"
+	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
@@ -30,7 +31,7 @@ func TestTokenContainerNewContainer(t *testing.T) {
 func TestTokenContainerNewToken(t *testing.T) {
 	a := assert.New(t)
 
-	tok, err := token.NewToken(token.TEmailConfirmation, 10*time.Second, 1)
+	tok, err := token.New(token.TEmailConfirmation, timestamp.Timestamp(timestamp.Timestamp(10*time.Second)), 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -53,7 +54,7 @@ func TestTokenContainerCreateGetAndDelete(t *testing.T) {
 	a.NotNil(c)
 
 	// creating new token
-	tok, err := c.Create(context.Background(), token.TEmailConfirmation, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(10*time.Second), 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -99,7 +100,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	// this call must fail now, because there's no callback registered
 	//---------------------------------------------------------------------------
 	// creating new token; 10 sec expiration and one-time use
-	tok, err := c.Create(context.Background(), token.TEmailConfirmation, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(10*time.Second), 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -134,7 +135,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// creating new token; 10 sec expiration and two-time use
-	tok, err = c.Create(context.Background(), token.TEmailConfirmation, 10*time.Second, 2)
+	tok, err = c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(10*time.Second), 2)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -167,7 +168,7 @@ func TestTokenContainerCheckin(t *testing.T) {
 	a.NoError(err)
 
 	// creating new token
-	tok, err = c.Create(context.Background(), token.TEmailConfirmation, 10*time.Second, 1)
+	tok, err = c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(10*time.Second), 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -218,7 +219,7 @@ func TestTokenContainerAddCallback(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(c)
 
-	tok, err := c.Create(context.Background(), token.TEmailConfirmation, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(10*time.Second), 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -272,7 +273,7 @@ func TestTokenContainerRemoveCallback(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(c)
 
-	tok, err := c.Create(context.Background(), token.TEmailConfirmation, 10*time.Second, 1)
+	tok, err := c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(10*time.Second), 1)
 	a.NoError(err)
 	a.NotNil(tok)
 	a.Equal(token.TEmailConfirmation, tok.Kind)
@@ -322,13 +323,13 @@ func TestTokenContainerCleanup(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(c)
 
-	c.Create(context.Background(), token.TEmailConfirmation, 4*time.Second, 1)
-	c.Create(context.Background(), token.TEmailConfirmation, 4*time.Second, 1)
-	c.Create(context.Background(), token.TEmailConfirmation, 4*time.Second, 1)
-	c.Create(context.Background(), token.TEmailConfirmation, 6*time.Second, 1)
-	c.Create(context.Background(), token.TEmailConfirmation, 7*time.Second, 1)
-	c.Create(context.Background(), token.TEmailConfirmation, 8*time.Second, 1)
-	c.Create(context.Background(), token.TEmailConfirmation, 16*time.Second, 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(4*time.Second), 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(4*time.Second), 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(4*time.Second), 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(6*time.Second), 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(7*time.Second), 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(8*time.Second), 1)
+	c.Create(context.Background(), token.TEmailConfirmation, timestamp.Timestamp(16*time.Second), 1)
 
 	a.Len(c.List(token.TAll), 7)
 

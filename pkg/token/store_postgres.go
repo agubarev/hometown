@@ -2,7 +2,6 @@ package token
 
 import (
 	"context"
-	"time"
 
 	"github.com/jackc/pgx"
 	"github.com/pkg/errors"
@@ -50,8 +49,8 @@ func (s *defaultTokenStore) Put(ctx context.Context, t Token) (err error) {
 		t.Hash,
 		t.CheckinTotal,
 		t.CheckinRemainder,
-		time.Unix(t.CreatedAt, 0),
-		time.Unix(t.ExpireAt, 0),
+		t.CreatedAt,
+		t.ExpireAt,
 	)
 
 	if err != nil {

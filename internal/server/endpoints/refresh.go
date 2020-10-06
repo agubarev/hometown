@@ -43,7 +43,7 @@ func HandleRefreshToken(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// attempting authentication by a found refresh token
-	u, err := a.AuthenticateByRefreshToken(r.Context(), rtok, ri)
+	u, err := a.AuthenticateUserByRefreshToken(r.Context(), rtok, ri)
 	if err != nil {
 		util.WriteResponseErrorTo(w, "refresh_failed", err, http.StatusUnauthorized)
 		return

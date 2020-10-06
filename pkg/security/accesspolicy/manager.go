@@ -196,8 +196,8 @@ func (m *Manager) Update(ctx context.Context, p Policy) (err error) {
 	}
 
 	//-!!!-[ WARNING ]-----------------------------------------------------------
-	// !!! KEY, OBJECT NAME AND Name ARE NOT ALLOWED TO CHANGE BECAUSE CURRENT
-	// !!! VALUES ARE/COULD BE RELIED UPON ELSEWHERE AND MUST REMAIN THE SAME
+	// !!! KEY, OBJECT NAME AND ID ARE NOT ALLOWED TO CHANGE BECAUSE CURRENT
+	// !!! VALUES ARE/COULD BE RELYING UPON ELSEWHERE AND MUST REMAIN THE SAME
 	//-!!!-----------------------------------------------------------------------
 	if p.Key != currentPolicy.Key {
 		return ErrForbiddenChange

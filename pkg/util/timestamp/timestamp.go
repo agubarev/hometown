@@ -47,5 +47,33 @@ func (ts *Timestamp) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
 }
 
 func (ts Timestamp) Time() time.Time {
-	return time.Unix(int64(ts), 0)
+	return time.Unix(int64(ts/1e9), int64(ts&nsecMask))
+}
+
+func (ts Timestamp) EncodeText(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
+	if ts == 0 {
+		return nil, nil
+	}
+
+	return pgio.AppendInt64(buf, int64(ts/1000-microsecFromUnixEpochToY2K)), nil
+}
+
+func (ts *Timestamp) DecodeText(ci *pgtype.ConnInfo, src []byte) error {
+	if src == nil {
+		return nil
+	}
+
+	*ts = Timestamp(binary.BigEndian.Uint64(src))
+
+	return nil
+}
+
+func (ts *Timestamp) Scan(src interface{}) error {
+	if src == nil {
+		return nil
+	}
+
+	*ts = Timestamp(binary.BigEndian.Uint64(src.([]byte)))
+
+	return nil
 }

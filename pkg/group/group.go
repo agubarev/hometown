@@ -79,6 +79,7 @@ type Group struct {
 	_           struct{}
 }
 
+// NewGroup initializing new group
 func NewGroup(flags Flags, parentID uuid.UUID, key string, name string) (g Group, err error) {
 	g = Group{
 		DisplayName: name,

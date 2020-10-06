@@ -8,20 +8,14 @@ import (
 	"time"
 
 	"github.com/agubarev/hometown/internal/core"
+	"github.com/agubarev/hometown/pkg/security/auth"
 	"github.com/agubarev/hometown/pkg/util/report"
+	"github.com/google/uuid"
 	jsoniter "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 )
 
 var json = jsoniter.ConfigCompatibleWithStandardLibrary
-
-type ContextKey int
-
-// context keys
-const (
-	CKAuthenticator ContextKey = iota
-	CKCore
-)
 
 type Endpoint struct {
 	ctx     context.Context
@@ -34,6 +28,7 @@ type Endpoint struct {
 type Handler func(ctx context.Context, c *core.Core, w http.ResponseWriter, r *http.Request) (result interface{}, aux interface{}, code int, rep *report.Report)
 
 type Response struct {
+	RequestID     uuid.UUID      `json:"request_id"`
 	Result        interface{}    `json:"result"`
 	Auxiliary     interface{}    `json:"aux"`
 	Report        *report.Report `json:"report"`
@@ -61,12 +56,38 @@ func NewEndpoint(ctx context.Context, c *core.Core, h Handler, name string) (e E
 	return e
 }
 
+// NOTE: using vanilla string context keys atm
 func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// TODO: preliminary checks (i.e.: authentication, etc...)
-	// TODO: ...
-
 	// injecting report into the context
-	_, e.ctx = report.NewWithContext(e.ctx, nil)
+	_, ctx := report.NewWithContext(e.ctx, nil)
+
+	// generating request ID
+	requestID := uuid.New()
+
+	// injecting request ID into the context
+	ctx = context.WithValue(ctx, "request_id", requestID)
+
+	//---------------------------------------------------------------------------
+	// handling access domain
+	//---------------------------------------------------------------------------
+	/*
+		if domain, ok := ctx.Value(auth.CKDomain).(auth.Domain); ok && domain.IsProtected {
+			// authenticating request
+			s, err := e.core.Authenticator().AuthenticateByRequest(ctx, r)
+			if err != nil {
+				http.Error(
+					w,
+					"authentication failed",
+					http.StatusUnauthorized,
+				)
+
+				return
+			}
+
+			// adding session to the context
+			ctx = context.WithValue(ctx, "session", s)
+		}
+	*/
 
 	//---------------------------------------------------------------------------
 	// processing request
@@ -74,17 +95,18 @@ func (e Endpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
 	// executing handler
-	result, aux, code, rep := e.handler(e.ctx, e.core, w, r)
+	result, aux, code, rep := e.handler(ctx, e.core, w, r)
 
 	// initializing response
 	response := Response{
+		RequestID:     requestID,
 		Result:        result,
 		Auxiliary:     aux,
 		ExecutionTime: time.Since(start),
 	}
 
 	// adding report to the response only if report contains an error
-	if rep.HasError() {
+	if rep != nil && rep.HasError() {
 		response.Report = rep
 	}
 

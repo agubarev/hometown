@@ -153,3 +153,29 @@ func (m *Manager) DeleteClientByID(ctx context.Context, clientID uuid.UUID) (err
 
 	return nil
 }
+
+func (m *Manager) MatchSecret(ctx context.Context, clientID uuid.UUID, rawpass []byte) (ok bool, err error) {
+	if m.passwords == nil {
+		return false, ErrNilPasswordManager
+	}
+
+	if clientID == uuid.Nil {
+		return false, ErrClientNotFound
+	}
+
+	// obtaining password
+	pass, err := m.passwords.Get(ctx, password.NewOwner(
+		password.OKApplication,
+		clientID,
+	))
+
+	if err != nil {
+		return false, errors.Wrapf(
+			err,
+			"failed to obtain password for client: %s",
+			clientID,
+		)
+	}
+
+	return pass.Compare(rawpass), nil
+}

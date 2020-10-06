@@ -4,9 +4,9 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/hex"
+	"time"
 
 	"github.com/agubarev/hometown/pkg/client"
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
@@ -70,29 +70,42 @@ func (h Hash) String() string {
 }
 
 type RefreshToken struct {
-	Hash          Hash                `db:"hash" json:"hash"`
-	Owner         Owner               `db:"owner" json:"owner"`
-	ID            uuid.UUID           `db:"id" json:"id"`
-	LastSessionID uuid.UUID           `db:"last_token_id" json:"last_token_id"`
-	CreatedAt     timestamp.Timestamp `db:"created_at" json:"created_at"`
-	ExpireAt      timestamp.Timestamp `db:"expire_at" json:"expire_at"`
-	Flags         uint8               `db:"flags" json:"flags"`
+	Hash          Hash      `db:"hash" json:"hash"`
+	ClientID      uuid.Time `db:"client" json:"client"`
+	Identity      Identity  `db:"identity" json:"identity"`
+	ID            uuid.UUID `db:"id" json:"id"`
+	LastSessionID uuid.UUID `db:"last_token_id" json:"last_token_id"`
+	CreatedAt     time.Time `db:"created_at" json:"created_at"`
+	ExpireAt      time.Time `db:"expire_at" json:"expire_at"`
+	Flags         uint8     `db:"flags" json:"flags"`
 }
 
-func NewRefreshToken(jti uuid.UUID, c client.Client, ttl timestamp.Timestamp) (t RefreshToken, err error) {
-	if ttl == 0 {
-		ttl = DefaultSessionTTL
+func NewRefreshToken(
+	jti uuid.UUID,
+	c *client.Client,
+	identity Identity,
+	expireAt time.Time,
+) (
+	rt RefreshToken,
+	err error,
+) {
+	if !c.IsConfidential() {
+		return rt, ErrClientIsNonconfidential
 	}
 
-	t = RefreshToken{
+	rt = RefreshToken{
 		Hash:          NewTokenHash(),
-		Owner:         c,
+		Identity:      identity,
 		ID:            uuid.New(),
 		LastSessionID: jti,
-		CreatedAt:     timestamp.Now(),
-		ExpireAt:      timestamp.Now() + ttl,
+		CreatedAt:     time.Now(),
+		ExpireAt:      expireAt,
 		Flags:         0,
 	}
 
-	return t, nil
+	return rt, nil
+}
+
+func (rtok *RefreshToken) IsExpired() bool {
+	return rtok.ExpireAt.After(time.Now())
 }

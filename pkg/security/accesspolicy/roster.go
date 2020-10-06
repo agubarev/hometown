@@ -198,7 +198,7 @@ func (r *Roster) change(action RAction, key Actor, rights Right) {
 	}
 
 	//---------------------------------------------------------------------------
-	// applying the actual rosterChange
+	// applying the actual roster change
 	//---------------------------------------------------------------------------
 	switch action {
 	case RSet:

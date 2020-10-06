@@ -3,56 +3,14 @@ package user
 import (
 	"bytes"
 	"encoding/binary"
-	"fmt"
 
 	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/google/uuid"
-	"github.com/jackc/pgx/pgtype"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
 )
-
-// IPAddr is a 16 byte is an amortized size to accommodate both IPv4 and IPv6
-type IPAddr [16]byte
-
-func NewIPAddrFromString(s string) (addr IPAddr) {
-	copy(addr[:], bytes.ToLower(bytes.TrimSpace([]byte(s))))
-	return addr
-}
-
-func (addr IPAddr) EncodeBinary(ci *pgtype.ConnInfo, buf []byte) (newBuf []byte, err error) {
-	if addr[0] == 0 {
-		return nil, nil
-	}
-
-	zpos := bytes.IndexByte(addr[:], byte(0))
-	if zpos == -1 {
-		return append(buf, addr[:]...), nil
-	}
-
-	return append(buf, addr[0:zpos]...), nil
-}
-
-func (addr *IPAddr) DecodeBinary(ci *pgtype.ConnInfo, src []byte) error {
-	if src == nil {
-		return nil
-	}
-
-	copy(addr[:], src)
-	return nil
-}
-
-func (addr IPAddr) StringIPv4() string {
-	return fmt.Sprintf(
-		"%x.%x.%x.%x",
-		addr[0],
-		addr[1],
-		addr[2],
-		addr[3],
-	)
-}
 
 // UserNewObject contains fields sufficient to create a new object
 type NewUserObject struct {
