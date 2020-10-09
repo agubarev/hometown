@@ -32,7 +32,7 @@ type Client struct {
 	RegisteredAt time.Time `db:"registered_at" json:"registered_at"`
 	ExpireAt     time.Time `db:"expire_at" json:"expire_at"`
 	Flags        Flags     `db:"flags" json:"flags"`
-	URLs         []url.URL `db:"urls" json:"urls"`
+	ReturnURLs   []url.URL `db:"urls" json:"urls"`
 	entropy      []byte
 	sync.RWMutex
 	_ struct{}
@@ -53,7 +53,7 @@ func New(name string, flags Flags) (c *Client, err error) {
 		ID:           uuid.New(),
 		RegisteredAt: time.Now(),
 		Flags:        flags,
-		URLs:         make([]url.URL, 0),
+		ReturnURLs:   make([]url.URL, 0),
 		entropy:      e,
 	}
 
@@ -85,17 +85,17 @@ func (c *Client) AddURL(uri url.URL) (err error) {
 		return ErrDuplicateURL
 	}
 
-	if c.URLs == nil {
-		c.URLs = []url.URL{uri}
+	if c.ReturnURLs == nil {
+		c.ReturnURLs = []url.URL{uri}
 	} else {
-		c.URLs = append(c.URLs, uri)
+		c.ReturnURLs = append(c.ReturnURLs, uri)
 	}
 
 	return nil
 }
 
 func (c *Client) HasURL(uri url.URL) bool {
-	for _, existing := range c.URLs {
+	for _, existing := range c.ReturnURLs {
 		if uri == existing {
 			return true
 		}

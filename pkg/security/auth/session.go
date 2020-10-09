@@ -73,6 +73,13 @@ func (ident Identity) Validate() error {
 	return nil
 }
 
+type SessionFlags uint8
+
+const (
+	SFWithRefreshToken = 1 << iota
+	SFWithAuthorizationCode
+)
+
 // Session represents an authenticated session
 type Session struct {
 	// ID is also used as JTI (JWT ID)

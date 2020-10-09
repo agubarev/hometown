@@ -70,31 +70,53 @@ func (h Hash) String() string {
 }
 
 type RefreshToken struct {
-	Hash          Hash      `db:"hash" json:"hash"`
-	ClientID      uuid.Time `db:"client" json:"client"`
-	Identity      Identity  `db:"identity" json:"identity"`
-	ID            uuid.UUID `db:"id" json:"id"`
-	LastSessionID uuid.UUID `db:"last_token_id" json:"last_token_id"`
-	CreatedAt     time.Time `db:"created_at" json:"created_at"`
-	ExpireAt      time.Time `db:"expire_at" json:"expire_at"`
-	Flags         uint8     `db:"flags" json:"flags"`
+	ID                 uuid.UUID `db:"id" json:"id"`
+	LastSessionID      uuid.UUID `db:"last_session_id" json:"last_session_id"`
+	LastRefreshTokenID uuid.UUID `db:"prev_rtok_id" json:"prev_rtok_id"`
+	ClientID           uuid.UUID `db:"client_id" json:"client_id"`
+	Identity           Identity  `db:"identity" json:"identity"`
+	Hash               Hash      `db:"hash" json:"hash"`
+	CreatedAt          time.Time `db:"created_at" json:"created_at"`
+	RotatedAt          time.Time `db:"rotated_at" json:"rotated_at"`
+	ExpireAt           time.Time `db:"expire_at" json:"expire_at"`
+	Flags              uint8     `db:"flags" json:"flags"`
+	_                  struct{}
 }
 
-func NewRefreshToken(
-	jti uuid.UUID,
-	c *client.Client,
-	identity Identity,
-	expireAt time.Time,
-) (
-	rt RefreshToken,
-	err error,
-) {
-	if !c.IsConfidential() {
-		return rt, ErrClientIsNonconfidential
+func (rtok *RefreshToken) IsExpired() bool { return rtok.ExpireAt.After(time.Now()) }
+func (rtok *RefreshToken) IsRotated() bool { return !rtok.RotatedAt.IsZero() }
+func (rtok *RefreshToken) IsActive() bool  { return !rtok.IsExpired() && !rtok.IsRotated() }
+
+func NewRefreshToken(jti uuid.UUID, c *client.Client, identity Identity, expireAt time.Time) (rtok RefreshToken, err error) {
+	// client must be given
+	if c == nil {
+		return rtok, client.ErrNilClient
 	}
 
-	rt = RefreshToken{
+	// session (access token) ID must be provided
+	if jti == uuid.Nil {
+		return rtok, ErrInvalidJTI
+	}
+
+	// expiration time must be provided
+	if expireAt.IsZero() {
+		return rtok, ErrZeroExpiration
+	}
+
+	// and not in the past time
+	if expireAt.Before(time.Now()) {
+		return rtok, ErrInvalidExpirationTime
+	}
+
+	// it is unsafe to provide refresh tokens to clients
+	// that are designated as non-confidential
+	if !c.IsConfidential() {
+		return rtok, ErrClientIsNonconfidential
+	}
+
+	rtok = RefreshToken{
 		Hash:          NewTokenHash(),
+		ClientID:      c.ID,
 		Identity:      identity,
 		ID:            uuid.New(),
 		LastSessionID: jti,
@@ -103,9 +125,5 @@ func NewRefreshToken(
 		Flags:         0,
 	}
 
-	return rt, nil
-}
-
-func (rtok *RefreshToken) IsExpired() bool {
-	return rtok.ExpireAt.After(time.Now())
+	return rtok, nil
 }

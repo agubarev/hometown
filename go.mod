@@ -3,11 +3,8 @@ module github.com/agubarev/hometown
 go 1.13
 
 require (
-	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
 	github.com/allegro/bigcache v1.2.1
 	github.com/asaskevich/govalidator v0.0.0-20200907205600-7a23bdc65eef
-	github.com/aws/aws-sdk-go v1.34.30
-	github.com/buraksezer/olric v0.2.0 // indirect
 	github.com/cespare/xxhash v1.1.0
 	github.com/cockroachdb/apd v1.1.0 // indirect
 	github.com/davecgh/go-spew v1.1.1
@@ -29,8 +26,6 @@ require (
 	github.com/magiconair/properties v1.8.4 // indirect
 	github.com/mitchellh/go-homedir v1.1.0
 	github.com/mitchellh/mapstructure v1.3.3 // indirect
-	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
-	github.com/modern-go/reflect2 v1.0.1 // indirect
 	github.com/nbutton23/zxcvbn-go v0.0.0-20180912185939-ae427f1e4c1d
 	github.com/oklog/ulid v1.3.1
 	github.com/pelletier/go-toml v1.8.1 // indirect
@@ -51,7 +46,6 @@ require (
 	golang.org/x/lint v0.0.0-20200302205851-738671d3881b // indirect
 	golang.org/x/net v0.0.0-20200923182212-328152dc79b1 // indirect
 	golang.org/x/sys v0.0.0-20200923182605-d9f96fdee20d // indirect
-	golang.org/x/text v0.3.3 // indirect
 	golang.org/x/tools v0.0.0-20200923182640-463111b69878 // indirect
 	google.golang.org/protobuf v1.25.0 // indirect
 	gopkg.in/ini.v1 v1.61.0 // indirect

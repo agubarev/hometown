@@ -600,14 +600,14 @@ func (m *Manager) SetParent(ctx context.Context, groupID, newParentID uuid.UUID)
 		// are circuited among themselves
 		if newParent.ParentID != uuid.Nil {
 			for pg, err := m.Parent(ctx, g); err == nil && pg.ID != uuid.Nil; pg, err = m.Parent(ctx, pg) {
-				// no more parents, breaking
-				if pg.ParentID == uuid.Nil {
-					break
-				}
-
 				// testing equality by comparing each group's ObjectID
 				if pg.ID == newParent.ID {
 					return ErrDuplicateParent
+				}
+
+				// no more parents, breaking
+				if pg.ParentID == uuid.Nil {
+					break
 				}
 			}
 		}

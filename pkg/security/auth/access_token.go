@@ -11,7 +11,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func NewAccessToken(
+func NewTokenPair(
 	ctx context.Context,
 	privateKey *rsa.PrivateKey,
 	jti uuid.UUID,

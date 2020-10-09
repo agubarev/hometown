@@ -24,7 +24,7 @@ func (s *SQLStore) oneClient(ctx context.Context, q string, args ...interface{})
 	c = &Client{}
 
 	err = s.db.QueryRowEx(ctx, q, nil, args...).
-		Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.URLs, &c.entropy)
+		Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.ReturnURLs, &c.entropy)
 
 	switch err {
 	case nil:
@@ -48,7 +48,7 @@ func (s *SQLStore) manyClients(ctx context.Context, q string, args ...interface{
 	for rows.Next() {
 		c := &Client{}
 
-		if err = rows.Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.URLs, &c.entropy); err != nil {
+		if err = rows.Scan(&c.ID, &c.Name, &c.Flags, &c.RegisteredAt, &c.ExpireAt, &c.ReturnURLs, &c.entropy); err != nil {
 			return cs, errors.Wrap(err, "failed to scan client")
 		}
 
@@ -79,7 +79,7 @@ func (s *SQLStore) UpsertClient(ctx context.Context, c *Client) (_ *Client, err 
 		ctx,
 		q,
 		nil,
-		c.ID, c.Name, c.Flags, c.RegisteredAt, c.ExpireAt, c.URLs, c.entropy,
+		c.ID, c.Name, c.Flags, c.RegisteredAt, c.ExpireAt, c.ReturnURLs, c.entropy,
 	)
 
 	if err != nil {

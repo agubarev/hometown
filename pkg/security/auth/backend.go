@@ -169,11 +169,11 @@ func (b *DefaultBackend) PutRefreshToken(ctx context.Context, rt RefreshToken) e
 	return nil
 }
 
-func (b *DefaultBackend) PutAuthCode(ctx context.Context, code string, signedToken string) (err error) {
+func (b *DefaultBackend) PutAuthCode(ctx context.Context, code string, tpair TokenPair) (err error) {
 	return b.exchangeCodes.Put(
 		ctx,
 		code,
-		*(*[]byte)(unsafe.Pointer(&signedToken)),
+		tpair,
 	)
 }
 
