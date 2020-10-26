@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/agubarev/hometown/pkg/util/timestamp"
-	"github.com/davecgh/go-spew/spew"
 	"github.com/google/uuid"
 	zxcvbn "github.com/nbutton23/zxcvbn-go"
 	"golang.org/x/crypto/bcrypt"
@@ -118,7 +117,6 @@ func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw [
 
 	// generate password until it passes validation
 	// NOTE: rewriting raw password characters on repetitive iterations
-
 	for {
 		// generation attempts
 		attempts++
@@ -138,8 +136,6 @@ func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw [
 		}
 	}
 
-	spew.Dump(attempts)
-
 	// generating password hash
 	h, err := bcrypt.GenerateFromPassword(raw, bcrypt.DefaultCost)
 	if err != nil {
@@ -155,7 +151,7 @@ func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw [
 		IsChangeRequired: false,
 	}
 
-	// if recur if validation fails
+	// recur if validation fails
 	if err = p.Validate(); err != nil {
 		return New(owner, length, 3, flags)
 	}

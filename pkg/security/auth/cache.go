@@ -10,6 +10,7 @@ import (
 type Cache interface {
 	Put(ctx context.Context, key string, entry []byte) (err error)
 	Get(ctx context.Context, key string) (entry []byte, err error)
+	Take(ctx context.Context, key string) (entry []byte, err error)
 	Delete(ctx context.Context, key string) (err error)
 }
 
@@ -34,7 +35,13 @@ func (d *defaultCache) Put(ctx context.Context, key string, entry []byte) (err e
 	return errors.Wrapf(d.backend.Set(key, entry), "failed to cache entry %s -> [%v]", key, entry)
 }
 
+// Get returns a copy of the stored value
 func (d *defaultCache) Get(ctx context.Context, key string) (entry []byte, err error) {
+	panic("implement me")
+}
+
+// Take works like Get except that it deletes the key after reading
+func (d *defaultCache) Take(ctx context.Context, key string) (entry []byte, err error) {
 	panic("implement me")
 }
 

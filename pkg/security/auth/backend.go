@@ -2,10 +2,10 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"log"
 	"sync"
 	"time"
-	"unsafe"
 
 	"github.com/allegro/bigcache"
 	"github.com/google/uuid"
@@ -14,14 +14,19 @@ import (
 
 // Backend is an interface contract for an auth backend
 type Backend interface {
-	PutSession(ctx context.Context, s *Session) (err error)
-	PutRefreshToken(ctx context.Context, rt RefreshToken) (err error)
-	PutAuthCode(ctx context.Context, code string, signedToken string) (err error)
-	SessionByID(ctx context.Context, jti uuid.UUID) (*Session, error)
-	RefreshTokenByHash(ctx context.Context, hash Hash) (t RefreshToken, err error)
-	ExchangeCode(ctx context.Context, code string) (signedToken string, err error)
+	CreateSession(ctx context.Context, s *Session) (err error)
+	UpdateSession(ctx context.Context, fn func(ctx context.Context, s *Session) (*Session, error)) (err error)
 	DeleteSession(ctx context.Context, s *Session) (err error)
+	CreateRefreshToken(ctx context.Context, rtok RefreshToken) (err error)
+	UpdateRefreshToken(ctx context.Context, h RefreshTokenHash, fn func(ctx context.Context, rtok RefreshToken) (RefreshToken, error)) (rtok RefreshToken, err error)
+	RotateRefreshToken(ctx context.Context, h RefreshTokenHash) (rtok RefreshToken, err error)
 	DeleteRefreshToken(ctx context.Context, t RefreshToken) (err error)
+	CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error)
+	TokenPairByAuthorizationCode(ctx context.Context, code string) (tpair TokenPair, challenge PKCEChallenge, err error)
+	DeleteAuthorizationCode(ctx context.Context, code string) (err error)
+	SessionByID(ctx context.Context, jti uuid.UUID) (*Session, error)
+	RefreshTokenByHash(ctx context.Context, hash RefreshTokenHash) (t RefreshToken, err error)
+	ExchangeCode(ctx context.Context, code string) (tpair TokenPair, err error)
 }
 
 // DefaultBackend is a default in-memory implementation
@@ -30,13 +35,13 @@ type DefaultBackend struct {
 	sessions map[uuid.UUID]Session
 
 	// refresh token map { hash -> token }
-	refreshTokens map[Hash]RefreshToken
+	refreshTokens map[RefreshTokenHash]RefreshToken
 
 	// a map of owner ID to a slice of session IDs
 	sessionOwnership map[Identity][]uuid.UUID
 
 	// a cache of authorization code to access tokens
-	exchangeCodes Cache
+	exchangeCodeCache Cache
 
 	// hasWorker flags whether this backend has a cleaner worker started
 	hasWorker bool
@@ -57,11 +62,11 @@ func NewDefaultRegistryBackend() *DefaultBackend {
 	}
 
 	b := &DefaultBackend{
-		exchangeCodes:    codeCache,
-		sessions:         make(map[uuid.UUID]Session),
-		refreshTokens:    make(map[Hash]RefreshToken),
-		sessionOwnership: make(map[Identity][]uuid.UUID),
-		workerInterval:   1 * time.Minute,
+		exchangeCodeCache: codeCache,
+		sessions:          make(map[uuid.UUID]Session),
+		refreshTokens:     make(map[RefreshTokenHash]RefreshToken),
+		sessionOwnership:  make(map[Identity][]uuid.UUID),
+		workerInterval:    1 * time.Minute,
 	}
 
 	// starting the maintenance worker
@@ -138,11 +143,7 @@ func (b *DefaultBackend) cleanup(ctx context.Context) (err error) {
 }
 
 // UpsertSession stores a given session to a temporary registry backend
-func (b *DefaultBackend) PutSession(ctx context.Context, s *Session) error {
-	if err := s.Validate(); err != nil {
-		return err
-	}
-
+func (b *DefaultBackend) CreateSession(ctx context.Context, s *Session) error {
 	b.Lock()
 
 	// initializing a nested map and storing first value
@@ -158,10 +159,11 @@ func (b *DefaultBackend) PutSession(ctx context.Context, s *Session) error {
 	return nil
 }
 
-// UpsertRefreshToken stores refresh token
-func (b *DefaultBackend) PutRefreshToken(ctx context.Context, rt RefreshToken) error {
-	// TODO: validation
+func (b *DefaultBackend) UpdateSession(ctx context.Context, fn func(ctx context.Context, s *Session) (*Session, error)) (err error) {
+	panic("implement me")
+}
 
+func (b *DefaultBackend) CreateRefreshToken(ctx context.Context, rt RefreshToken) error {
 	b.Lock()
 	b.refreshTokens[rt.Hash] = rt
 	b.Unlock()
@@ -169,30 +171,42 @@ func (b *DefaultBackend) PutRefreshToken(ctx context.Context, rt RefreshToken) e
 	return nil
 }
 
-func (b *DefaultBackend) PutAuthCode(ctx context.Context, code string, tpair TokenPair) (err error) {
-	return b.exchangeCodes.Put(
+func (b *DefaultBackend) CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error) {
+	payload, err := json.Marshal(tpair)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal token pair")
+	}
+
+	err = b.exchangeCodeCache.Put(
 		ctx,
 		code,
-		tpair,
+		payload,
 	)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to cache authorization code and token pair")
+	}
+
+	return nil
 }
 
-func (b *DefaultBackend) ExchangeCode(ctx context.Context, code string) (signedToken string, err error) {
+func (b *DefaultBackend) ExchangeCode(ctx context.Context, code string) (tpair TokenPair, err error) {
 	// obtaining cached entry
-	cache, err := b.exchangeCodes.Get(ctx, code)
+	payload, err := b.exchangeCodeCache.Get(ctx, code)
 	if err != nil {
-		return "", ErrAuthorizationCodeNotFound
+		return tpair, ErrAuthorizationCodeNotFound
 	}
 
-	// converting bytes back to string
-	signedToken = *(*string)(unsafe.Pointer(&cache))
+	if err = json.Unmarshal(payload, &tpair); err != nil {
+		return tpair, errors.Wrap(err, "failed to unmarshal token pair")
+	}
 
 	// deleting cache entry
-	if err = b.exchangeCodes.Delete(ctx, code); err != nil {
-		return "", errors.Wrap(err, "failed to delete authorization code")
+	if err = b.exchangeCodeCache.Delete(ctx, code); err != nil {
+		return tpair, errors.Wrap(err, "failed to delete authorization code")
 	}
 
-	return signedToken, nil
+	return tpair, nil
 }
 
 // GetSession fetches a session by a given token hash from the registry backend
@@ -239,6 +253,69 @@ func (b *DefaultBackend) DeleteSession(ctx context.Context, s *Session) error {
 	return nil
 }
 
+func (b *DefaultBackend) UpdateRefreshToken(
+	ctx context.Context,
+	h RefreshTokenHash,
+	fn func(ctx context.Context, rtok RefreshToken) (RefreshToken, error),
+) (rtok RefreshToken, err error) {
+	b.Lock()
+	defer b.Unlock()
+
+	// obtaining existing token
+	rtok, ok := b.refreshTokens[h]
+
+	if !ok {
+		return rtok, ErrRefreshTokenNotFound
+	}
+
+	// applying update function to this token
+	rtok, err = fn(ctx, rtok)
+	if err != nil {
+		return rtok, errors.Wrap(err, "update function returned with an error")
+	}
+
+	// validating before stored value is replaced
+	if err = rtok.Validate(); err != nil {
+		return rtok, errors.Wrap(err, "updated refresh token validation has failed")
+	}
+
+	// updating stored token
+	b.refreshTokens[rtok.Hash] = rtok
+
+	return rtok, nil
+}
+
+func (b *DefaultBackend) RotateRefreshToken(ctx context.Context, h RefreshTokenHash, newToken RefreshToken) (err error) {
+	b.Lock()
+	defer b.Unlock()
+
+	// obtaining existing token
+	rtok, ok := b.refreshTokens[h]
+
+	if !ok {
+		return ErrRefreshTokenNotFound
+	}
+
+	// validating current token
+	if err = rtok.Validate(); err != nil {
+		return err
+	}
+
+	// updating stored token
+	b.refreshTokens[rtok.Hash] = rtok
+	b.refreshTokens[newToken.Hash] = newToken
+
+	return nil
+}
+
+func (b *DefaultBackend) TokenPairByAuthorizationCode(ctx context.Context, code string) (tpair TokenPair, challenge PKCEChallenge, err error) {
+	panic("implement me")
+}
+
+func (b *DefaultBackend) DeleteAuthorizationCode(ctx context.Context, code string) (err error) {
+	panic("implement me")
+}
+
 // DeleteSession deletes a given session from the backend registry
 func (b *DefaultBackend) DeleteRefreshToken(ctx context.Context, t RefreshToken) error {
 	b.Lock()
@@ -249,7 +326,7 @@ func (b *DefaultBackend) DeleteRefreshToken(ctx context.Context, t RefreshToken)
 }
 
 // GetSessionByRefreshToken retrieves session by a refresh token
-func (b *DefaultBackend) RefreshTokenByHash(ctx context.Context, hash Hash) (t RefreshToken, err error) {
+func (b *DefaultBackend) RefreshTokenByHash(ctx context.Context, hash RefreshTokenHash) (t RefreshToken, err error) {
 	b.RLock()
 	t, ok := b.refreshTokens[hash]
 	b.RUnlock()

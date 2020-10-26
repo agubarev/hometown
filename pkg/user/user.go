@@ -3,8 +3,9 @@ package user
 import (
 	"bytes"
 	"encoding/binary"
+	"net"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/google/uuid"
@@ -32,27 +33,27 @@ type Metadata struct {
 	Checksum uint64 `db:"checksum" json:"checksum"`
 
 	// timestamps
-	CreatedAt   timestamp.Timestamp `db:"created_at" json:"created_at"`
-	CreatedByID uuid.UUID           `db:"created_by_id" json:"created_by_id"`
-	UpdatedAt   timestamp.Timestamp `db:"updated_at" json:"updated_at"`
-	UpdatedByID uuid.UUID           `db:"updated_by_id" json:"updated_by_id"`
-	ConfirmedAt timestamp.Timestamp `db:"confirmed_at" json:"confirmed_at"`
-	DeletedAt   timestamp.Timestamp `db:"deleted_at" json:"deleted_at"`
-	DeletedByID uuid.UUID           `db:"deleted_by_id" json:"deleted_by_id"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	CreatedByID uuid.UUID `db:"created_by_id" json:"created_by_id"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
+	UpdatedByID uuid.UUID `db:"updated_by_id" json:"updated_by_id"`
+	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
+	DeletedAt   time.Time `db:"deleted_at" json:"deleted_at"`
+	DeletedByID uuid.UUID `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
-	LastLoginAt       timestamp.Timestamp `db:"last_login_at" json:"last_login_at"`
-	LastLoginIP       IPAddr              `db:"last_login_ip" json:"last_login_ip"`
-	LastLoginFailedAt timestamp.Timestamp `db:"last_login_failed_at" json:"last_login_failed_at"`
-	LastLoginFailedIP IPAddr              `db:"last_login_failed_ip" json:"last_login_failed_ip"`
-	LastLoginAttempts uint8               `db:"last_login_attempts" json:"last_login_attempts"`
+	LastLoginAt       time.Time `db:"last_login_at" json:"last_login_at"`
+	LastLoginIP       net.IP    `db:"last_login_ip" json:"last_login_ip"`
+	LastLoginFailedAt time.Time `db:"last_login_failed_at" json:"last_login_failed_at"`
+	LastLoginFailedIP net.IP    `db:"last_login_failed_ip" json:"last_login_failed_ip"`
+	LastLoginAttempts uint8     `db:"last_login_attempts" json:"last_login_attempts"`
 
 	// account suspension
-	IsSuspended         bool                `db:"is_suspended" json:"is_suspended"`
-	SuspendedAt         timestamp.Timestamp `db:"suspended_at" json:"suspended_at"`
-	SuspendedByID       uuid.UUID           `db:"suspended_by_id" json:"suspended_by_id"`
-	SuspensionExpiresAt timestamp.Timestamp `db:"suspension_expires_at" json:"suspension_expires_at"`
-	SuspensionReason    string              `db:"suspension_reason" json:"suspension_reason"`
+	IsSuspended         bool      `db:"is_suspended" json:"is_suspended"`
+	SuspendedAt         time.Time `db:"suspended_at" json:"suspended_at"`
+	SuspendedByID       uuid.UUID `db:"suspended_by_id" json:"suspended_by_id"`
+	SuspensionExpiresAt time.Time `db:"suspension_expires_at" json:"suspension_expires_at"`
+	SuspensionReason    string    `db:"suspension_reason" json:"suspension_reason"`
 }
 
 // User represents certain users which are custom
@@ -105,17 +106,17 @@ func (u *User) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "DisplayName":
 			u.DisplayName = change.To.(string)
 		case "LastLoginAt":
-			u.LastLoginAt = change.To.(timestamp.Timestamp)
+			u.LastLoginAt = change.To.(time.Time)
 		case "LastLoginIP":
-			u.LastLoginIP = change.To.(IPAddr)
+			u.LastLoginIP = change.To.(net.IP)
 		case "Checksum":
 			u.Checksum = change.To.(uint64)
 		case "CreatedAt":
-			u.CreatedAt = change.To.(timestamp.Timestamp)
+			u.CreatedAt = change.To.(time.Time)
 		case "UpdatedAt":
-			u.UpdatedAt = change.To.(timestamp.Timestamp)
+			u.UpdatedAt = change.To.(time.Time)
 		case "DeletedAt":
-			u.DeletedAt = change.To.(timestamp.Timestamp)
+			u.DeletedAt = change.To.(time.Time)
 		}
 	}
 

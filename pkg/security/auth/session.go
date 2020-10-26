@@ -73,13 +73,6 @@ func (ident Identity) Validate() error {
 	return nil
 }
 
-type SessionFlags uint8
-
-const (
-	SFWithRefreshToken = 1 << iota
-	SFWithAuthorizationCode
-)
-
 // Session represents an authenticated session
 type Session struct {
 	// ID is also used as JTI (JWT ID)
@@ -145,11 +138,9 @@ func (s *Session) revoke(rflags uint32) error {
 	s.RevokedAt = time.Now()
 
 	// updating revocation flags
-	for {
-		if atomic.CompareAndSwapUint32(&s.Flags, s.Flags, s.Flags|rflags) {
-			return nil
-		}
-	}
+	atomic.StoreUint32(&s.Flags, s.Flags|rflags)
+
+	return nil
 }
 
 // SanitizeAndValidate validates the session
