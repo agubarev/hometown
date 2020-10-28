@@ -1,55 +1,65 @@
 package auth_test
 
 import (
-	"net"
 	"reflect"
 	"testing"
+	"time"
 
+	"github.com/agubarev/hometown/pkg/client"
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/security/auth"
+	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/gofrs/uuid"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAuthenticate(t *testing.T) {
+func TestAuthenticator_AuthenticateUserByPassword(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.MySQLForTesting()
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// initializing test user manager
-	um, ctx, err := user.ManagerForTesting(db)
+	userManager, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
-	a.NotNil(um)
+	a.NotNil(userManager)
+
+	clientManager := client.NewManager(client.NewMemoryStore())
+	a.NotNil(clientManager)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
+	authenticator, err := auth.NewAuthenticator(
+		nil,
+		userManager,
+		clientManager,
+		auth.NewDefaultRegistryBackend(),
+		auth.DefaultOptions(),
+	)
 	a.NoError(err)
-	a.NotNil(am)
+	a.NotNil(authenticator)
 
 	// setting authenticator logger
 	al, err := util.DefaultLogger(true, "")
 	a.NoError(err)
 	a.NotNil(al)
-	a.NoError(am.SetLogger(al))
+	a.NoError(authenticator.SetLogger(al))
 
-	// using ULID as a random password
-	testpass := util.NewULID().Entropy()
+	// generating test password
+	testpass := password.NewRaw(32, 3, password.GFDefault)
 
 	// creating test user
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
+	testuser, err := user.CreateTestUser(ctx, userManager, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
 	// ====================================================================================
 	// normal case
 	// ====================================================================================
-	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
+	u, err := authenticator.AuthenticateUserByPassword(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
 	a.NoError(err)
 	a.NotNil(u)
 	a.Equal(testuser.ID, u.ID)
@@ -58,13 +68,13 @@ func TestAuthenticate(t *testing.T) {
 	// ====================================================================================
 	// wrong username
 	// ====================================================================================
-	u, err = am.AuthenticateByCredentials(ctx, "wrongusername", testpass, auth.NewRequestMetadata(nil))
+	u, err = authenticator.AuthenticateUserByPassword(ctx, "wrongusername", testpass, auth.NewRequestMetadata(nil))
 	a.EqualError(user.ErrUserNotFound, errors.Cause(err).Error())
 
 	// ====================================================================================
 	// wrong password
 	// ====================================================================================
-	u, err = am.AuthenticateByCredentials(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestMetadata(nil))
+	u, err = authenticator.AuthenticateUserByPassword(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestMetadata(nil))
 	a.EqualError(auth.ErrAuthenticationFailed, errors.Cause(err).Error())
 }
 
@@ -72,71 +82,143 @@ func TestAuthenticateByRefreshToken(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.MySQLForTesting()
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// initializing test user manager
-	um, ctx, err := user.ManagerForTesting(db)
+	userManager, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
-	a.NotNil(um)
+	a.NotNil(userManager)
+
+	passwordManager, err := password.NewManager(password.NewMemoryStore())
+
+	// initializing client manager
+	clientManager := client.NewManager(client.NewMemoryStore())
+	a.NotNil(clientManager)
+	a.NoError(clientManager.SetPasswordManager(passwordManager))
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
+	authenticator, err := auth.NewAuthenticator(
+		nil,
+		userManager,
+		clientManager,
+		auth.NewDefaultRegistryBackend(),
+		auth.DefaultOptions(),
+	)
 	a.NoError(err)
-	a.NotNil(am)
+	a.NotNil(authenticator)
 
 	// setting authenticator logger
 	al, err := util.DefaultLogger(true, "")
 	a.NoError(err)
 	a.NotNil(al)
-	a.NoError(am.SetLogger(al))
+	a.NoError(authenticator.SetLogger(al))
 
-	// using ULID as a random password
-	testpass := util.NewULID().Entropy()
+	// generating test password
+	testpass := password.NewRaw(32, 3, password.GFDefault)
 
 	// creating test u
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
+	testuser, err := user.CreateTestUser(ctx, userManager, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
-	// ====================================================================================
-	// normal case
-	// ====================================================================================
-	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, auth.NewRequestMetadata(nil))
+	// creating confidential client
+	clnt, err := clientManager.CreateClient(ctx, "test client", client.FConfidential)
 	a.NoError(err)
-	a.NotZero(u.ID)
-	a.Equal(testuser.ID, u.ID)
-	a.True(reflect.DeepEqual(testuser.Essential, u.Essential))
+	a.NotNil(clnt)
 
-	// ====================================================================================
-	// wrong username
-	// ====================================================================================
-	u, err = am.AuthenticateByCredentials(ctx, "wrongusername", testpass, auth.NewRequestMetadata(nil))
-	a.EqualError(user.ErrUserNotFound, errors.Cause(err).Error())
+	// creating client password
+	clientPassword, err := clientManager.CreatePassword(ctx, clnt.ID)
+	a.NoError(err)
+	a.NotZero(clientPassword)
 
-	// ====================================================================================
-	// wrong password
-	// ====================================================================================
-	u, err = am.AuthenticateByCredentials(ctx, testuser.Username, []byte("wrongpass"), auth.NewRequestMetadata(nil))
-	a.EqualError(auth.ErrAuthenticationFailed, errors.Cause(err).Error())
+	// user identity
+	ident := auth.UserIdentity(testuser.ID)
+
+	// creating test session to obtain a token pair
+	oldSession, oldTokenPair, err := authenticator.CreateSessionWithRefreshToken(
+		ctx,
+		nil,
+		clnt,
+		ident,
+		auth.NewRequestMetadata(nil),
+	)
+	a.NoError(err)
+	a.NotNil(oldSession)
+	a.NotEmpty(oldTokenPair.AccessToken)
+	a.NotZero(oldTokenPair.RefreshToken)
+
+	// obtaining current refresh token
+	oldRefreshToken, err := authenticator.RefreshTokenByHash(ctx, oldTokenPair.RefreshToken)
+	a.NoError(err)
+	a.True(oldRefreshToken.IsActive())
+	a.True(oldRefreshToken.ExpireAt.After(time.Now()))
+	a.False(oldRefreshToken.IsExpired())
+	a.False(oldRefreshToken.IsRevoked())
+	a.False(oldRefreshToken.IsRotated())
+
+	// authenticating user by refresh token (rotating)
+	newSession, newTokenPair, err := authenticator.AuthenticateUserByRefreshToken(
+		ctx,
+		clnt,
+		oldTokenPair.RefreshToken,
+		auth.NewRequestMetadata(nil),
+	)
+	a.NoError(err)
+	a.NotNil(newSession)
+	a.NotEqual(newTokenPair.AccessToken, oldTokenPair.AccessToken)
+	a.NotEqual(newTokenPair.RefreshToken, oldTokenPair.RefreshToken)
+	a.NotEmpty(newTokenPair.AccessToken)
+	a.NotZero(newTokenPair.RefreshToken)
+
+	// obtaining new refresh token
+	newRefreshToken, err := authenticator.RefreshTokenByHash(ctx, newTokenPair.RefreshToken)
+	a.NoError(err)
+	a.True(newRefreshToken.IsActive())
+	a.True(newRefreshToken.ExpireAt.After(time.Now()))
+	a.False(newRefreshToken.IsExpired())
+	a.False(newRefreshToken.IsRevoked())
+	a.False(newRefreshToken.IsRotated())
+	a.Equal(newRefreshToken.LastSessionID, newSession.ID)
+	a.Equal(newRefreshToken.ParentID, oldRefreshToken.ID)
+
+	// obtaining old refresh token
+	oldRefreshToken, err = authenticator.RefreshTokenByHash(ctx, oldTokenPair.RefreshToken)
+	a.NoError(err)
+	a.False(oldRefreshToken.IsActive())
+	a.True(oldRefreshToken.ExpireAt.After(time.Now()))
+	a.False(oldRefreshToken.IsExpired())
+	a.False(oldRefreshToken.IsRevoked())
+	a.True(oldRefreshToken.IsRotated())
+	a.Equal(newRefreshToken.LastSessionID, oldSession.ID)
+	a.Equal(newRefreshToken.RotatedID, newRefreshToken.ID)
+	a.Equal(newRefreshToken.ParentID, uuid.Nil)
 }
 
-func TestDestroySession(t *testing.T) {
+/*
+func TestRevokeSession(t *testing.T) {
 	a := assert.New(t)
 
 	// obtaining and truncating a test database
-	db, err := database.MySQLForTesting()
-	a.NoError(err)
+	db := database.PostgreSQLConnection(nil)
 	a.NotNil(db)
 
 	// initializing test user manager
-	um, ctx, err := user.ManagerForTesting(db)
+	userManager, ctx, err := user.ManagerForTesting(db)
 	a.NoError(err)
-	a.NotNil(um)
+	a.NotNil(userManager)
+
+	clientManager := client.NewManager(client.NewMemoryStore())
+	a.NotNil(clientManager)
 
 	// initializing accesspolicy manager
-	am, err := auth.NewAuthenticator(nil, um, auth.NewDefaultRegistryBackend(), auth.DefaultOptions())
+	am, err := auth.NewAuthenticator(
+		nil,
+		userManager,
+		clientManager,
+		auth.NewDefaultRegistryBackend(),
+		auth.DefaultOptions(),
+	)
 	a.NoError(err)
 	a.NotNil(am)
 
@@ -146,16 +228,16 @@ func TestDestroySession(t *testing.T) {
 	a.NotNil(al)
 	a.NoError(am.SetLogger(al))
 
-	// using ULID as a random password
-	testpass := util.NewULID().Entropy()
+	// generating test password
+	testpass := password.NewRaw(32, 3, password.GFDefault)
 
 	// creating user
-	testuser, err := user.CreateTestUser(ctx, um, "testuser", "testuser@hometown.local", testpass)
+	testuser, err := user.CreateTestUser(ctx, userManager, "testuser", "testuser@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
 	// creating another user
-	testuser2, err := user.CreateTestUser(ctx, um, "testuser2", "testuser2@hometown.local", testpass)
+	testuser2, err := user.CreateTestUser(ctx, userManager, "testuser2", "testuser2@hometown.local", testpass)
 	a.NoError(err)
 	a.NotNil(testuser)
 
@@ -176,7 +258,7 @@ func TestDestroySession(t *testing.T) {
 	}
 
 	// authentication is not necessary for this test, just keeps things consistent
-	u, err := am.AuthenticateByCredentials(ctx, testuser.Username, testpass, correctMD)
+	u, err := am.AuthenticateUserByPassword(ctx, testuser.Username, testpass, correctMD)
 	a.NoError(err)
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(testuser, u))
@@ -195,7 +277,7 @@ func TestDestroySession(t *testing.T) {
 	// ====================================================================================
 	// testing the actual session destruction
 	// ====================================================================================
-	// first attempting to destroy session with a wrong u
+	// first attempting to destroy session with a wrong user
 	// this session was created for "testuser", attempting to destroy
 	// by "testuser2"
 	a.EqualError(
@@ -232,3 +314,4 @@ func TestDestroySession(t *testing.T) {
 	// checking whether the accesspolicy token is revoked
 	a.True(am.IsRevoked(s.JTI))
 }
+*/

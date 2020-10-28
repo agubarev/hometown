@@ -2,7 +2,6 @@ package user
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx"
@@ -56,68 +55,6 @@ func (s *PostgreSQLStore) withTransaction(ctx context.Context, fn func(tx *pgx.T
 	return nil
 }
 
-func (s *PostgreSQLStore) oneUserByWhere(ctx context.Context, where string, args ...interface{}) (u User, err error) {
-	q := fmt.Sprintf(`
-	SELECT
-		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
-		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
-		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
-	FROM "user"
-	WHERE %s
-	LIMIT 1`, where)
-
-	err = s.db.QueryRowEx(ctx, q, nil, args...).
-		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP,
-			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
-			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
-			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
-
-	switch err {
-	case nil:
-		return u, nil
-	case pgx.ErrNoRows:
-		return u, ErrUserNotFound
-	default:
-		return u, errors.Wrap(err, "failed to scan user")
-	}
-}
-
-func (s *PostgreSQLStore) manyUsersByWhere(ctx context.Context, where string, args ...interface{}) (us []User, err error) {
-	us = make([]User, 0)
-
-	q := fmt.Sprintf(`
-	SELECT
-		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
-		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
-		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
-	FROM "user"
-	WHERE %s
-	LIMIT 1`, where)
-
-	rows, err := s.db.QueryEx(ctx, q, nil, args...)
-	if err != nil {
-		return us, errors.Wrap(err, "failed to fetch relations")
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var u User
-
-		err = rows.Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP,
-			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
-			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
-			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
-
-		if err != nil {
-			return nil, errors.Wrap(err, "failed to scan user")
-		}
-
-		us = append(us, u)
-	}
-
-	return us, nil
-}
-
 // CreateUser creates a new entry in the storage backend
 func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err error) {
 	q := `
@@ -168,19 +105,109 @@ func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err e
 }
 
 func (s *PostgreSQLStore) FetchUserByID(ctx context.Context, id uuid.UUID) (u User, err error) {
-	return s.oneUserByWhere(ctx, "id = $1", id)
+	q := `
+	SELECT
+		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
+		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+	FROM "user"
+	WHERE id = $1
+	LIMIT 1`
+
+	err = s.db.QueryRowEx(ctx, q, nil, id).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
+			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
+			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+
+	switch err {
+	case nil:
+		return u, nil
+	case pgx.ErrNoRows:
+		return u, ErrUserNotFound
+	default:
+		return u, errors.Wrap(err, "failed to scan user")
+	}
 }
 
 func (s *PostgreSQLStore) FetchUserByUsername(ctx context.Context, username string) (u User, err error) {
-	return s.oneUserByWhere(ctx, "SELECT * FROM user WHERE username = ? LIMIT 1", username)
+	q := `
+	SELECT
+		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
+		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+	FROM "user"
+	WHERE username = $1
+	LIMIT 1`
+
+	err = s.db.QueryRowEx(ctx, q, nil, username).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
+			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
+			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+
+	switch err {
+	case nil:
+		return u, nil
+	case pgx.ErrNoRows:
+		return u, ErrUserNotFound
+	default:
+		return u, errors.Wrap(err, "failed to scan user")
+	}
 }
 
 func (s *PostgreSQLStore) FetchUserByEmailAddr(ctx context.Context, addr string) (u User, err error) {
-	return s.oneUserByWhere(ctx, "SELECT * FROM user u LEFT JOIN user_email e ON u.id=e.user_id WHERE e.addr = ? LIMIT 1", addr)
+	q := `
+	SELECT
+		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
+		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+	FROM "user" u
+	LEFT JOIN user_email e ON u.id=e.user_id
+	WHERE e.addr = $1
+	LIMIT 1`
+
+	err = s.db.QueryRowEx(ctx, q, nil, addr).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
+			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
+			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+
+	switch err {
+	case nil:
+		return u, nil
+	case pgx.ErrNoRows:
+		return u, ErrUserNotFound
+	default:
+		return u, errors.Wrap(err, "failed to scan user")
+	}
 }
 
 func (s *PostgreSQLStore) FetchUserByPhoneNumber(ctx context.Context, number string) (u User, err error) {
-	return s.oneUserByWhere(ctx, "SELECT * FROM user u LEFT JOIN user_phone e ON u.id=e.user_id WHERE e.number = ? LIMIT 1", number)
+	q := `
+	SELECT
+		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
+		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+	FROM "user" u
+	LEFT JOIN user_email e ON u.id=e.user_id
+	WHERE e.addr = $1
+	LIMIT 1`
+
+	err = s.db.QueryRowEx(ctx, q, nil, number).
+		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
+			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
+			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+
+	switch err {
+	case nil:
+		return u, nil
+	case pgx.ErrNoRows:
+		return u, ErrUserNotFound
+	default:
+		return u, errors.Wrap(err, "failed to scan user")
+	}
 }
 
 func (s *PostgreSQLStore) DeleteUserByID(ctx context.Context, id uuid.UUID) (err error) {

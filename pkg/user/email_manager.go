@@ -3,8 +3,8 @@ package user
 import (
 	"context"
 	"strings"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -24,7 +24,7 @@ func (m *Manager) CreateEmail(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newEmail.UserID,
 		EmailEssential: newEmail.EmailEssential,
 		EmailMetadata: EmailMetadata{
-			CreatedAt: timestamp.Now(),
+			CreatedAt: time.Now(),
 		},
 	}
 
@@ -113,7 +113,7 @@ func (m *Manager) UpdateEmail(ctx context.Context, addr string, fn func(ctx cont
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = timestamp.Now()
+	updated.UpdatedAt = time.Now()
 
 	/*
 		// acquiring changelog of essential changes
@@ -171,12 +171,12 @@ func (m *Manager) ConfirmEmail(ctx context.Context, addr string) (err error) {
 		return errors.Wrapf(err, "failed to obtain email by address: %s", addr)
 	}
 
-	if email.ConfirmedAt != 0 {
+	if !email.ConfirmedAt.IsZero() {
 		return ErrUserAlreadyConfirmed
 	}
 
 	email, _, err = m.UpdateEmail(ctx, email.Addr, func(ctx context.Context, e Email) (email Email, err error) {
-		e.ConfirmedAt = timestamp.Now()
+		e.ConfirmedAt = time.Now()
 
 		return email, nil
 	})

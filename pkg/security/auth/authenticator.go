@@ -108,10 +108,10 @@ type RequestMetadata struct {
 }
 
 // NewRequestMetadata initializes RequestMetadata from a given http.Request
-func NewRequestMetadata(r *http.Request) (meta RequestMetadata) {
+func NewRequestMetadata(r *http.Request) (meta *RequestMetadata) {
 	// this is just a convenience for tests
 	if r == nil {
-		return RequestMetadata{
+		return &RequestMetadata{
 			IP:        net.IPv4zero,
 			UserAgent: "Test User-Agent",
 		}
@@ -123,7 +123,7 @@ func NewRequestMetadata(r *http.Request) (meta RequestMetadata) {
 		return meta
 	}
 
-	return RequestMetadata{
+	return &RequestMetadata{
 		IP:        net.ParseIP(sip),
 		UserAgent: r.UserAgent(),
 	}
@@ -207,7 +207,7 @@ func NewAuthenticator(
 // SetLogger sets an own logger
 func (a *Authenticator) SetLogger(logger *zap.Logger) error {
 	if logger != nil {
-		logger = logger.Named("[AUTHENTICATOR]")
+		logger = logger.Named("[authenticator]")
 	}
 
 	a.logger = logger
@@ -294,38 +294,42 @@ func (a *Authenticator) AuthenticateClientBySecret(
 	clientID uuid.UUID,
 	secret []byte,
 	meta *RequestMetadata,
-) (c *client.Client, authCode string, err error) {
+) (
+	c *client.Client,
+	session *Session,
+	signedToken string,
+	err error,
+) {
 	// obtaining client
 	c, err = a.clients.ClientByID(ctx, clientID)
 	if err != nil {
-		return nil, "", errors.Wrapf(err, "failed to obtain client by id: %s", clientID)
+		return nil, nil, "", errors.Wrapf(err, "failed to obtain client by id: %s", clientID)
 	}
 
 	// only enabled clients are allowed to be authenticated
 	if !c.IsEnabled() {
-		return nil, "", ErrClientDisabled
+		return nil, nil, "", ErrClientDisabled
 	}
 
 	// expired client also cannot be authenticated
 	if c.IsExpired() {
-		return nil, "", ErrClientExpired
+		return nil, nil, "", ErrClientExpired
 	}
 
 	// obtaining client's secret(password)
 	ok, err := a.clients.MatchSecret(ctx, clientID, secret)
 	if err != nil {
-		return nil, "", errors.Wrapf(err, "failed to match client secret: %s", clientID)
+		return nil, nil, "", errors.Wrapf(err, "failed to match client secret: %s", clientID)
 	}
 
 	// do secrets match?
 	if !ok {
-		return nil, "", ErrClientSecretMismatch
+		return nil, nil, "", ErrClientSecretMismatch
 	}
 
 	// creating a new session for this client alone
-	session, err, authCode := a.CreateClientSession(
+	session, signedToken, err = a.CreateSession(
 		ctx,
-		"hometown",
 		c,
 		NilIdentity,
 		meta,
@@ -337,7 +341,7 @@ func (a *Authenticator) AuthenticateClientBySecret(
 		zap.String("session_id", session.ID.String()),
 	)
 
-	return c, authCode, nil
+	return c, session, signedToken, nil
 }
 
 func (a *Authenticator) ExchangeAuthorizationCode(
@@ -345,10 +349,10 @@ func (a *Authenticator) ExchangeAuthorizationCode(
 	code string,
 	meta *RequestMetadata,
 ) (
-	signedToken string,
+	tpair TokenPair,
 	err error,
 ) {
-	signedToken, err = a.backend.ExchangeCode(ctx, code)
+	tpair, err = a.backend.ExchangeCode(ctx, code)
 	if err != nil {
 		a.Logger().Error(
 			"failed to exchange authorization code for token",
@@ -357,11 +361,11 @@ func (a *Authenticator) ExchangeAuthorizationCode(
 		)
 
 		if err == bigcache.ErrEntryNotFound {
-			return "", ErrAuthorizationCodeNotFound
+			return tpair, ErrAuthorizationCodeNotFound
 		}
 	}
 
-	return signedToken, nil
+	return tpair, nil
 }
 
 // AuthenticateByPassword authenticates a user by username and password.
@@ -612,12 +616,14 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 	tpair TokenPair,
 	err error,
 ) {
+	l := a.Logger()
+
 	// aborting if given token is not active for whatever reason
 	if oldToken != nil {
 		if ok, err := oldToken.IsActive(); !ok {
 			switch err = errors.Cause(err); err {
 			case ErrRefreshTokenRotated:
-				a.Logger().Warn(
+				l.Warn(
 					"authentication attempt with expired refresh token",
 					zap.String("session_id", oldToken.ID.String()),
 					zap.Error(err),
@@ -625,7 +631,7 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 
 				return nil, tpair, errors.Wrap(err, "given refresh token is expired")
 			case ErrRefreshTokenExpired:
-				a.Logger().Warn(
+				l.Warn(
 					"authentication attempt with expired refresh token",
 					zap.String("session_id", oldToken.ID.String()),
 					zap.Error(err),
@@ -633,7 +639,7 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 
 				return nil, tpair, errors.Wrap(err, "given refresh token is expired")
 			default:
-				a.Logger().Warn(
+				l.Warn(
 					"authentication attempt with inactive refresh token (unspecified cause)",
 					zap.String("session_id", oldToken.ID.String()),
 					zap.Error(err),
@@ -653,7 +659,7 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 	// deferred safety measure: delete session if there was some error
 	defer func() {
 		if err != nil {
-			a.Logger().Error(
+			l.Error(
 				"failed to delete incomplete session",
 				zap.String("session_id", session.ID.String()),
 				zap.Error(err),
@@ -671,7 +677,7 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 
 	// rotating if old refresh token is given
 	if oldToken != nil {
-		newToken, err = a.RotateRefreshToken(ctx, *oldToken)
+		newToken, err = a.RotateRefreshToken(ctx, oldToken.Hash)
 		if err != nil {
 			return nil, tpair, errors.Wrap(err, "failed to rotate refresh token")
 		}
@@ -693,6 +699,14 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 		AccessToken:  signedToken,
 		RefreshToken: newToken.Hash,
 	}
+
+	l.Debug(
+		"created session with refresh token",
+		zap.String("id", session.ID.String()),
+		zap.String("ip", session.IP.String()),
+		zap.String("identity_kind", session.Identity.Kind.String()),
+		zap.String("identity_id", session.Identity.ID.String()),
+	)
 
 	return session, tpair, nil
 }
@@ -725,8 +739,6 @@ func (a *Authenticator) RotateRefreshToken(ctx context.Context, tokenHash Refres
 		return newToken, errors.Wrap(err, "current refresh token validation failed")
 	}
 
-	l := a.Logger()
-
 	// updating the current token and initializing the new token
 	_, err = a.backend.UpdateRefreshToken(ctx, tokenHash, func(ctx context.Context, currentToken RefreshToken) (RefreshToken, error) {
 		// checking status of the actual refresh token (i.e.: expired, rotated, revoked?)
@@ -756,7 +768,7 @@ func (a *Authenticator) RotateRefreshToken(ctx context.Context, tokenHash Refres
 		return newToken, errors.Wrap(err, "failed to create new rotated refresh token")
 	}
 
-	l.Debug(
+	a.Logger().Debug(
 		"rotated refresh token",
 		zap.String("identity_kind", newToken.Identity.Kind.String()),
 		zap.String("identity_id", newToken.Identity.ID.String()),

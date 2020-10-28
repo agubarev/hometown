@@ -78,6 +78,10 @@ func (m *Manager) CreateClient(ctx context.Context, name string, flags Flags) (c
 }
 
 func (m *Manager) CreatePassword(ctx context.Context, clientID uuid.UUID) (raw []byte, err error) {
+	if m.passwords == nil {
+		return nil, ErrNilPasswordManager
+	}
+
 	c, err := m.ClientByID(ctx, clientID)
 	if err != nil {
 		return raw, errors.Wrap(err, "failed to obtain client")

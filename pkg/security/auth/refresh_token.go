@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	Length = 32
-	DefaultRefreshTokenTTL
+	Length                 = 32
+	DefaultRefreshTokenTTL = 24 * time.Hour
 )
 
 // RefreshTokenHash represents the very secret essence of a refresh token
@@ -86,7 +86,7 @@ type RefreshToken struct {
 	_                      struct{}
 }
 
-func (rtok *RefreshToken) IsExpired() bool { return rtok.ExpireAt.After(time.Now()) }
+func (rtok *RefreshToken) IsExpired() bool { return rtok.ExpireAt.Before(time.Now()) }
 func (rtok *RefreshToken) IsRotated() bool { return !rtok.RotatedAt.IsZero() }
 func (rtok *RefreshToken) IsRevoked() bool { return !rtok.RevokedAt.IsZero() }
 

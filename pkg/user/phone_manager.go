@@ -2,8 +2,8 @@ package user
 
 import (
 	"context"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -23,7 +23,7 @@ func (m *Manager) CreatePhone(ctx context.Context, fn func(ctx context.Context) 
 		UserID:         newPhone.UserID,
 		PhoneEssential: newPhone.PhoneEssential,
 		PhoneMetadata: PhoneMetadata{
-			CreatedAt: timestamp.Now(),
+			CreatedAt: time.Now(),
 		},
 	}
 
@@ -96,7 +96,7 @@ func (m *Manager) UpdatePhone(ctx context.Context, number string, fn func(ctx co
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = timestamp.Now()
+	updated.UpdatedAt = time.Now()
 
 	/*
 		// acquiring changelog of essential changes

@@ -3,10 +3,11 @@ package user
 import (
 	"bytes"
 	"context"
+	"net"
 	"strings"
+	"time"
 
 	"github.com/agubarev/hometown/pkg/security/password"
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -59,7 +60,9 @@ func (m *Manager) CreateUser(ctx context.Context, fn func(ctx context.Context) (
 		ID:        uuid.New(),
 		Essential: newUser.Essential,
 		Metadata: Metadata{
-			CreatedAt: timestamp.Now(),
+			CreatedAt:         time.Now(),
+			LastLoginIP:       net.IPv4zero,
+			LastLoginFailedIP: net.IPv4zero,
 		},
 	}
 
@@ -306,7 +309,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = timestamp.Now()
+	updated.UpdatedAt = time.Now()
 
 	/*
 		// acquiring changelog of essential changes
@@ -371,7 +374,7 @@ func (m *Manager) DeleteUserByID(ctx context.Context, id uuid.UUID, isHard bool)
 
 	// updating to mark this object as deleted
 	u, _, err = m.UpdateUser(ctx, id, func(ctx context.Context, u User) (_ User, err error) {
-		u.DeletedAt = timestamp.Now()
+		u.DeletedAt = time.Now()
 
 		return u, nil
 	})

@@ -48,6 +48,7 @@ func (s *memoryStore) FetchClientByID(ctx context.Context, clientID uuid.UUID) (
 
 	return nil, ErrClientNotFound
 }
+
 func (s *memoryStore) FetchAllClients(ctx context.Context) (cs []*Client, err error) {
 	cs = make([]*Client, 0, len(s.clients))
 
@@ -60,6 +61,7 @@ func (s *memoryStore) FetchAllClients(ctx context.Context) (cs []*Client, err er
 
 	return cs, nil
 }
+
 func (s *memoryStore) DeleteClientByID(ctx context.Context, clientID uuid.UUID) error {
 	s.Lock()
 	delete(s.clients, clientID)

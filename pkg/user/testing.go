@@ -14,16 +14,6 @@ import (
 	"github.com/jackc/pgx"
 )
 
-// GroupManagerForTesting initializes a group container for testing
-func GroupManagerForTesting(db *pgx.Conn) (*group.Manager, error) {
-	s, err := group.NewPostgreSQLStore(db)
-	if err != nil {
-		return nil, err
-	}
-
-	return group.NewManager(context.Background(), s)
-}
-
 // ManagerForTesting returns a fully initialized user manager for testing
 func ManagerForTesting(db *pgx.Conn) (*Manager, context.Context, error) {
 	ctx := context.Background()

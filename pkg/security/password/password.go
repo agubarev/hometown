@@ -4,9 +4,9 @@ import (
 	"math/rand"
 	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	zxcvbn "github.com/nbutton23/zxcvbn-go"
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -40,6 +40,7 @@ const (
 	GFNumber GenFlags = 1 << iota
 	GFSpecial
 	GFMixCase
+	GFDefault = GFNumber | GFMixCase | GFSpecial
 )
 
 // constant rules
@@ -73,20 +74,20 @@ const (
 // TODO: use byte array instead of slice for password hash
 type Password struct {
 	Owner
-	Hash             []byte              `db:"hash" json:"-"`
-	CreatedAt        timestamp.Timestamp `db:"created_at" json:"-"`
-	UpdatedAt        timestamp.Timestamp `db:"updated_at" json:"-"`
-	ExpireAt         timestamp.Timestamp `db:"expire_at" json:"-"`
-	IsChangeRequired bool                `db:"is_change_required" json:"-"`
+	Hash             []byte    `db:"hash" json:"-"`
+	CreatedAt        time.Time `db:"created_at" json:"-"`
+	UpdatedAt        time.Time `db:"updated_at" json:"-"`
+	ExpireAt         time.Time `db:"expire_at" json:"-"`
+	IsChangeRequired bool      `db:"is_change_required" json:"-"`
 }
 
-func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw []byte, err error) {
+func generate(length int, pscore int, flags GenFlags) (raw []byte, err error) {
 	if length < MinLength {
-		return p, raw, ErrShortPassword
+		return raw, ErrShortPassword
 	}
 
 	if length > MaxLength {
-		return p, raw, ErrLongPassword
+		return raw, ErrLongPassword
 	}
 
 	// raw password will be stored here
@@ -132,8 +133,18 @@ func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw [
 
 		// determining safety feasibility
 		if attempts >= retryAttempts {
-			return p, nil, ErrInfeasibleSafety
+			return nil, ErrInfeasibleSafety
 		}
+	}
+
+	return raw, nil
+}
+
+func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw []byte, err error) {
+	// generating raw password
+	raw, err = generate(length, pscore, flags)
+	if err != nil {
+		return p, nil, errors.Wrap(err, "failed to generate password")
 	}
 
 	// generating password hash
@@ -145,9 +156,8 @@ func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw [
 	p = Password{
 		Owner:            owner,
 		Hash:             h,
-		CreatedAt:        timestamp.Now(),
-		UpdatedAt:        0,
-		ExpireAt:         timestamp.Timestamp(time.Now().Add(DefaultTTL).Unix()),
+		CreatedAt:        time.Now(),
+		ExpireAt:         time.Now().Add(DefaultTTL),
 		IsChangeRequired: false,
 	}
 
@@ -157,6 +167,15 @@ func New(owner Owner, length int, pscore int, flags GenFlags) (p Password, raw [
 	}
 
 	return p, raw, nil
+}
+
+func NewRaw(length int, pscore int, flags GenFlags) (raw []byte) {
+	raw, err := generate(length, pscore, flags)
+	if err != nil {
+		panic(errors.Wrap(err, "failed to generate raw password"))
+	}
+
+	return raw
 }
 
 // SanitizeAndValidate validates password
@@ -212,8 +231,8 @@ func NewFromInput(o Owner, rawpass []byte, data []string) (p Password, err error
 	p = Password{
 		Owner:     o,
 		Hash:      h,
-		CreatedAt: timestamp.Now(),
-		ExpireAt:  timestamp.Timestamp(time.Now().Add(DefaultTTL).Unix()),
+		CreatedAt: time.Now(),
+		ExpireAt:  time.Now().Add(DefaultTTL),
 	}
 
 	return p, nil

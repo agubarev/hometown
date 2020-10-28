@@ -54,10 +54,9 @@ func PostgreSQLConnection(logger *zap.Logger) *pgx.Conn {
 }
 
 // PostgreSQLForTesting simply returns a database mysqlConn
-func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
+func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn) {
 	if !util.IsTestMode() {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
-		return nil, nil
 	}
 
 	// checking whether it's called during `go test`
@@ -117,7 +116,7 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 	// truncating tables
 	for _, tableName := range tables {
 		if _, err := tx.Exec(fmt.Sprintf(`TRUNCATE TABLE "%s" RESTART IDENTITY CASCADE`, tableName)); err != nil {
-			return nil, errors.Wrap(err, tx.Rollback().Error())
+			panic(errors.Wrap(err, tx.Rollback().Error()))
 		}
 	}
 
@@ -125,5 +124,5 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn, err error) {
 		panic(err)
 	}
 
-	return conn, nil
+	return conn
 }

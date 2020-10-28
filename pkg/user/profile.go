@@ -3,8 +3,8 @@ package user
 import (
 	"bytes"
 	"encoding/binary"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/asaskevich/govalidator"
 	"github.com/cespare/xxhash"
 	"github.com/google/uuid"
@@ -27,9 +27,9 @@ type ProfileEssential struct {
 
 // ProfileMetadata contains generic metadata of the primary object
 type ProfileMetadata struct {
-	Checksum  uint64              `db:"checksum" json:"checksum"`
-	CreatedAt timestamp.Timestamp `db:"created_at" json:"created_at"`
-	UpdatedAt timestamp.Timestamp `db:"updated_at" json:"updated_at"`
+	Checksum  uint64    `db:"checksum" json:"checksum"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }

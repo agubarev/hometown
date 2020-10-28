@@ -2,8 +2,8 @@ package user
 
 import (
 	"context"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/r3labs/diff"
@@ -23,7 +23,7 @@ func (m *Manager) CreateProfile(ctx context.Context, fn func(ctx context.Context
 		UserID:           newProfile.UserID,
 		ProfileEssential: newProfile.ProfileEssential,
 		ProfileMetadata: ProfileMetadata{
-			CreatedAt: timestamp.Now(),
+			CreatedAt: time.Now(),
 		},
 	}
 
@@ -93,7 +93,7 @@ func (m *Manager) UpdateProfile(ctx context.Context, id uuid.UUID, fn func(conte
 	}
 
 	// pre-save modifications
-	updated.UpdatedAt = timestamp.Now()
+	updated.UpdatedAt = time.Now()
 
 	/*
 		// acquiring changelog of essential changes

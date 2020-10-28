@@ -74,8 +74,8 @@ func (u *User) calculateChecksum() uint64 {
 		[]byte(u.Username),
 		[]byte(u.DisplayName),
 		u.IsSuspended,
-		u.SuspendedAt,
-		u.SuspensionExpiresAt,
+		u.SuspendedAt.UnixNano(),
+		u.SuspensionExpiresAt.UnixNano(),
 		[]byte(u.SuspensionReason),
 	}
 

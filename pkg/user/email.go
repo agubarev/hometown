@@ -1,7 +1,8 @@
 package user
 
 import (
-	"github.com/agubarev/hometown/pkg/util/timestamp"
+	"time"
+
 	"github.com/asaskevich/govalidator"
 	"github.com/google/uuid"
 	"github.com/r3labs/diff"
@@ -22,9 +23,9 @@ type EmailEssential struct {
 
 // EmailMetadata contains generic metadata of the primary object
 type EmailMetadata struct {
-	CreatedAt   timestamp.Timestamp `db:"created_at" json:"created_at"`
-	ConfirmedAt timestamp.Timestamp `db:"confirmed_at" json:"confirmed_at"`
-	UpdatedAt   timestamp.Timestamp `db:"updated_at" json:"updated_at"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -59,11 +60,11 @@ func (email *Email) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "Addr":
 			email.Addr = change.To.(string)
 		case "CreatedAt":
-			email.CreatedAt = change.To.(timestamp.Timestamp)
+			email.CreatedAt = change.To.(time.Time)
 		case "ConfirmedAt":
-			email.ConfirmedAt = change.To.(timestamp.Timestamp)
+			email.ConfirmedAt = change.To.(time.Time)
 		case "UpdatedAt":
-			email.UpdatedAt = change.To.(timestamp.Timestamp)
+			email.UpdatedAt = change.To.(time.Time)
 		}
 	}
 

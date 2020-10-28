@@ -13,7 +13,7 @@ require (
 	github.com/fsnotify/fsnotify v1.4.9 // indirect
 	github.com/go-chi/chi v4.1.2+incompatible
 	github.com/gocraft/dbr/v2 v2.7.0
-	github.com/gofrs/uuid v3.3.0+incompatible // indirect
+	github.com/gofrs/uuid v3.3.0+incompatible
 	github.com/google/uuid v1.1.2
 	github.com/gopherjs/gopherjs v0.0.0-20190910122728-9d188e94fb99 // indirect
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect

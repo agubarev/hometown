@@ -1,7 +1,8 @@
 package user
 
 import (
-	"github.com/agubarev/hometown/pkg/util/timestamp"
+	"time"
+
 	"github.com/asaskevich/govalidator"
 	"github.com/google/uuid"
 	"github.com/r3labs/diff"
@@ -22,9 +23,9 @@ type PhoneEssential struct {
 
 // PhoneMetadata contains generic metadata of the primary object
 type PhoneMetadata struct {
-	CreatedAt   timestamp.Timestamp `db:"created_at" json:"created_at"`
-	ConfirmedAt timestamp.Timestamp `db:"confirmed_at" json:"confirmed_at"`
-	UpdatedAt   timestamp.Timestamp `db:"updated_at" json:"updated_at"`
+	CreatedAt   time.Time `db:"created_at" json:"created_at"`
+	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
+	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
 
 	keyHash uint64
 }
@@ -59,11 +60,11 @@ func (p *Phone) ApplyChangelog(changelog diff.Changelog) (err error) {
 		case "Number":
 			p.Number = change.To.(string)
 		case "CreatedAt":
-			p.CreatedAt = change.To.(timestamp.Timestamp)
+			p.CreatedAt = change.To.(time.Time)
 		case "Confirmed_at":
-			p.ConfirmedAt = change.To.(timestamp.Timestamp)
+			p.ConfirmedAt = change.To.(time.Time)
 		case "UpdatedAt":
-			p.UpdatedAt = change.To.(timestamp.Timestamp)
+			p.UpdatedAt = change.To.(time.Time)
 		}
 	}
 

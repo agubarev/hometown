@@ -19,7 +19,6 @@ type Backend interface {
 	DeleteSession(ctx context.Context, s *Session) (err error)
 	CreateRefreshToken(ctx context.Context, rtok RefreshToken) (err error)
 	UpdateRefreshToken(ctx context.Context, h RefreshTokenHash, fn func(ctx context.Context, rtok RefreshToken) (RefreshToken, error)) (rtok RefreshToken, err error)
-	RotateRefreshToken(ctx context.Context, h RefreshTokenHash) (rtok RefreshToken, err error)
 	DeleteRefreshToken(ctx context.Context, t RefreshToken) (err error)
 	CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error)
 	TokenPairByAuthorizationCode(ctx context.Context, code string) (tpair TokenPair, challenge PKCEChallenge, err error)
