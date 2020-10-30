@@ -395,7 +395,7 @@ func (a *Authenticator) AuthenticateUserByPassword(
 	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
 		l.Debug(
-			"suspended user signin attempt",
+			"authentication attempt by a suspended user (by password)",
 			zap.Time("suspended_at", u.SuspendedAt),
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt),
 		)
@@ -439,6 +439,12 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 	tpair TokenPair,
 	err error,
 ) {
+	// declaring the initial default logger fields
+	l := a.Logger().With(
+		zap.String("ip", meta.IP.String()),
+		zap.String("user_agent", meta.UserAgent),
+	)
+
 	// WARNING: refresh token is revoked by a deferred function in case of any error
 	// first, obtain refresh token by hash
 	rtok, err := a.RefreshTokenByHash(ctx, hash)
@@ -446,9 +452,22 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 		return nil, tpair, errors.Wrap(err, "failed to authenticate user by refresh token")
 	}
 
+	// extending logger fields
+	l = l.With(zap.String("rtok_id", rtok.ID.String()))
+
 	// NOTE: this deferred function will revoke refresh token in case of any error
 	defer func() {
-		if err != nil {
+		// TODO: revoke an actual refresh token if any of its previous versions are used
+		switch err {
+		case nil:
+			// NOTE: do nothing if there was no error
+		case ErrRefreshTokenExpired,
+			ErrRefreshTokenRotated,
+			ErrRefreshTokenRevoked:
+			// if the refresh token is not active due to any of the listed errors,
+			// then return, otherwise this refresh token must be revoked
+			return
+		default:
 			// revoke refresh token in case of any error
 			a.Logger().Warn(
 				"revoking refresh token due to an error",
@@ -468,21 +487,22 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 		}
 	}()
 
+	// is refresh token active?
+	if ok, err := rtok.IsActive(); !ok {
+		l.Warn("authentication attempt by revoked refresh token")
+		return nil, tpair, err
+	}
+
 	// checking whether this token was issuer for a user identity
 	if rtok.Identity.Kind != IKUser {
 		return nil, tpair, ErrIdentityMismatch
-	}
-
-	// is refresh token active?
-	if ok, err := rtok.IsActive(); !ok {
-		return nil, tpair, err
 	}
 
 	// checking whether there is an existing session attached to this refresh token
 	session, err = a.SessionByID(ctx, rtok.LastSessionID)
 	switch err {
 	case nil:
-		// session is found, but has it been revoked?
+		// WARNING: re-using existing session if it's active
 		// NOTE: an expired session is also considered as revoked
 		if session.IsRevoked() {
 			// since this session has been revoked, then it makes
@@ -514,12 +534,10 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 		return nil, tpair, errors.Wrap(err, "failed to obtain user associated with this session")
 	}
 
-	// declaring default logger fields
-	l := a.Logger().With(
+	// extending logger fields
+	l = a.Logger().With(
 		zap.String("user_id", session.Identity.ID.String()),
 		zap.String("username", u.Username),
-		zap.String("ip", meta.IP.String()),
-		zap.String("user_agent", meta.UserAgent),
 	)
 
 	// TODO apply middleware functions
@@ -527,7 +545,7 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
 		l.Debug(
-			"suspended user signin attempt (via refresh token)",
+			"authentication attempt by a suspended user (by refresh token)",
 			zap.Time("suspended_at", u.SuspendedAt),
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt),
 		)
@@ -538,7 +556,6 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 		if err = a.backend.DeleteRefreshToken(ctx, rtok); err != nil {
 			l.Error(
 				"USER SUSPENDED: failed to delete refresh token",
-				zap.String("rtok_id", rtok.ID.String()),
 				zap.Error(err),
 			)
 

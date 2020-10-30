@@ -287,7 +287,7 @@ func (m *Manager) UserByEmailAddr(ctx context.Context, addr string) (u User, err
 
 // UpdateUser updates an existing object
 // NOTE: be very cautious about how you deal with metadata inside the user function
-func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx context.Context, r User) (u User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
+func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx context.Context, u User) (_ User, err error)) (u User, essentialChangelog diff.Changelog, err error) {
 	store, err := m.Store()
 	if err != nil {
 		return u, essentialChangelog, err
@@ -326,7 +326,7 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	*/
 
 	// persisting to the store as a final step
-	u, err = store.UpsertUser(ctx, u)
+	u, err = store.UpsertUser(ctx, updated)
 	if err != nil {
 		return u, essentialChangelog, err
 	}
@@ -338,6 +338,49 @@ func (m *Manager) UpdateUser(ctx context.Context, id uuid.UUID, fn func(ctx cont
 	)
 
 	return u, essentialChangelog, nil
+}
+
+// SuspendUser suspends user by ID with a reason and expiration time
+func (m *Manager) SuspendUser(
+	ctx context.Context,
+	userID uuid.UUID,
+	reason string,
+	expireAt time.Time,
+) (err error) {
+	if userID == uuid.Nil {
+		return ErrZeroUserID
+	}
+
+	if expireAt.Before(time.Now()) {
+		return ErrInvalidSuspensionExpirationTime
+	}
+
+	_, _, err = m.UpdateUser(ctx, userID, func(ctx context.Context, u User) (_ User, err error) {
+		// preventing repeated suspension
+		if u.IsSuspended {
+			return u, ErrUserAlreadySuspended
+		}
+
+		// updating relevant fields
+		u.IsSuspended = true
+		u.SuspensionReason = strings.TrimSpace(reason)
+		u.SuspendedAt = time.Now()
+		u.SuspensionExpiresAt = expireAt
+
+		return u, nil
+	})
+
+	if err != nil {
+		m.Logger().Error(
+			"failed to suspend user",
+			zap.String("user_id", userID.String()),
+			zap.String("reason", reason),
+		)
+
+		return errors.Wrap(err, "failed to suspend user")
+	}
+
+	return nil
 }
 
 // DeleteUserByID deletes an object and returns an object,

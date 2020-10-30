@@ -32,7 +32,7 @@ func NewDefaultCache(config bigcache.Config) (Cache, error) {
 }
 
 func (d *defaultCache) Put(ctx context.Context, key string, entry []byte) (err error) {
-	return errors.Wrapf(d.backend.Set(key, entry), "failed to cache entry %s -> [%v]", key, entry)
+	return errors.Wrapf(d.backend.Set(key, entry), "failed to cache entry: %s => [%v", key, entry)
 }
 
 // Get returns a copy of the stored value
