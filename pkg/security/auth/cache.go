@@ -37,14 +37,36 @@ func (d *defaultCache) Put(ctx context.Context, key string, entry []byte) (err e
 
 // Get returns a copy of the stored value
 func (d *defaultCache) Get(ctx context.Context, key string) (entry []byte, err error) {
-	panic("implement me")
+	entry, err = d.backend.Get(key)
+	if err != nil {
+		if err == bigcache.ErrEntryNotFound {
+			return nil, ErrEntryNotFound
+		}
+
+		return nil, errors.Wrapf(err, "failed to obtain cached entry: %s", key)
+	}
+
+	return entry, nil
 }
 
 // Take works like Get except that it deletes the key after reading
 func (d *defaultCache) Take(ctx context.Context, key string) (entry []byte, err error) {
-	panic("implement me")
+	entry, err = d.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+
+	if err = d.Delete(ctx, key); err != nil {
+		return nil, err
+	}
+
+	return entry, nil
 }
 
 func (d *defaultCache) Delete(ctx context.Context, key string) (err error) {
-	panic("implement me")
+	if err = d.backend.Delete(key); err != nil {
+		return errors.Wrapf(err, "failed to delete cached entry: %s", key)
+	}
+
+	return nil
 }

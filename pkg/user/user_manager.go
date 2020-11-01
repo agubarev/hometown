@@ -355,7 +355,7 @@ func (m *Manager) SuspendUser(
 		return ErrInvalidSuspensionExpirationTime
 	}
 
-	_, _, err = m.UpdateUser(ctx, userID, func(ctx context.Context, u User) (_ User, err error) {
+	u, _, err := m.UpdateUser(ctx, userID, func(ctx context.Context, u User) (_ User, err error) {
 		// preventing repeated suspension
 		if u.IsSuspended {
 			return u, ErrUserAlreadySuspended
@@ -379,6 +379,13 @@ func (m *Manager) SuspendUser(
 
 		return errors.Wrap(err, "failed to suspend user")
 	}
+
+	m.Logger().Info(
+		"suspended user",
+		zap.String("id", u.ID.String()),
+		zap.String("reason", u.SuspensionReason),
+		zap.Time("expires_at", u.SuspensionExpiresAt),
+	)
 
 	return nil
 }

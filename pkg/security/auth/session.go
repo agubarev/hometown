@@ -78,6 +78,8 @@ type Session struct {
 	// ID is also used as JTI (JWT ID)
 	ID uuid.UUID `db:"id" json:"id"`
 
+	TraceID uuid.UUID `db:"trace_id" json:"trace_id"`
+
 	// ClientID is an ID of a client that originally initiated this session
 	ClientID uuid.UUID `db:"client_id" json:"client_id"`
 
@@ -97,6 +99,9 @@ type Session struct {
 	RevokedAt   time.Time `db:"revoked_at" json:"revoked_at"`
 	ExpireAt    time.Time `db:"expire_at" json:"expire_at"`
 
+	// revocation reason
+	RevokeReason string `db:"revoke_reason" json:"revoke_reason"`
+
 	// this is a unix timestamp (in seconds) which marks
 	// the last session activity
 	lastActiveAt int64
@@ -104,13 +109,28 @@ type Session struct {
 	sync.RWMutex
 }
 
-func NewSession(c *client.Client, ident Identity, meta *RequestMetadata, ttl time.Duration) (s *Session, err error) {
+func NewSession(
+	traceID uuid.UUID,
+	c *client.Client,
+	ident Identity,
+	meta *RequestMetadata,
+	ttl time.Duration,
+) (
+	s *Session,
+	err error,
+) {
 	if ttl == 0 {
 		ttl = DefaultSessionTTL
 	}
 
+	// generating new trace ID if it's zeroed
+	if traceID == uuid.Nil {
+		traceID = uuid.New()
+	}
+
 	s = &Session{
 		ID:        uuid.New(),
+		TraceID:   traceID,
 		ClientID:  c.ID,
 		Identity:  ident,
 		IP:        meta.IP,
@@ -122,7 +142,7 @@ func NewSession(c *client.Client, ident Identity, meta *RequestMetadata, ttl tim
 	return s, nil
 }
 
-func (s *Session) revoke(rflags uint32) error {
+func (s *Session) revoke(rflags uint32, reason string) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -133,6 +153,9 @@ func (s *Session) revoke(rflags uint32) error {
 	if rflags&(SRevokedByClient|SRevokedByLogout|SRevokedBySystem|SRevokedByExpiry) == 0 {
 		return ErrInvalidRevocationFlag
 	}
+
+	// revocation reason
+	s.RevokeReason = reason
 
 	// setting revocation timestamp
 	s.RevokedAt = time.Now()
@@ -171,11 +194,11 @@ func (s *Session) TimeLeft() time.Duration {
 	return ttl
 }
 
-func (s *Session) RevokeByClient() error { return s.revoke(SRevokedByClient) }
-func (s *Session) RevokeBySystem() error { return s.revoke(SRevokedBySystem) }
-func (s *Session) RevokeByExpiry() error { return s.revoke(SRevokedByExpiry) }
-func (s *Session) Touch()                { atomic.StoreInt64(&s.lastActiveAt, time.Now().Unix()) }
-func (s *Session) IsIdle() bool          { return atomic.LoadInt64(&s.lastActiveAt) >= DefaultIdleTimeoutSec }
+func (s *Session) RevokeByClient() error              { return s.revoke(SRevokedByClient, "") }
+func (s *Session) RevokeBySystem(reason string) error { return s.revoke(SRevokedBySystem, reason) }
+func (s *Session) RevokeByExpiry() error              { return s.revoke(SRevokedByExpiry, "") }
+func (s *Session) Touch()                             { atomic.StoreInt64(&s.lastActiveAt, time.Now().Unix()) }
+func (s *Session) IsIdle() bool                       { return atomic.LoadInt64(&s.lastActiveAt) >= DefaultIdleTimeoutSec }
 
 // LastActiveAt returns the time when this client was active last time
 func (s *Session) LastActiveAt() time.Time {

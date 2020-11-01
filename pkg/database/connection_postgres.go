@@ -111,6 +111,9 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn) {
 		"user_email",
 		"user_phone",
 		"user_profile",
+		"auth_session",
+		"auth_refresh_token",
+		"auth_code_exchange",
 	}
 
 	// truncating tables

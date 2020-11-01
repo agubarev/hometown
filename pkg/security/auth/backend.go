@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,17 +16,18 @@ import (
 // Backend is an interface contract for an auth backend
 type Backend interface {
 	CreateSession(ctx context.Context, s *Session) (err error)
-	UpdateSession(ctx context.Context, fn func(ctx context.Context, s *Session) (*Session, error)) (err error)
+	GetHeadSessionByTraceID(ctx context.Context, traceID uuid.UUID) (session *Session, err error)
+	UpdateSession(ctx context.Context, id uuid.UUID, fn func(ctx context.Context, session *Session) (*Session, error)) (session *Session, err error)
 	DeleteSession(ctx context.Context, s *Session) (err error)
 	CreateRefreshToken(ctx context.Context, rtok RefreshToken) (err error)
+	GetRefreshTokenByHash(ctx context.Context, hash RefreshTokenHash) (rtok RefreshToken, err error)
+	GetHeadRefreshTokenByTraceID(ctx context.Context, traceID uuid.UUID) (rtok RefreshToken, err error)
 	UpdateRefreshToken(ctx context.Context, h RefreshTokenHash, fn func(ctx context.Context, rtok RefreshToken) (RefreshToken, error)) (rtok RefreshToken, err error)
-	DeleteRefreshToken(ctx context.Context, t RefreshToken) (err error)
+	DeleteRefreshToken(ctx context.Context, rtok RefreshToken) (err error)
 	CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error)
-	TokenPairByAuthorizationCode(ctx context.Context, code string) (tpair TokenPair, challenge PKCEChallenge, err error)
+	GetAuthorizationPayloadByCode(ctx context.Context, code string) (payload AuthorizationCodePayload, err error)
 	DeleteAuthorizationCode(ctx context.Context, code string) (err error)
-	SessionByID(ctx context.Context, jti uuid.UUID) (*Session, error)
-	RefreshTokenByHash(ctx context.Context, hash RefreshTokenHash) (t RefreshToken, err error)
-	ExchangeCode(ctx context.Context, code string) (tpair TokenPair, err error)
+	GetSessionByID(ctx context.Context, jti uuid.UUID) (*Session, error)
 }
 
 // DefaultBackend is a default in-memory implementation
@@ -35,6 +37,12 @@ type DefaultBackend struct {
 
 	// refresh token map { hash -> token }
 	refreshTokens map[RefreshTokenHash]RefreshToken
+
+	// trace ID -> head session
+	sessionHead map[uuid.UUID]uuid.UUID
+
+	// trace ID -> head refresh token
+	refreshTokenHead map[uuid.UUID]RefreshTokenHash
 
 	// a map of owner ID to a slice of session IDs
 	sessionOwnership map[Identity][]uuid.UUID
@@ -63,7 +71,9 @@ func NewDefaultRegistryBackend() *DefaultBackend {
 	b := &DefaultBackend{
 		exchangeCodeCache: codeCache,
 		sessions:          make(map[uuid.UUID]Session),
+		sessionHead:       make(map[uuid.UUID]uuid.UUID),
 		refreshTokens:     make(map[RefreshTokenHash]RefreshToken),
+		refreshTokenHead:  make(map[uuid.UUID]RefreshTokenHash),
 		sessionOwnership:  make(map[Identity][]uuid.UUID),
 		workerInterval:    1 * time.Minute,
 	}
@@ -142,74 +152,69 @@ func (b *DefaultBackend) cleanup(ctx context.Context) (err error) {
 }
 
 // UpsertSession stores a given session to a temporary registry backend
-func (b *DefaultBackend) CreateSession(ctx context.Context, s *Session) error {
+func (b *DefaultBackend) CreateSession(ctx context.Context, session *Session) error {
+	if session == nil {
+		return ErrNilSession
+	}
+
 	b.Lock()
 
+	b.sessions[session.ID] = *session
+
 	// initializing a nested map and storing first value
-	if b.sessionOwnership[s.Identity] == nil {
-		b.sessionOwnership[s.Identity] = []uuid.UUID{s.ID}
+	if b.sessionOwnership[session.Identity] == nil {
+		b.sessionOwnership[session.Identity] = []uuid.UUID{session.ID}
 	} else {
-		// storing session until it's expired and removed
-		b.sessionOwnership[s.Identity] = append(b.sessionOwnership[s.Identity], s.ID)
+		// storing session until it'session expired and removed
+		b.sessionOwnership[session.Identity] = append(b.sessionOwnership[session.Identity], session.ID)
 	}
+
+	b.sessionHead[session.TraceID] = session.ID
 
 	b.Unlock()
 
 	return nil
 }
 
-func (b *DefaultBackend) UpdateSession(ctx context.Context, fn func(ctx context.Context, s *Session) (*Session, error)) (err error) {
-	panic("implement me")
+func (b *DefaultBackend) UpdateSession(
+	ctx context.Context,
+	id uuid.UUID,
+	fn func(ctx context.Context, session *Session) (*Session, error),
+) (_ *Session, err error) {
+	b.Lock()
+	defer b.Unlock()
+
+	// obtaining session
+	current, ok := b.sessions[id]
+	if !ok {
+		return nil, ErrSessionNotFound
+	}
+
+	// cannot update revoked session
+	if current.IsRevoked() {
+		return nil, ErrSessionRevoked
+	}
+
+	// applying user function
+	updated, err := fn(ctx, &current)
+	if err != nil {
+		return nil, errors.Wrapf(err, "failed to update session: %s", id)
+	}
+
+	return updated, nil
 }
 
 func (b *DefaultBackend) CreateRefreshToken(ctx context.Context, rt RefreshToken) error {
 	b.Lock()
 	b.refreshTokens[rt.Hash] = rt
+	b.refreshTokenHead[rt.TraceID] = rt.Hash
 	b.Unlock()
 
 	return nil
 }
 
-func (b *DefaultBackend) CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error) {
-	payload, err := json.Marshal(tpair)
-	if err != nil {
-		return errors.Wrap(err, "failed to marshal token pair")
-	}
-
-	err = b.exchangeCodeCache.Put(
-		ctx,
-		code,
-		payload,
-	)
-
-	if err != nil {
-		return errors.Wrap(err, "failed to cache authorization code and token pair")
-	}
-
-	return nil
-}
-
-func (b *DefaultBackend) ExchangeCode(ctx context.Context, code string) (tpair TokenPair, err error) {
-	// obtaining cached entry
-	payload, err := b.exchangeCodeCache.Get(ctx, code)
-	if err != nil {
-		return tpair, ErrAuthorizationCodeNotFound
-	}
-
-	if err = json.Unmarshal(payload, &tpair); err != nil {
-		return tpair, errors.Wrap(err, "failed to unmarshal token pair")
-	}
-
-	// deleting cache entry
-	if err = b.exchangeCodeCache.Delete(ctx, code); err != nil {
-		return tpair, errors.Wrap(err, "failed to delete authorization code")
-	}
-
-	return tpair, nil
-}
-
 // GetSession fetches a session by a given token hash from the registry backend
-func (b *DefaultBackend) SessionByID(ctx context.Context, jti uuid.UUID) (s *Session, err error) {
+func (b *DefaultBackend) GetSessionByID(ctx context.Context, jti uuid.UUID) (s *Session, err error) {
 	if jti == uuid.Nil {
 		return s, ErrInvalidJTI
 	}
@@ -307,12 +312,54 @@ func (b *DefaultBackend) RotateRefreshToken(ctx context.Context, h RefreshTokenH
 	return nil
 }
 
-func (b *DefaultBackend) TokenPairByAuthorizationCode(ctx context.Context, code string) (tpair TokenPair, challenge PKCEChallenge, err error) {
-	panic("implement me")
+func (b *DefaultBackend) CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error) {
+	payload, err := json.Marshal(tpair)
+	if err != nil {
+		return errors.Wrap(err, "failed to marshal token pair")
+	}
+
+	err = b.exchangeCodeCache.Put(
+		ctx,
+		code,
+		payload,
+	)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to cache authorization code and token pair")
+	}
+
+	return nil
+}
+
+func (b *DefaultBackend) GetAuthorizationPayloadByCode(ctx context.Context, code string) (payload AuthorizationCodePayload, err error) {
+	code = strings.TrimSpace(code)
+	if code == "" {
+		return payload, ErrAuthorizationCodeEmpty
+	}
+
+	cache, err := b.exchangeCodeCache.Get(ctx, code)
+	if err != nil {
+		if err == ErrEntryNotFound {
+			return
+		}
+
+		return payload, errors.Wrap(err, "failed to obtain payload")
+	}
+
+	if err = json.Unmarshal(cache, &payload); err != nil {
+		return payload, errors.Wrap(err, "failed to unmarshal token pair")
+	}
+
+	return payload, nil
 }
 
 func (b *DefaultBackend) DeleteAuthorizationCode(ctx context.Context, code string) (err error) {
-	panic("implement me")
+	// deleting cache entry
+	if err = b.exchangeCodeCache.Delete(ctx, code); err != nil {
+		return errors.Wrap(err, "failed to delete authorization code")
+	}
+
+	return nil
 }
 
 // DeleteSession deletes a given session from the backend registry
@@ -324,8 +371,32 @@ func (b *DefaultBackend) DeleteRefreshToken(ctx context.Context, t RefreshToken)
 	return nil
 }
 
+func (b *DefaultBackend) GetHeadSessionByTraceID(ctx context.Context, traceID uuid.UUID) (_ *Session, err error) {
+	b.RLock()
+	s, ok := b.sessions[b.sessionHead[traceID]]
+	b.RUnlock()
+
+	if !ok {
+		return nil, ErrSessionNotFound
+	}
+
+	return &s, nil
+}
+
+func (b *DefaultBackend) GetHeadRefreshTokenByTraceID(ctx context.Context, traceID uuid.UUID) (rtok RefreshToken, err error) {
+	b.RLock()
+	rtok, ok := b.refreshTokens[b.refreshTokenHead[traceID]]
+	b.RUnlock()
+
+	if !ok {
+		return rtok, ErrRefreshTokenNotFound
+	}
+
+	return rtok, nil
+}
+
 // GetSessionByRefreshToken retrieves session by a refresh token
-func (b *DefaultBackend) RefreshTokenByHash(ctx context.Context, hash RefreshTokenHash) (t RefreshToken, err error) {
+func (b *DefaultBackend) GetRefreshTokenByHash(ctx context.Context, hash RefreshTokenHash) (t RefreshToken, err error) {
 	b.RLock()
 	t, ok := b.refreshTokens[hash]
 	b.RUnlock()

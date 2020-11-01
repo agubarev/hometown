@@ -71,6 +71,7 @@ func (h RefreshTokenHash) String() string {
 
 type RefreshToken struct {
 	ID                     uuid.UUID        `db:"id" json:"id"`
+	TraceID                uuid.UUID        `db:"trace_id" json:"trace_id"`
 	ParentID               uuid.UUID        `db:"parent_id" json:"parent_id"`
 	RotatedID              uuid.UUID        `db:"rotated_id" json:"rotated_id"`
 	LastSessionID          uuid.UUID        `db:"last_session_id" json:"last_session_id"`
@@ -107,6 +108,7 @@ func (rtok *RefreshToken) IsActive() (bool, error) {
 }
 
 func NewRefreshToken(
+	traceID uuid.UUID,
 	jti uuid.UUID,
 	c *client.Client,
 	identity Identity,
@@ -128,8 +130,14 @@ func NewRefreshToken(
 		return rtok, ErrClientIsNonconfidential
 	}
 
+	// trace ID must be given
+	if traceID == uuid.Nil {
+		return rtok, ErrInvalidTraceID
+	}
+
 	rtok = RefreshToken{
 		Hash:          NewTokenHash(),
+		TraceID:       traceID,
 		ID:            uuid.New(),
 		ClientID:      c.ID,
 		Identity:      identity,
@@ -158,6 +166,7 @@ func NewRotatedRefreshToken(currentToken RefreshToken) (newToken RefreshToken, e
 	newToken = RefreshToken{
 		Hash:          NewTokenHash(),
 		ID:            uuid.New(),
+		TraceID:       currentToken.TraceID,
 		ParentID:      currentToken.ID,
 		ClientID:      currentToken.ClientID,
 		Identity:      currentToken.Identity,
@@ -177,6 +186,10 @@ func (rtok *RefreshToken) Validate() error {
 
 	if rtok.ClientID == uuid.Nil {
 		return client.ErrInvalidClientID
+	}
+
+	if rtok.TraceID == uuid.Nil {
+		return ErrInvalidTraceID
 	}
 
 	// session (access token) ID must be provided

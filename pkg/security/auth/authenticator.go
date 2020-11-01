@@ -17,7 +17,6 @@ import (
 	"github.com/agubarev/hometown/pkg/token"
 	"github.com/agubarev/hometown/pkg/user"
 	"github.com/agubarev/hometown/pkg/util"
-	"github.com/allegro/bigcache"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
@@ -83,6 +82,11 @@ type ClientCredentials struct {
 type UserCredentials struct {
 	Username string `json:"username"`
 	Password []byte `json:"password"`
+}
+
+type AuthorizationCodePayload struct {
+	PKCEChallenge `json:"pkce"`
+	TokenPair     `json:"token_pair"`
 }
 
 type Options struct {
@@ -330,6 +334,7 @@ func (a *Authenticator) AuthenticateClientBySecret(
 	// creating a new session for this client alone
 	session, signedToken, err = a.CreateSession(
 		ctx,
+		uuid.New(),
 		c,
 		NilIdentity,
 		meta,
@@ -342,30 +347,6 @@ func (a *Authenticator) AuthenticateClientBySecret(
 	)
 
 	return c, session, signedToken, nil
-}
-
-func (a *Authenticator) ExchangeAuthorizationCode(
-	ctx context.Context,
-	code string,
-	meta *RequestMetadata,
-) (
-	tpair TokenPair,
-	err error,
-) {
-	tpair, err = a.backend.ExchangeCode(ctx, code)
-	if err != nil {
-		a.Logger().Error(
-			"failed to exchange authorization code for token",
-			zap.String("code", code),
-			zap.Error(err),
-		)
-
-		if err == bigcache.ErrEntryNotFound {
-			return tpair, ErrAuthorizationCodeNotFound
-		}
-	}
-
-	return tpair, nil
 }
 
 // AuthenticateByPassword authenticates a user by username and password.
@@ -498,45 +479,16 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 		return nil, tpair, ErrIdentityMismatch
 	}
 
-	// checking whether there is an existing session attached to this refresh token
-	session, err = a.SessionByID(ctx, rtok.LastSessionID)
-	switch err {
-	case nil:
-		// WARNING: re-using existing session if it's active
-		// NOTE: an expired session is also considered as revoked
-		if session.IsRevoked() {
-			// since this session has been revoked, then it makes
-			// sense to also revoke its related refresh token
-			return nil, tpair, ErrSessionRevoked
-		}
-	case ErrSessionNotFound:
-		// session is not found, creating new session without
-		// intermediary authorization code
-		session, tpair, err = a.CreateSessionWithRefreshToken(
-			ctx,
-			&rtok,
-			c,
-			UserIdentity(rtok.Identity.ID),
-			meta,
-		)
-
-		if err != nil {
-			return nil, tpair, errors.Wrapf(
-				err,
-				"failed to create new session, authenticated by refresh token",
-			)
-		}
-	}
-
-	// obtaining associated user
-	u, err := a.UserManager().UserByID(ctx, session.Identity.ID)
+	// first, obtaining associated user before anything else,
+	// to check whether it still exists or is suspended
+	u, err := a.UserManager().UserByID(ctx, rtok.Identity.ID)
 	if err != nil {
 		return nil, tpair, errors.Wrap(err, "failed to obtain user associated with this session")
 	}
 
 	// extending logger fields
 	l = a.Logger().With(
-		zap.String("user_id", session.Identity.ID.String()),
+		zap.String("user_id", rtok.Identity.ID.String()),
 		zap.String("username", u.Username),
 	)
 
@@ -550,19 +502,41 @@ func (a *Authenticator) AuthenticateUserByRefreshToken(
 			zap.Time("suspension_expires_at", u.SuspensionExpiresAt),
 		)
 
-		// since this user is suspended, then it's safe to assume
-		// that this token is a liability and a possible threat,
-		// and... is asking to be deleted
-		if err = a.backend.DeleteRefreshToken(ctx, rtok); err != nil {
-			l.Error(
-				"USER SUSPENDED: failed to delete refresh token",
-				zap.Error(err),
-			)
+		return nil, tpair, ErrUserSuspended
+	}
 
-			return session, tpair, errors.Wrapf(err, "failed to delete refresh token: %s", rtok.ID)
+	// checking whether there is an existing session attached to this refresh token
+	// TODO: revoke previous session and create new
+	session, err = a.SessionByID(ctx, rtok.LastSessionID)
+	if err != nil && err == ErrSessionNotFound {
+		return nil, tpair, errors.Wrapf(err, "failed to obtain previous session: %s", rtok.LastSessionID)
+	}
+
+	// checking previous session if it's still intact
+	if session != nil {
+		// NOTE: an expired session is also considered as revoked
+		if session.IsRevoked() {
+			// since this session has been revoked, then it makes
+			// sense to also revoke its related refresh token
+			return nil, tpair, ErrSessionRevoked
 		}
+	}
 
-		return session, tpair, ErrUserSuspended
+	// creating new session and rotating refresh token
+	session, tpair, err = a.CreateSessionWithRefreshToken(
+		ctx,
+		uuid.New(),
+		&rtok,
+		c,
+		UserIdentity(rtok.Identity.ID),
+		meta,
+	)
+
+	if err != nil {
+		return nil, tpair, errors.Wrapf(
+			err,
+			"failed to create new session, authenticated by refresh token",
+		)
 	}
 
 	l.Debug("authenticated user by refresh token (rotated)")
@@ -582,12 +556,13 @@ func (a *Authenticator) RefreshTokenByHash(
 		return rt, err
 	}
 
-	return a.backend.RefreshTokenByHash(ctx, hash)
+	return a.backend.GetRefreshTokenByHash(ctx, hash)
 }
 
 // CreateSession creates a new session for a given owner within the specified realm
 func (a *Authenticator) CreateSession(
 	ctx context.Context,
+	traceID uuid.UUID,
 	clnt *client.Client,
 	ident Identity,
 	meta *RequestMetadata,
@@ -603,7 +578,7 @@ func (a *Authenticator) CreateSession(
 	}
 
 	// initializing new session
-	session, err = NewSession(clnt, ident, meta, DefaultSessionTTL)
+	session, err = NewSession(traceID, clnt, ident, meta, DefaultSessionTTL)
 	if err != nil {
 		return session, "", errors.Wrap(err, "failed to initialize new session")
 	}
@@ -624,6 +599,7 @@ func (a *Authenticator) CreateSession(
 
 func (a *Authenticator) CreateSessionWithRefreshToken(
 	ctx context.Context,
+	traceID uuid.UUID,
 	oldToken *RefreshToken,
 	clnt *client.Client,
 	ident Identity,
@@ -668,7 +644,7 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 	}
 
 	// creating base session
-	session, signedToken, err := a.CreateSession(ctx, clnt, ident, meta)
+	session, signedToken, err := a.CreateSession(ctx, traceID, clnt, ident, meta)
 	if err != nil {
 		return nil, tpair, errors.Wrap(err, "failed to create session")
 	}
@@ -700,7 +676,7 @@ func (a *Authenticator) CreateSessionWithRefreshToken(
 		}
 	} else {
 		// otherwise, initializing new refresh token
-		newToken, err = NewRefreshToken(session.ID, clnt, ident, session.ExpireAt)
+		newToken, err = NewRefreshToken(session.TraceID, session.ID, clnt, ident, session.ExpireAt)
 		if err != nil {
 			return nil, tpair, errors.Wrap(err, "failed to initialize refresh token for new session")
 		}
@@ -801,22 +777,85 @@ func (a *Authenticator) RotateRefreshToken(ctx context.Context, tokenHash Refres
 // and can be used to re-generate a new session, thus it must
 // be preserved until it eventually expires, and then deleted
 // WARNING: session MUST NOT be deleted at least until it expires naturally
-func (a *Authenticator) RevokeSession(ctx context.Context, session *Session, meta *RequestMetadata) (err error) {
-	if session.IsRevoked() {
-		return ErrSessionAlreadyRevoked
+func (a *Authenticator) RevokeSession(ctx context.Context, sessionID uuid.UUID, revoker uint32, reason string) (err error) {
+	// this is a trace ID which interwines related sessions and refresh tokens
+	var traceID uuid.UUID
+
+	l := a.Logger()
+
+	// revoking
+	_, err = a.backend.UpdateSession(ctx, sessionID, func(ctx context.Context, session *Session) (*Session, error) {
+		if session.IsRevoked() {
+			return nil, ErrSessionAlreadyRevoked
+		}
+
+		// copying trace ID
+		traceID = session.TraceID
+
+		// extending logger fields
+		l = l.With(
+			zap.String("session_id", session.ID.String()),
+			zap.String("trace_id", traceID.String()),
+		)
+
+		// revoking
+		switch revoker {
+		case SRevokedByClient:
+			if err = session.RevokeByClient(); err != nil {
+				return nil, errors.Wrapf(err, "failed to revoke session by client: %s", sessionID)
+			}
+			l.Debug("session revoked by client")
+		case SRevokedBySystem:
+			if err = session.RevokeBySystem(reason); err != nil {
+				return nil, errors.Wrapf(err, "failed to revoke session by system: %s", sessionID)
+			}
+			l.Debug("session revoked by system")
+		case SRevokedByExpiry:
+			if err = session.RevokeByExpiry(); err != nil {
+				return nil, errors.Wrapf(err, "failed to revoke session by expiry: %s", sessionID)
+			}
+			l.Debug("session revoked by expiry")
+		}
+
+		return session, nil
+	})
+
+	if err != nil {
+		return errors.Wrapf(err, "failed to revoke session: %s", sessionID)
 	}
 
-	panic("not implemented")
+	// at this point this session must be revoked, but it still may
+	// exist related entities i.e. tokens, exchange codes, etc.,
+	// that must be deleted or revoked due to their lack of use.
+
+	// finding and revoking an actual refresh token (HEAD)
+	rtok, err := a.backend.GetHeadRefreshTokenByTraceID(ctx, traceID)
+	if err != nil {
+		return errors.Wrapf(
+			err,
+			"failed to obtain actual refresh token by session trace id: %s",
+			traceID.String(),
+		)
+	}
+
+	// revoking head refresh token
+	if err = a.RevokeRefreshToken(ctx, rtok.Hash, "revoked session"); err != nil {
+		return err
+	}
 
 	return nil
 }
 
 // SessionByID returns a session if it's found in the backend by its token string
 func (a *Authenticator) SessionByID(ctx context.Context, jti uuid.UUID) (*Session, error) {
-	return a.backend.SessionByID(ctx, jti)
+	return a.backend.GetSessionByID(ctx, jti)
 }
 
-func (a *Authenticator) RevokeRefreshToken(ctx context.Context, hash RefreshTokenHash, reason string) (err error) {
+func (a *Authenticator) RevokeRefreshToken(
+	ctx context.Context,
+	hash RefreshTokenHash,
+	reason string,
+) (err error) {
 	rtok, err := a.RefreshTokenByHash(ctx, hash)
 	if err != nil {
 		return errors.Wrapf(err, "failed to obtain refresh token by hash: %s", hash.String())
@@ -845,4 +884,40 @@ func (a *Authenticator) RevokeRefreshToken(ctx context.Context, hash RefreshToke
 	logger.Debug("revoked refresh token")
 
 	return nil
+}
+
+func (a *Authenticator) ExchangeAuthorizationCode(
+	ctx context.Context,
+	code string,
+	verifier string,
+) (
+	tpair TokenPair,
+	err error,
+) {
+	// obtaining cached entry
+	payload, err := a.backend.GetAuthorizationPayloadByCode(ctx, code)
+	if err != nil {
+		a.Logger().Error(
+			"failed to exchange authorization code for token",
+			zap.String("code", code),
+			zap.Error(err),
+		)
+
+		return tpair, ErrAuthorizationCodeNotFound
+	}
+
+	// deferred function to make sure this payload is deleted,
+	// whether its verification is correct or wrong
+	defer func() {
+		if _err := a.backend.DeleteAuthorizationCode(ctx, code); err != nil {
+			err = errors.Wrapf(err, "failed to delete authorization code: %s", _err)
+		}
+	}()
+
+	// challenge verification
+	if !payload.PKCEChallenge.Verify(verifier) {
+		return tpair, ErrCodeChallengeVerificationFailed
+	}
+
+	return payload.TokenPair, nil
 }
