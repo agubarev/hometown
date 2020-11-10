@@ -100,6 +100,7 @@ const (
 	APCopy
 	APDuplicate
 	APMove
+	APRename
 	APManageAccess
 	APFullAccess = ^Right(0)
 
@@ -120,7 +121,7 @@ func (r Right) Translate() string {
 	case APCreate:
 		return "create"
 	case APChange:
-		return "rosterChange"
+		return "change"
 	case APDelete:
 		return "delete"
 	case APRestoreDeleted:
@@ -131,6 +132,8 @@ func (r Right) Translate() string {
 		return "duplicate"
 	case APMove:
 		return "move"
+	case APRename:
+		return "rename"
 	case APManageAccess:
 		return "manage_access"
 	case APFullAccess:

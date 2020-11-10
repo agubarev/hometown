@@ -12,9 +12,9 @@ type PKCEChallenge struct {
 	Method    string
 }
 
-func NewPKCEChallenge(challenge, method string) (c PKCEChallenge, err error) {
+func NewPKCEChallenge(challenge string, method string) (c PKCEChallenge, err error) {
 	c = PKCEChallenge{
-		Challenge: strings.ToLower(strings.TrimSpace(challenge)),
+		Challenge: challenge,
 		Method:    strings.ToLower(strings.TrimSpace(method)),
 	}
 
@@ -22,7 +22,7 @@ func NewPKCEChallenge(challenge, method string) (c PKCEChallenge, err error) {
 }
 
 func (c *PKCEChallenge) Validate() error {
-	if c.Challenge == "" {
+	if len(c.Challenge) == 0 {
 		return ErrEmptyCodeChallenge
 	}
 
@@ -41,9 +41,9 @@ func (c *PKCEChallenge) Verify(verifier string) bool {
 	switch c.Method {
 	case "s256":
 		s256checksum := sha256.Sum256(*(*[]byte)(unsafe.Pointer(&verifier)))
-		return c.Challenge == base64.URLEncoding.EncodeToString(s256checksum[:])
+		return string(c.Challenge) == base64.URLEncoding.EncodeToString(s256checksum[:])
 	case "plain":
-		return c.Challenge == verifier
+		return string(c.Challenge) == verifier
 	default:
 		return false
 	}

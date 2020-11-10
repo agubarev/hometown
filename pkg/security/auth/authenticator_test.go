@@ -1,6 +1,8 @@
 package auth_test
 
 import (
+	"crypto/sha256"
+	"encoding/base64"
 	"reflect"
 	"testing"
 	"time"
@@ -629,4 +631,129 @@ func TestAuthenticator_RevokeSessionMustRevokeActualRefreshToken(t *testing.T) {
 	a.False(rtok1.IsExpired())
 	a.True(rtok1.IsRevoked())
 	a.False(rtok1.IsRotated())
+}
+
+func TestAuthenticator_CreateAndExchangeAuthorizationCode(t *testing.T) {
+	a := assert.New(t)
+
+	// obtaining and truncating a test database
+	db := database.PostgreSQLForTesting(nil)
+	a.NotNil(db)
+
+	// initializing test user manager
+	userManager, ctx, err := user.ManagerForTesting(db)
+	a.NoError(err)
+	a.NotNil(userManager)
+
+	passwordManager, err := password.NewManager(password.NewMemoryStore())
+	a.NoError(err)
+	a.NotNil(passwordManager)
+
+	// initializing client manager
+	clientManager := client.NewManager(client.NewMemoryStore())
+	a.NotNil(clientManager)
+	a.NoError(clientManager.SetPasswordManager(passwordManager))
+
+	// initializing accesspolicy manager
+	authenticator, err := auth.NewAuthenticator(
+		nil,
+		userManager,
+		clientManager,
+		auth.NewDefaultRegistryBackend(),
+		auth.DefaultOptions(),
+	)
+	a.NoError(err)
+	a.NotNil(authenticator)
+
+	// setting authenticator logger
+	al, err := util.DefaultLogger(true, "")
+	a.NoError(err)
+	a.NotNil(al)
+	a.NoError(authenticator.SetLogger(al))
+
+	// generating test password
+	testpass := password.NewRaw(32, 3, password.GFDefault)
+
+	//creating test user
+	testuser, err := user.CreateTestUser(ctx, userManager, "testuser", "testuser@hometown.local", testpass)
+	a.NoError(err)
+	a.NotNil(testuser)
+
+	// creating confidential client
+	clnt, err := clientManager.CreateClient(ctx, "test client", client.FConfidential)
+	a.NoError(err)
+	a.NotNil(clnt)
+
+	// creating client password
+	clientPassword, err := clientManager.CreatePassword(ctx, clnt.ID)
+	a.NoError(err)
+	a.NotZero(clientPassword)
+
+	// creating test session to obtain a token pair
+	session1, tpair1, err := authenticator.CreateSessionWithRefreshToken(
+		ctx,
+		uuid.New(),
+		nil,
+		clnt,
+		auth.UserIdentity(testuser.ID),
+		auth.NewRequestMetadata(nil),
+	)
+	a.NoError(err)
+	a.NotNil(session1)
+	a.NotEmpty(tpair1.AccessToken)
+	a.NotZero(tpair1.RefreshToken)
+
+	// creating code verifier and challenge
+	codeVerifier := "secret phrase"
+	method := "s256"
+
+	h := sha256.New()
+	h.Write([]byte(codeVerifier))
+	codeChallenge := base64.URLEncoding.EncodeToString(h.Sum(nil))
+
+	// creating authorization code
+	code, err := authenticator.CreateAuthorizationCode(
+		ctx,
+		auth.PKCEChallenge{
+			Challenge: codeChallenge,
+			Method:    method,
+		},
+		tpair1,
+	)
+	a.NoError(err)
+	a.NotEmpty(code)
+
+	// exchanging code for a token pair (wrong code: empty)
+	tpair2, err := authenticator.ExchangeAuthorizationCode(ctx, "", codeVerifier)
+	a.Error(err)
+	a.EqualError(errors.Cause(err), auth.ErrAuthorizationCodeNotFound.Error())
+
+	// exchanging code for a token pair (wrong code)
+	tpair2, err = authenticator.ExchangeAuthorizationCode(ctx, "wrong code", codeVerifier)
+	a.Error(err)
+	a.EqualError(errors.Cause(err), auth.ErrAuthorizationCodeNotFound.Error())
+
+	// exchanging code for a token pair (wrong verifier)
+	tpair2, err = authenticator.ExchangeAuthorizationCode(ctx, code, "wrong code verifier")
+	a.Error(err)
+	a.EqualError(errors.Cause(err), auth.ErrCodeChallengeVerificationFailed.Error())
+
+	// re-creating authorization code because supplying wrong
+	// code verifier must result in this code being deleted
+	code, err = authenticator.CreateAuthorizationCode(
+		ctx,
+		auth.PKCEChallenge{
+			Challenge: codeChallenge,
+			Method:    method,
+		},
+		tpair1,
+	)
+	a.NoError(err)
+	a.NotEmpty(code)
+
+	// exchanging code for a token pair (correct)
+	tpair2, err = authenticator.ExchangeAuthorizationCode(ctx, code, codeVerifier)
+	a.NoError(err)
+	a.Equal(tpair1.AccessToken, tpair2.AccessToken)
+	a.Equal(tpair1.RefreshToken, tpair2.RefreshToken)
 }

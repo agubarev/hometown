@@ -54,14 +54,15 @@ type ContextKey uint8
 // context keys
 const (
 	CKAuthenticator ContextKey = iota
+	CKSession
 	CKUserManager
 	CKUser
+	CKClient
 )
 
 // Claims holds required JWT claims
 type Claims struct {
 	Identity Identity `json:"identity"`
-
 	jwt.StandardClaims
 }
 
@@ -82,6 +83,11 @@ type ClientCredentials struct {
 type UserCredentials struct {
 	Username string `json:"username"`
 	Password []byte `json:"password"`
+}
+
+type Credentials struct {
+	Client *ClientCredentials
+	User   *UserCredentials
 }
 
 type AuthorizationCodePayload struct {
@@ -340,6 +346,10 @@ func (a *Authenticator) AuthenticateClientBySecret(
 		meta,
 	)
 
+	if err != nil {
+		return nil, nil, "", errors.Wrap(err, "failed to create session")
+	}
+
 	a.Logger().Debug("client authentication",
 		zap.String("client_id", c.ID.String()),
 		zap.String("client_name", c.Name),
@@ -372,6 +382,10 @@ func (a *Authenticator) AuthenticateUserByPassword(
 		zap.String("ip", meta.IP.String()),
 		zap.String("user_agent", meta.UserAgent),
 	)
+
+	// ! When responding with an access token, the server
+	// ! must also include the additional Cache-Control: no-store
+	// ! and Pragma: no-cache HTTP headers to ensure clients do not cache this request.
 
 	// before authentication, checking whether this user is suspended
 	if u.IsSuspended {
@@ -884,6 +898,47 @@ func (a *Authenticator) RevokeRefreshToken(
 	logger.Debug("revoked refresh token")
 
 	return nil
+}
+
+func (a *Authenticator) SessionByAccessToken(ctx context.Context, signedToken string) (session *Session, err error) {
+	// parsing access token
+	accessToken, err := jwt.ParseWithClaims(signedToken, &Claims{}, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodRSA); !ok {
+			return nil, errors.New("invalid access token signing method")
+		}
+
+		return a.privateKey.Public(), nil
+	})
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse access token")
+	}
+
+	// extracting claims
+	claims, ok := accessToken.Claims.(*Claims)
+	if !ok || !accessToken.Valid {
+		return nil, errors.Wrap(err, "failed to extract token claims")
+	}
+
+	// validating claims
+	if err = claims.Valid(); err != nil {
+		return nil, errors.Wrap(err, "token claim validation failed")
+	}
+
+	// parsing token ID
+	// NOTE: token ID is also a session ID
+	sessionID, err := uuid.Parse(claims.Id)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to parse token id")
+	}
+
+	// obtaining related session by token ID
+	session, err = a.SessionByID(ctx, sessionID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to obtain session by access token")
+	}
+
+	return session, nil
 }
 
 func (a *Authenticator) ExchangeAuthorizationCode(

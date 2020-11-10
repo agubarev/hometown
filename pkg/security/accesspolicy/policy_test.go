@@ -18,8 +18,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -152,8 +151,7 @@ func TestSetPublicRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -294,8 +292,7 @@ func TestSetGroupRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -429,8 +426,7 @@ func TestSetRoleRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -564,8 +560,7 @@ func TestSetUserRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -678,8 +673,7 @@ func TestIsOwner(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// ap store
@@ -748,8 +742,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// ap store
@@ -856,8 +849,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// p store
@@ -990,8 +982,7 @@ func TestHasGroupRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// ap store

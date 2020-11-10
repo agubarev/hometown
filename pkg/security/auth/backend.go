@@ -201,6 +201,8 @@ func (b *DefaultBackend) UpdateSession(
 		return nil, errors.Wrapf(err, "failed to update session: %s", id)
 	}
 
+	b.sessions[id] = *updated
+
 	return updated, nil
 }
 
@@ -313,11 +315,16 @@ func (b *DefaultBackend) RotateRefreshToken(ctx context.Context, h RefreshTokenH
 }
 
 func (b *DefaultBackend) CreateAuthorizationCode(ctx context.Context, code string, challenge PKCEChallenge, tpair TokenPair) (err error) {
-	payload, err := json.Marshal(tpair)
+	payload, err := json.Marshal(AuthorizationCodePayload{
+		PKCEChallenge: challenge,
+		TokenPair:     tpair,
+	})
+
 	if err != nil {
 		return errors.Wrap(err, "failed to marshal token pair")
 	}
 
+	// pushing payload into the cache
 	err = b.exchangeCodeCache.Put(
 		ctx,
 		code,

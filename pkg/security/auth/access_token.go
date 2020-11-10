@@ -31,12 +31,12 @@ func NewAccessToken(
 
 	// generating and signing a new access token
 	atok := jwt.NewWithClaims(jwt.SigningMethodRS256, Claims{
-		Identity: ident,
 		StandardClaims: jwt.StandardClaims{
 			IssuedAt:  time.Now().Unix(),
 			ExpiresAt: expireAt.Unix(),
 			Id:        jti.String(),
 		},
+		Identity: ident,
 	})
 
 	// signing access token

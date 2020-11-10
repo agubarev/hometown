@@ -20,8 +20,7 @@ func TestNewAccessPolicyManager(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -55,8 +54,7 @@ func TestAccessPolicyManagerCreate(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -388,8 +386,7 @@ func TestAccessPolicyManagerUpdate(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -527,8 +524,7 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store
@@ -614,8 +610,7 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	ctx := context.Background()
 
 	// database instance
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	// policy store

@@ -36,6 +36,7 @@ type IdentityKind uint8
 const (
 	IKNone = iota
 	IKUser
+	IKApplication
 )
 
 func (k IdentityKind) String() string {
