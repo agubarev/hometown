@@ -67,7 +67,7 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 	// for everyone
 	records = append(records, RosterEntry{
 		PolicyID:        pid,
-		ActorKind:       AEveryone,
+		ActorKind:       AKEveryone,
 		Access:          r.Everyone,
 		AccessExplained: r.Everyone.String(),
 	})
@@ -76,7 +76,7 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 	r.registryLock.RLock()
 	for _, _r := range r.Registry {
 		switch _r.Key.Kind {
-		case ARoleGroup, AGroup, AUser:
+		case AKRoleGroup, AKGroup, AKUser:
 			records = append(records, RosterEntry{
 				PolicyID:        pid,
 				ActorKind:       _r.Key.Kind,
@@ -105,9 +105,9 @@ func (s *PostgreSQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 	// transforming database records into the roster object
 	for _, _r := range records {
 		switch _r.ActorKind {
-		case AEveryone:
+		case AKEveryone:
 			r.Everyone = _r.Access
-		case ARoleGroup, AGroup, AUser:
+		case AKRoleGroup, AKGroup, AKUser:
 			r.put(NewActor(_r.ActorKind, _r.ActorID), _r.Access)
 		default:
 			log.Printf(
@@ -127,7 +127,7 @@ func (s *PostgreSQLStore) applyRosterChanges(tx *pgx.Tx, pid uuid.UUID, r *Roste
 	// TODO: optimize by squashing inserts and deletes into single queries
 	for _, c := range r.changes {
 		// actor Name must not be NIL for any other than Public actor kind
-		if c.key.Kind != AEveryone && c.key.ID == uuid.Nil {
+		if c.key.Kind != AKEveryone && c.key.ID == uuid.Nil {
 			return ErrNilActorID
 		}
 

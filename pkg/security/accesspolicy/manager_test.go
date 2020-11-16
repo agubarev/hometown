@@ -562,10 +562,10 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	// expected rights
 	wantedRights := accesspolicy.APCreate | accesspolicy.APView | accesspolicy.APDelete
 
-	act1 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	act2 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	act3 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	act4 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act1 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
+	act2 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
+	act3 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
+	act4 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
 
 	//---------------------------------------------------------------------------
 	// proceeding with the test
@@ -589,12 +589,12 @@ func TestAccessPolicyManagerSetRights(t *testing.T) {
 	a.NoError(m.GrantAccess(ctx, ap.ID, act1, act4, wantedRights))
 
 	// roles
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.AKRoleGroup, r1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.AKRoleGroup, r2.ID), wantedRights))
 
 	// groups
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, g2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.AKRoleGroup, g1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, ap.ID, act1, accesspolicy.NewActor(accesspolicy.AKRoleGroup, g2.ID), wantedRights))
 
 	// persisting changes
 	a.NoError(m.Update(ctx, ap))
@@ -648,10 +648,10 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	// expected rights
 	wantedRights := accesspolicy.APView | accesspolicy.APChange | accesspolicy.APDelete | accesspolicy.APCopy
 
-	act1 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	act2 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	act3 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
-	act4 := accesspolicy.NewActor(accesspolicy.AUser, uuid.New())
+	act1 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
+	act2 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
+	act3 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
+	act4 := accesspolicy.NewActor(accesspolicy.AKUser, uuid.New())
 	obj := accesspolicy.NewObject(uuid.New(), "test object name")
 
 	//---------------------------------------------------------------------------
@@ -676,12 +676,12 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.NoError(m.GrantAccess(ctx, p.ID, act1, act4, wantedRights))
 
 	// roles
-	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.ARoleGroup, r2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AKRoleGroup, r1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AKRoleGroup, r2.ID), wantedRights))
 
 	// groups
-	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AGroup, g1.ID), wantedRights))
-	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AGroup, g2.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AKGroup, g1.ID), wantedRights))
+	a.NoError(m.GrantAccess(ctx, p.ID, act1, accesspolicy.NewActor(accesspolicy.AKGroup, g2.ID), wantedRights))
 
 	// persisting changes
 	a.NoError(m.Update(ctx, p))

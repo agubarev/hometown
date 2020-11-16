@@ -43,28 +43,28 @@ func NewActor(k ActorKind, id uuid.UUID) Actor {
 func PublicActor() Actor {
 	return Actor{
 		ID:   uuid.Nil,
-		Kind: AEveryone,
+		Kind: AKEveryone,
 	}
 }
 
 func UserActor(id uuid.UUID) Actor {
 	return Actor{
 		ID:   id,
-		Kind: AUser,
+		Kind: AKUser,
 	}
 }
 
 func GroupActor(id uuid.UUID) Actor {
 	return Actor{
 		ID:   id,
-		Kind: AGroup,
+		Kind: AKGroup,
 	}
 }
 
 func RoleActor(id uuid.UUID) Actor {
 	return Actor{
 		ID:   id,
-		Kind: ARoleGroup,
+		Kind: AKRoleGroup,
 	}
 }
 
@@ -203,13 +203,13 @@ func (r *Roster) change(action RAction, key Actor, rights Right) {
 	switch action {
 	case RSet:
 		// if kind is Everyone(public), then there's no need update registry
-		if key.Kind == AEveryone {
+		if key.Kind == AKEveryone {
 			r.Everyone = rights
 		} else {
 			r.put(key, rights)
 		}
 	case RUnset:
-		if key.Kind == AEveryone {
+		if key.Kind == AKEveryone {
 			r.Everyone = APNoAccess
 		} else {
 			r.delete(key)

@@ -60,7 +60,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 	// for everyone
 	records = append(records, RosterEntry{
 		PolicyID:        policyID,
-		ActorKind:     AEveryone,
+		ActorKind:     AKEveryone,
 		Access:     r.Everyone,
 		AccessExplained: r.Everyone.String(),
 	})
@@ -69,7 +69,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 	r.registryLock.RLock()
 	for _, _r := range r.Registry {
 		switch _r.ActorKind {
-		case ARoleGroup, AGroup, AUser:
+		case AKRoleGroup, AKGroup, AKUser:
 			records = append(records, RosterEntry{
 				PolicyID:        policyID,
 				ActorKind:     _r.ActorKind,
@@ -97,9 +97,9 @@ func (s *DefaultMySQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 	// transforming database records into the roster object
 	for _, _r := range records {
 		switch _r.ActorKind {
-		case AEveryone:
+		case AKEveryone:
 			r.Everyone = _r.Access
-		case ARoleGroup, AGroup, AUser:
+		case AKRoleGroup, AKGroup, AKUser:
 			r.put(_r.ActorKind, _r.ActorID, _r.Access)
 		default:
 			log.Printf(

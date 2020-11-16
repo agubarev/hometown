@@ -17,6 +17,7 @@ type ContextKey uint16
 
 const (
 	CKUserManager ContextKey = iota
+	CKUser
 	CKGroupManager
 	CKAccessPolicyManager
 )

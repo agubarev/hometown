@@ -27,7 +27,7 @@ var (
 	ErrCacheMiss                    = errors.New("roster cache miss")
 	ErrEmptyRoster                  = errors.New("rights rosters is empty")
 	ErrNilAccessPolicy              = errors.New("accesspolicy policy is nil")
-	ErrAccessDenied                 = errors.New("accesspolicy denied")
+	ErrAccessDenied                 = errors.New("access denied")
 	ErrNoViewRight                  = errors.New("user is not allowed to view this")
 	ErrZeroGrantorID                = errors.New("grantor user id is zero")
 	ErrZeroAssigneeID               = errors.New("grantee user id is zero")
@@ -416,13 +416,13 @@ func (m *Manager) HasRights(ctx context.Context, pid uuid.UUID, actor Actor, rig
 	}
 
 	switch actor.Kind {
-	case AEveryone:
+	case AKEveryone:
 		return m.HasPublicRights(ctx, pid, rights)
-	case AUser:
+	case AKUser:
 		return m.UserHasAccess(ctx, pid, actor.ID, rights)
-	case ARoleGroup:
+	case AKRoleGroup:
 		return m.HasRoleRights(ctx, pid, actor.ID, rights)
-	case AGroup:
+	case AKGroup:
 		return m.HasGroupRights(ctx, pid, actor.ID, rights)
 	}
 
@@ -447,13 +447,13 @@ func (m *Manager) GrantAccess(ctx context.Context, pid uuid.UUID, grantor, grant
 
 	// setting rights depending on the type of a subject
 	switch grantee.Kind {
-	case AEveryone:
+	case AKEveryone:
 		err = m.GrantPublicAccess(ctx, pid, grantor, access)
-	case AUser:
+	case AKUser:
 		err = m.GrantUserAccess(ctx, pid, grantor, grantee.ID, access)
-	case ARoleGroup:
+	case AKRoleGroup:
 		err = m.GrantRoleAccess(ctx, pid, grantor, grantee.ID, access)
-	case AGroup:
+	case AKGroup:
 		err = m.GrantGroupAccess(ctx, pid, grantor, grantee.ID, access)
 	}
 
@@ -506,9 +506,9 @@ func (m *Manager) RevokeAccess(ctx context.Context, pid uuid.UUID, grantor, gran
 
 	// deleting assigneeID from the rosters (depending on its type)
 	switch grantee.Kind {
-	case AEveryone:
-		r.change(RSet, NewActor(AEveryone, uuid.Nil), APNoAccess)
-	case AUser, ARoleGroup, AGroup:
+	case AKEveryone:
+		r.change(RSet, NewActor(AKEveryone, uuid.Nil), APNoAccess)
+	case AKUser, AKRoleGroup, AKGroup:
 		r.change(RUnset, grantee, APNoAccess)
 	}
 
@@ -637,9 +637,9 @@ func (m *Manager) GroupAccess(ctx context.Context, pid, groupID uuid.UUID) (acce
 
 	switch true {
 	case g.IsGroup():
-		access = r.lookup(NewActor(AGroup, g.ID))
+		access = r.lookup(NewActor(AKGroup, g.ID))
 	case g.IsRole():
-		access = r.lookup(NewActor(ARoleGroup, g.ID))
+		access = r.lookup(NewActor(AKRoleGroup, g.ID))
 	}
 
 	// returning if any positive accesspolicy right is found
@@ -683,7 +683,7 @@ func (m *Manager) GrantPublicAccess(ctx context.Context, pid uuid.UUID, grantor 
 	}
 
 	// deferred instruction for rosterChange
-	r.change(RSet, NewActor(AEveryone, uuid.Nil), rights)
+	r.change(RSet, NewActor(AKEveryone, uuid.Nil), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -737,7 +737,7 @@ func (m *Manager) GrantRoleAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}
 
 	// deferred instruction for rosterChange
-	r.change(RSet, NewActor(ARoleGroup, roleID), rights)
+	r.change(RSet, NewActor(AKRoleGroup, roleID), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -791,7 +791,7 @@ func (m *Manager) GrantGroupAccess(ctx context.Context, pid uuid.UUID, grantor A
 	}
 
 	// deferred instruction for rosterChange
-	r.change(RSet, NewActor(AGroup, groupID), rights)
+	r.change(RSet, NewActor(AKGroup, groupID), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -832,7 +832,7 @@ func (m *Manager) GrantUserAccess(ctx context.Context, pid uuid.UUID, grantor Ac
 	}
 
 	// deferred instruction for change
-	r.change(RSet, NewActor(AUser, userID), rights)
+	r.change(RSet, NewActor(AKUser, userID), rights)
 
 	// all is good, cancelling restoration
 	restoreBackup = false
@@ -940,5 +940,5 @@ func (m *Manager) SummarizedUserAccess(ctx context.Context, policyID, userID uui
 	}
 
 	// user-specific rights
-	return access | r.lookup(NewActor(AUser, userID))
+	return access | r.lookup(NewActor(AKUser, userID))
 }

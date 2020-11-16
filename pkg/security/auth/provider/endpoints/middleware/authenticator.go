@@ -1,4 +1,4 @@
-package endpoints
+package middleware
 
 import (
 	"context"
@@ -19,6 +19,7 @@ func Authenticator(extractor func(r *http.Request) (string, error)) func(http.Ha
 				panic(auth.ErrNilAuthenticator)
 			}
 
+			// user manager
 			userManager, ok := r.Context().Value(user.CKUserManager).(*user.Manager)
 			if !ok || userManager == nil {
 				panic(auth.ErrNilUserManager)
@@ -47,7 +48,11 @@ func Authenticator(extractor func(r *http.Request) (string, error)) func(http.Ha
 					)
 
 					w.WriteHeader(http.StatusInternalServerError)
+
+					return
 				}
+
+				w.WriteHeader(http.StatusUnauthorized)
 
 				return
 			}
@@ -63,7 +68,7 @@ func Authenticator(extractor func(r *http.Request) (string, error)) func(http.Ha
 
 			switch session.Identity.Kind {
 			case auth.IKUser:
-				u, err := userManager.UserByID(ctx, session.Identity.ID)
+				usr, err := userManager.UserByID(ctx, session.Identity.ID)
 				if err != nil {
 					if errors.Cause(err) != user.ErrUserNotFound {
 						logger.Error(
@@ -80,11 +85,11 @@ func Authenticator(extractor func(r *http.Request) (string, error)) func(http.Ha
 				}
 
 				// checking user status
-				if u.IsSuspended {
+				if usr.IsSuspended {
 					logger.Info(
 						"authentication attempt by a suspended user (access token)",
-						zap.Time("suspended_at", u.SuspendedAt),
-						zap.Time("suspension_expires_at", u.SuspensionExpiresAt),
+						zap.Time("suspended_at", usr.SuspendedAt),
+						zap.Time("suspension_expires_at", usr.SuspensionExpiresAt),
 					)
 
 					w.WriteHeader(http.StatusUnauthorized)
@@ -94,12 +99,12 @@ func Authenticator(extractor func(r *http.Request) (string, error)) func(http.Ha
 
 				logger.Debug(
 					"user authenticated (access token)",
-					zap.String("id", u.ID.String()),
-					zap.String("username", u.Username),
+					zap.String("id", usr.ID.String()),
+					zap.String("username", usr.Username),
 					zap.String("ip", session.IP.String()),
 				)
 
-				ctx = context.WithValue(ctx, auth.CKUser, u)
+				ctx = context.WithValue(ctx, user.CKUser, usr)
 			case auth.IKApplication:
 				// TODO: inject client
 			default:
@@ -110,6 +115,8 @@ func Authenticator(extractor func(r *http.Request) (string, error)) func(http.Ha
 				)
 
 				w.WriteHeader(http.StatusUnauthorized)
+
+				return
 			}
 
 			next.ServeHTTP(w, r.WithContext(ctx))

@@ -38,21 +38,21 @@ func NilObject() Object {
 type ActorKind uint8
 
 const (
-	AEveryone ActorKind = 1 << iota
-	AUser
-	AGroup
-	ARoleGroup
+	AKEveryone ActorKind = 1 << iota
+	AKUser
+	AKGroup
+	AKRoleGroup
 )
 
 func (k ActorKind) String() string {
 	switch k {
-	case AEveryone:
+	case AKEveryone:
 		return "everyone"
-	case AUser:
+	case AKUser:
 		return "user"
-	case AGroup:
+	case AKGroup:
 		return "group"
-	case ARoleGroup:
+	case AKRoleGroup:
 		return "role group"
 	default:
 		return "unrecognized actor kind"
