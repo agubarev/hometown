@@ -1,7 +1,8 @@
 package device
 
 import (
-	"github.com/agubarev/hometown/pkg/util/timestamp"
+	"time"
+
 	"github.com/google/uuid"
 )
 
@@ -21,13 +22,13 @@ const (
 
 // Device represents
 type Device struct {
-	Name         string              `db:"name" json:"name"`
-	ID           uuid.UUID           `db:"id" json:"id"`
-	IMEI         string              `db:"imei" json:"imei"`
-	MEID         string              `db:"meid" json:"meid"`
-	SerialNumber string              `db:"esn" json:"esn"`
-	RegisteredAt timestamp.Timestamp `db:"registered_at" json:"registered_at"`
-	ExpireAt     timestamp.Timestamp `db:"expire_at" json:"expire_at"`
-	Flags        Flags               `db:"flags" json:"flags"`
+	Name         string    `db:"name" json:"name"`
+	ID           uuid.UUID `db:"id" json:"id"`
+	IMEI         string    `db:"imei" json:"imei"`
+	MEID         string    `db:"meid" json:"meid"`
+	SerialNumber string    `db:"esn" json:"esn"`
+	RegisteredAt time.Time `db:"registered_at" json:"registered_at"`
+	ExpireAt     time.Time `db:"expire_at" json:"expire_at"`
+	Flags        Flags     `db:"flags" json:"flags"`
 	_            struct{}
 }

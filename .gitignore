@@ -15,6 +15,7 @@ config/
 .vscode/
 .idea/
 bin/
+vendor/
 
 # project related
 test.env

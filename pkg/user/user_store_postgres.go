@@ -62,9 +62,8 @@ func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err e
 			id,	username, display_name, last_login_at, last_login_ip, 
 			last_login_failed_at, last_login_failed_ip,	last_login_attempts, 
 			is_suspended, suspension_reason, suspension_expires_at, 
-			suspended_by_id, checksum, confirmed_at, created_at, 
-			created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id) 
-		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+			checksum, confirmed_at, created_at, updated_at, deleted_at) 
+		VALUES($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT ON CONSTRAINT user_pk
 		DO UPDATE
 			SET display_name 			= EXCLUDED.display_name,
@@ -76,15 +75,11 @@ func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err e
 				is_suspended			= EXCLUDED.is_suspended,
 				suspension_reason		= EXCLUDED.suspension_reason,
 				suspension_expires_at	= EXCLUDED.suspension_expires_at,
-				suspended_by_id			= EXCLUDED.suspended_by_id,
 				checksum				= EXCLUDED.checksum,
 				confirmed_at			= EXCLUDED.confirmed_at,
 				created_at				= EXCLUDED.created_at,
-				created_by_id			= EXCLUDED.created_by_id,
 				updated_at				= EXCLUDED.updated_at,
-				updated_by_id			= EXCLUDED.updated_by_id,
-				deleted_at				= EXCLUDED.deleted_at,
-				deleted_by_id			= EXCLUDED.deleted_by_id`
+				deleted_at				= EXCLUDED.deleted_at`
 
 	_, err = s.db.ExecEx(
 		ctx,
@@ -92,9 +87,8 @@ func (s *PostgreSQLStore) UpsertUser(ctx context.Context, u User) (_ User, err e
 		nil,
 		u.ID, u.Username, u.DisplayName, u.LastLoginAt, u.LastLoginIP,
 		u.LastLoginFailedAt, u.LastLoginFailedIP, u.LastLoginAttempts,
-		u.IsSuspended, u.SuspensionReason, u.SuspensionExpiresAt, u.SuspendedByID,
-		u.Checksum, u.ConfirmedAt, u.CreatedAt, u.CreatedByID, u.UpdatedAt,
-		u.UpdatedByID, u.DeletedAt, u.DeletedByID,
+		u.IsSuspended, u.SuspensionReason, u.SuspensionExpiresAt,
+		u.Checksum, u.ConfirmedAt, u.CreatedAt, u.UpdatedAt, u.DeletedAt,
 	)
 
 	if err != nil {
@@ -108,8 +102,8 @@ func (s *PostgreSQLStore) FetchUserByID(ctx context.Context, id uuid.UUID) (u Us
 	q := `
 	SELECT
 		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
-		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
-		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, checksum,
+		confirmed_at, created_at, updated_at, deleted_at
 	FROM "user"
 	WHERE id = $1
 	LIMIT 1`
@@ -117,8 +111,8 @@ func (s *PostgreSQLStore) FetchUserByID(ctx context.Context, id uuid.UUID) (u Us
 	err = s.db.QueryRowEx(ctx, q, nil, id).
 		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
 			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
-			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
-			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+			&u.SuspensionExpiresAt, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 
 	switch err {
 	case nil:
@@ -134,8 +128,8 @@ func (s *PostgreSQLStore) FetchUserByUsername(ctx context.Context, username stri
 	q := `
 	SELECT
 		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
-		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
-		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, checksum,
+		confirmed_at, created_at, updated_at, deleted_at
 	FROM "user"
 	WHERE username = $1
 	LIMIT 1`
@@ -143,8 +137,8 @@ func (s *PostgreSQLStore) FetchUserByUsername(ctx context.Context, username stri
 	err = s.db.QueryRowEx(ctx, q, nil, username).
 		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
 			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
-			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
-			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+			&u.SuspensionExpiresAt, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 
 	switch err {
 	case nil:
@@ -160,8 +154,8 @@ func (s *PostgreSQLStore) FetchUserByEmailAddr(ctx context.Context, addr string)
 	q := `
 	SELECT
 		id,	username, display_name, last_login_at, last_login_ip, last_login_failed_at, last_login_failed_ip,
-		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, suspended_by_id, checksum,
-		confirmed_at, created_at, created_by_id, updated_at, updated_by_id, deleted_at, deleted_by_id
+		last_login_attempts, is_suspended, suspension_reason, suspension_expires_at, checksum,
+		confirmed_at, created_at, updated_at, deleted_at
 	FROM "user" u
 	LEFT JOIN user_email e ON u.id=e.user_id
 	WHERE e.addr = $1
@@ -170,8 +164,8 @@ func (s *PostgreSQLStore) FetchUserByEmailAddr(ctx context.Context, addr string)
 	err = s.db.QueryRowEx(ctx, q, nil, addr).
 		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
 			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
-			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
-			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+			&u.SuspensionExpiresAt, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 
 	switch err {
 	case nil:
@@ -197,8 +191,8 @@ func (s *PostgreSQLStore) FetchUserByPhoneNumber(ctx context.Context, number str
 	err = s.db.QueryRowEx(ctx, q, nil, number).
 		Scan(&u.ID, &u.Username, &u.DisplayName, &u.LastLoginAt, &u.LastLoginIP, &u.LastLoginFailedAt,
 			&u.LastLoginFailedIP, &u.LastLoginAttempts, &u.IsSuspended, &u.SuspensionReason,
-			&u.SuspensionExpiresAt, &u.SuspendedByID, &u.Checksum, &u.ConfirmedAt,
-			&u.CreatedAt, &u.CreatedByID, &u.UpdatedAt, &u.UpdatedByID, &u.DeletedAt, &u.DeletedByID)
+			&u.SuspensionExpiresAt, &u.Checksum, &u.ConfirmedAt,
+			&u.CreatedAt, &u.UpdatedAt, &u.DeletedAt)
 
 	switch err {
 	case nil:

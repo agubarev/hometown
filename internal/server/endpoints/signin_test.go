@@ -100,7 +100,7 @@ func TestSignin(t *testing.T) {
 		Password: []byte("wrongpass"),
 	})
 
-	req, err := http.NewRequest("POST", "/api/v1/auth/signin", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/rpc/v1/auth/signin", bytes.NewBuffer(body))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -123,7 +123,7 @@ func TestSignin(t *testing.T) {
 		Password: testpass,
 	})
 
-	req, err = http.NewRequest("POST", "/api/v1/signin", bytes.NewBuffer(body))
+	req, err = http.NewRequest("POST", "/rpc/v1/signin", bytes.NewBuffer(body))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -146,7 +146,7 @@ func TestSignin(t *testing.T) {
 		Password: []byte(""),
 	})
 
-	req, err = http.NewRequest("POST", "/api/v1/signin", bytes.NewBuffer(body))
+	req, err = http.NewRequest("POST", "/rpc/v1/signin", bytes.NewBuffer(body))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -169,7 +169,7 @@ func TestSignin(t *testing.T) {
 		Password: testpass,
 	})
 
-	req, err = http.NewRequest("POST", "/api/v1/signin", bytes.NewBuffer(body))
+	req, err = http.NewRequest("POST", "/rpc/v1/signin", bytes.NewBuffer(body))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -192,7 +192,7 @@ func TestSignin(t *testing.T) {
 		Password: testpass,
 	})
 
-	req, err = http.NewRequest("POST", "/api/v1/signin", bytes.NewBuffer(body))
+	req, err = http.NewRequest("POST", "/rpc/v1/signin", bytes.NewBuffer(body))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))

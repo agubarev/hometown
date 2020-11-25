@@ -28,7 +28,7 @@ func Run(ctx context.Context, c *core.Core, addr string) (err error) {
 	}).Handler)
 
 	// main routes
-	r.Route("/api/v1", func(r chi.Router) {
+	r.Route("/rpc/v1", func(r chi.Router) {
 		r.Route("/group", func(r chi.Router) {
 			r.Method(http.MethodPost, "/", endpoints.NewEndpoint(ctx, c, endpoints.GroupPost, "group_post"))
 			r.Method(http.MethodPatch, "/{id}", endpoints.NewEndpoint(ctx, c, endpoints.GroupPatch, "group_patch"))

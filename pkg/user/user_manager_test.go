@@ -7,15 +7,13 @@ import (
 	"github.com/agubarev/hometown/pkg/database"
 	"github.com/agubarev/hometown/pkg/security/password"
 	"github.com/agubarev/hometown/pkg/user"
-	"github.com/agubarev/hometown/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestUserManagerNew(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	userStore, err := user.NewPostgreSQLStore(db)
@@ -34,8 +32,7 @@ func TestUserManagerNew(t *testing.T) {
 func TestUserManagerCreate(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	userStore, err := user.NewPostgreSQLStore(db)
@@ -67,7 +64,7 @@ func TestUserManagerCreate(t *testing.T) {
 			},
 			EmailAddr:   "testuser@hometown.local",
 			PhoneNumber: "12398543292",
-			Password:    util.NewULID().Entropy(),
+			Password:    password.NewRaw(32, 3, password.GFDefault),
 		}
 
 		return object, nil

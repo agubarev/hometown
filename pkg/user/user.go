@@ -34,12 +34,9 @@ type Metadata struct {
 
 	// timestamps
 	CreatedAt   time.Time `db:"created_at" json:"created_at"`
-	CreatedByID uuid.UUID `db:"created_by_id" json:"created_by_id"`
 	UpdatedAt   time.Time `db:"updated_at" json:"updated_at"`
-	UpdatedByID uuid.UUID `db:"updated_by_id" json:"updated_by_id"`
 	ConfirmedAt time.Time `db:"confirmed_at" json:"confirmed_at"`
 	DeletedAt   time.Time `db:"deleted_at" json:"deleted_at"`
-	DeletedByID uuid.UUID `db:"deleted_by_id" json:"deleted_by_id"`
 
 	// the most recent authentication information
 	LastLoginAt       time.Time `db:"last_login_at" json:"last_login_at"`
@@ -51,7 +48,6 @@ type Metadata struct {
 	// account suspension
 	IsSuspended         bool      `db:"is_suspended" json:"is_suspended"`
 	SuspendedAt         time.Time `db:"suspended_at" json:"suspended_at"`
-	SuspendedByID       uuid.UUID `db:"suspended_by_id" json:"suspended_by_id"`
 	SuspensionExpiresAt time.Time `db:"suspension_expires_at" json:"suspension_expires_at"`
 	SuspensionReason    string    `db:"suspension_reason" json:"suspension_reason"`
 }

@@ -102,7 +102,7 @@ func TestHandleRefreshToken(t *testing.T) {
 		a.NoError(err)
 		a.NotNil(tt)
 
-		req, err := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString(tt.RefreshToken))
+		req, err := http.NewRequest("POST", "/rpc/v1/auth/refresh", bytes.NewBufferString(tt.RefreshToken))
 		a.NoError(err)
 
 		req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -142,7 +142,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NotNil(u)
 	a.True(reflect.DeepEqual(u.Essential, testuser.Essential))
 
-	req, err := http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString("wrong refresh token"))
+	req, err := http.NewRequest("POST", "/rpc/v1/auth/refresh", bytes.NewBufferString("wrong refresh token"))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))
@@ -184,7 +184,7 @@ func TestHandleRefreshToken(t *testing.T) {
 	a.NoError(err)
 	a.NotNil(tt)
 
-	req, err = http.NewRequest("POST", "/api/v1/auth/refresh", bytes.NewBufferString(tt.RefreshToken))
+	req, err = http.NewRequest("POST", "/rpc/v1/auth/refresh", bytes.NewBufferString(tt.RefreshToken))
 	a.NoError(err)
 
 	req = req.WithContext(context.WithValue(context.Background(), auth.CKUserManager, um))

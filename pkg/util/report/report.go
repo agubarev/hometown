@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 	"sync"
+	"time"
 
-	"github.com/agubarev/hometown/pkg/util/timestamp"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -27,10 +27,10 @@ type Error struct {
 
 // Entry represents a single Log entry of the report
 type Entry struct {
-	Timestamp timestamp.Timestamp `json:"ts"`
-	Level     zapcore.Level       `json:"lvl"`
-	Message   string              `json:"msg"`
-	Fields    []zap.Field         `json:"fs"`
+	Timestamp time.Time     `json:"ts"`
+	Level     zapcore.Level `json:"lvl"`
+	Message   string        `json:"msg"`
+	Fields    []zap.Field   `json:"fs"`
 }
 
 // Log is a named slice used inside the report
@@ -42,7 +42,7 @@ func (l *Log) AddEntry(lvl zapcore.Level, msg string, fields ...zap.Field) {
 	}
 
 	*l = append(*l, Entry{
-		Timestamp: timestamp.Now(),
+		Timestamp: time.Now(),
 		Level:     lvl,
 		Message:   msg,
 		Fields:    fields,
