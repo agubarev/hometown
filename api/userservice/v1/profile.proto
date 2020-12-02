@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package hometown.userservice.v1;
 
-option go_package = "github.com/agubarev/hometown/internal/userservice";
+option go_package = ".;userservice";
 
 message Profile {
     string firstname = 1;

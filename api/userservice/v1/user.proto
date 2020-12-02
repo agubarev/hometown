@@ -2,17 +2,26 @@ syntax = "proto3";
 
 package hometown.userservice.v1;
 
-option go_package = "github.com/agubarev/hometown/internal/userservice";
+option go_package = ".;userservice";
 
 import "google/protobuf/timestamp.proto";
-import "apis/userservice/v1/profile.proto";
+import "userservice/v1/profile.proto";
+
+message UserEssential {
+    string username = 2;
+    string display_name = 3;
+}
+
+message UserNew {
+    UserEssential essential = 1;
+    Profile profile = 2;
+}
 
 message User {
     string id = 1;
-    string username = 2;
-    string display_name = 3;
-    Profile profile = 4;
-    Metadata metadata = 5;
+    UserEssential essential = 2;
+    Profile profile = 3;
+    Metadata metadata = 4;
 }
 
 message Metadata {
