@@ -13,8 +13,7 @@ import (
 func TestManager_Create(t *testing.T) {
 	a := assert.New(t)
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	s, err := group.NewPostgreSQLStore(db)

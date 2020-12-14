@@ -15,8 +15,7 @@ func TestPostgreSQLStore_UpsertGroup(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	s, err := group.NewPostgreSQLStore(db)
@@ -41,8 +40,7 @@ func TestPostgreSQLStore_FetchGroupByID(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	s, err := group.NewPostgreSQLStore(db)
@@ -75,8 +73,7 @@ func TestPostgreSQLStore_FetchAllGroups(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db:= database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	s, err := group.NewPostgreSQLStore(db)
@@ -141,8 +138,7 @@ func TestPostgreSQLStore_DeleteByID(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	s, err := group.NewPostgreSQLStore(db)
@@ -178,8 +174,7 @@ func TestPostgreSQLStore_DeleteRelation(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.PostgreSQLForTesting(nil)
-	a.NoError(err)
+	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
 	s, err := group.NewPostgreSQLStore(db)
