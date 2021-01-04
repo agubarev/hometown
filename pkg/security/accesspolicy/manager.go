@@ -577,10 +577,12 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 	}
 
 	// if this user is the owner, then returning maximum possible value for Right type
+	// TODO: consider possible exception resolution, for example when an owner may not have full access in certain cases
 	if ap.IsOwner(userID) {
 		return APFullAccess
 	}
 
+	// NOTE: determining access rights based on whether this policy has a parent
 	// calculating parents accesspolicy if parent ActorID is set
 	if ap.ParentID != uuid.Nil {
 		// obtaining parent object
@@ -602,7 +604,11 @@ func (m *Manager) Access(ctx context.Context, policyID, userID uuid.UUID) (acces
 			}
 		}
 
+		// calculating access based on policy lineage
 		access |= m.SummarizedUserAccess(ctx, ap.ID, userID)
+	} else {
+		// this policy has no parent, thus assuming its own access rights
+		access = m.Access(ctx, ap.ID, userID)
 	}
 
 	return access
