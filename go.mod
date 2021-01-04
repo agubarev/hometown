@@ -9,7 +9,7 @@ require (
 	github.com/davecgh/go-spew v1.1.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-chi/chi v1.5.0
-	github.com/gocql/gocql v0.0.0-20201209090715-f485b5f9159c // indirect
+	github.com/gocql/gocql v0.0.0-20201209090715-f485b5f9159c
 	github.com/gocraft/dbr/v2 v2.7.1
 	github.com/google/uuid v1.1.2
 	github.com/jackc/fake v0.0.0-20150926172116-812a484cc733 // indirect

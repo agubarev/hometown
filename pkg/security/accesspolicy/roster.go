@@ -9,11 +9,15 @@ import (
 
 // Roster denotes who has what rights
 type Roster struct {
+	// resolver is responsible for producing the final access value
+	// of an extended or inherited policy
+	Resolver Resolver
+
 	// represents a mixed list of group/role/user rights
 	Registry []Cell `json:"registry"`
 
 	// holds a calculated summary cache of rights for a specific group/role/user
-	// NOTE: these values are reset should any corresponding value rosterChange
+	// NOTE: these values are reset should any respective value change
 	calculatedCache map[Actor]Right
 
 	// this slice accumulates batch changes made to this roster
@@ -114,8 +118,7 @@ func (r *Roster) put(key Actor, rights Right) {
 func (r *Roster) lookup(key Actor) (access Right) {
 	access, err := r.lookupCache(key)
 	if err != nil && err != ErrCacheMiss {
-		// returning cached value
-		return access
+		return APNoAccess
 	}
 
 	// finding accesspolicy rights

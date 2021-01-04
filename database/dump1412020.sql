@@ -11,7 +11,7 @@ create table "group"
         unique (id, parent_id)
 );
 
-alter table "group" owner to lazyfingers;
+alter table "group" owner to postgres;
 
 create unique index group_id_uindex
     on "group" (id);
@@ -31,7 +31,7 @@ create table group_assets
         primary key (group_id, asset_id, asset_kind)
 );
 
-alter table group_assets owner to lazyfingers;
+alter table group_assets owner to postgres;
 
 create index group_assets_asset_id_index
     on group_assets (asset_id);
@@ -50,7 +50,7 @@ create table accesspolicy_roster
         primary key (policy_id, actor_kind, actor_id)
 );
 
-alter table accesspolicy_roster owner to lazyfingers;
+alter table accesspolicy_roster owner to postgres;
 
 create index accesspolicy_roster_policy_id_actor_kind_index
     on accesspolicy_roster (policy_id, actor_kind);
@@ -71,7 +71,7 @@ create table password
         primary key (kind, owner_id)
 );
 
-alter table password owner to lazyfingers;
+alter table password owner to postgres;
 
 create table user_email
 (
@@ -85,7 +85,7 @@ create table user_email
     updated_at timestamp
 );
 
-alter table user_email owner to lazyfingers;
+alter table user_email owner to postgres;
 
 create index user_email_user_id_index
     on user_email (user_id);
@@ -102,7 +102,7 @@ create table user_phone
         primary key (user_id, number)
 );
 
-alter table user_phone owner to lazyfingers;
+alter table user_phone owner to postgres;
 
 create index user_phone_user_id_index
     on user_phone (user_id);
@@ -124,7 +124,7 @@ create table user_profile
     updated_at timestamp
 );
 
-alter table user_profile owner to lazyfingers;
+alter table user_profile owner to postgres;
 
 create table token
 (
@@ -138,7 +138,7 @@ create table token
     expire_at timestamp with time zone
 );
 
-alter table token owner to lazyfingers;
+alter table token owner to postgres;
 
 create index token_created_at_index
     on token (created_at);
@@ -168,7 +168,7 @@ create table "user"
     deleted_at timestamp with time zone
 );
 
-alter table "user" owner to lazyfingers;
+alter table "user" owner to postgres;
 
 create unique index user_username_uindex
     on "user" (username);
@@ -190,7 +190,7 @@ create table client
     metadata jsonb
 );
 
-alter table client owner to lazyfingers;
+alter table client owner to postgres;
 
 create index client_expire_at_index
     on client (expire_at);
@@ -218,7 +218,7 @@ create table device
     expire_at timestamp with time zone
 );
 
-alter table device owner to lazyfingers;
+alter table device owner to postgres;
 
 create index device_expire_at_index
     on device (expire_at);
@@ -247,7 +247,7 @@ create table device_assets
         primary key (device_id, asset_kind, asset_id)
 );
 
-alter table device_assets owner to lazyfingers;
+alter table device_assets owner to postgres;
 
 create index device_relations_asset_kind_asset_id_index
     on device_assets (asset_kind, asset_id);
@@ -273,7 +273,7 @@ create table accesspolicy
     flags smallint default 0 not null
 );
 
-alter table accesspolicy owner to lazyfingers;
+alter table accesspolicy owner to postgres;
 
 create unique index accesspolicy__key_uindex
     on accesspolicy (key)
@@ -301,7 +301,7 @@ create table auth_session
     revoke_reason text
 );
 
-alter table auth_session owner to lazyfingers;
+alter table auth_session owner to postgres;
 
 create index auth_session_trace_id_index
     on auth_session (trace_id);
@@ -327,7 +327,7 @@ create table auth_refresh_token
     flags smallint default 0 not null
 );
 
-alter table auth_refresh_token owner to lazyfingers;
+alter table auth_refresh_token owner to postgres;
 
 create unique index auth_refresh_token_hash_uindex
     on auth_refresh_token (hash);
@@ -344,5 +344,5 @@ create table auth_code_exchange
     refresh_token text not null
 );
 
-alter table auth_code_exchange owner to lazyfingers;
+alter table auth_code_exchange owner to postgres;
 

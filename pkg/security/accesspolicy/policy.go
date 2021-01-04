@@ -77,7 +77,7 @@ func (a RAction) String() string {
 	}
 }
 
-// Right is a single permission set
+// Right is a bitmask of access rights
 type Right uint32
 
 type rosterChange struct {
