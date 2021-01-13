@@ -726,3 +726,28 @@ func TestAccessPolicyManagerDelete(t *testing.T) {
 	a.EqualError(accesspolicy.ErrPolicyNotFound, err.Error())
 	a.Zero(fetchedPolicy.ID)
 }
+
+func TestAccessResolver(t *testing.T) {
+	//a := assert.New(t)
+
+	/*
+		// defining access layers
+		access1 := accesspolicy.APView | accesspolicy.APViewDeleted | accesspolicy.APViewHidden
+		access2 := access1 &^ accesspolicy.APViewHidden
+
+		// calculating access sequentially
+		calculated := access2 | (access2 & (accesspolicy.APView))
+
+		fmt.Printf("%08b\n", access1)
+		fmt.Printf("%08b\n", access2)
+		fmt.Printf("%08b\n", calculated)
+	*/
+
+	// TODO: continue to see whether my goal can be achieved
+	// TODO: continue to see whether my goal can be achieved
+	// TODO: continue to see whether my goal can be achieved
+	// TODO: continue to see whether my goal can be achieved
+	// TODO: continue to see whether my goal can be achieved
+	// TODO: continue to see whether my goal can be achieved
+	// TODO: continue to see whether my goal can be achieved
+}

@@ -48,11 +48,13 @@ var (
 )
 
 // Manager is the accesspolicy policy registry
+// NOTE: resolver determines the final access rights if policy has a parent
 type Manager struct {
 	policies   map[uuid.UUID]Policy
 	keyMap     map[string]uuid.UUID
 	roster     map[uuid.UUID]*Roster
 	groups     *group.Manager
+	resolver   AccessResolver
 	store      Store
 	rosterLock sync.RWMutex
 	sync.RWMutex
@@ -909,6 +911,7 @@ func (m *Manager) HasRoleRights(ctx context.Context, policyID, groupID uuid.UUID
 }
 
 // SummarizedUserAccess summarizing the resulting accesspolicy rights of a given user
+// TODO: use access resolver instead of just OR'ing
 func (m *Manager) SummarizedUserAccess(ctx context.Context, policyID, userID uuid.UUID) (access Right) {
 	p, err := m.PolicyByID(ctx, policyID)
 	if err != nil {

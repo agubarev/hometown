@@ -7,17 +7,19 @@ import (
 	"github.com/pkg/errors"
 )
 
-// Roster denotes who has what rights
+// Roster holds metadata to keep track of who has what access to its
+// corresponding access policy
 type Roster struct {
-	// resolver is responsible for producing the final access value
-	// of an extended or inherited policy
-	Resolver Resolver
+	// Resolve calculates the final access right value of a policy
+	// which extends (or possibly inherits) from a parent, because sometimes a certain right
+	// must be overridden while still preserving extended some values
+	Resolve func(extended, current Right) Right
 
 	// represents a mixed list of group/role/user rights
 	Registry []Cell `json:"registry"`
 
 	// holds a calculated summary cache of rights for a specific group/role/user
-	// NOTE: these values are reset should any respective value change
+	// NOTE: these values are reset should any related value change
 	calculatedCache map[Actor]Right
 
 	// this slice accumulates batch changes made to this roster
@@ -72,7 +74,8 @@ func RoleActor(id uuid.UUID) Actor {
 	}
 }
 
-// Cell represents a single accesspolicy registry cell
+// Cell represents a single access policy registry entry
+// TODO: consider overrides
 type Cell struct {
 	Key    Actor `json:"key"`
 	Rights Right `json:"rights"`
