@@ -181,7 +181,7 @@ func (fl *Filter) sanitizeAndValidateQuery(fo *FilterObject, fq *FilterQuery) er
 		// mapping aliases to column names
 		//---------------------------------------------------------------------------
 
-		// determining the underlying database column name
+		// determining the underlying data column name
 		columnName, ok := f.Tag.lookup("gorm")
 		// nested conditions is a necessary evil here
 		if ok {
@@ -418,7 +418,7 @@ func (fl *Filter) FilterInto(mysqlConn *gorm.DB, obj interface{}, fq *FilterQuer
 	//---------------------------------------------------------------------------
 	var total, count int64
 
-	// if no custom database instance given, then using default
+	// if no custom data instance given, then using default
 	if mysqlConn == nil {
 		mysqlConn = MySQLConnection()
 	}

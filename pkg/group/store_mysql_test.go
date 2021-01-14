@@ -6,7 +6,7 @@ func TestGroupStorePut(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.PostgreSQLForTesting(nil)
+	db, err := data.PostgreSQLForTesting(nil)
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -32,7 +32,7 @@ func TestGroupStoreGet(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := data.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -66,7 +66,7 @@ func TestGroupStoreGetAll(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := data.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -132,7 +132,7 @@ func TestGroupStoreDelete(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := data.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 
@@ -168,7 +168,7 @@ func TestGroupStoreRelations(t *testing.T) {
 
 	ctx := context.Background()
 
-	db, err := database.MySQLForTesting()
+	db, err := data.MySQLForTesting()
 	a.NoError(err)
 	a.NotNil(db)
 

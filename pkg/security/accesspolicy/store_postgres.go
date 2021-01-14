@@ -60,7 +60,7 @@ func (s *PostgreSQLStore) withTransaction(ctx context.Context, fn func(tx *pgx.T
 	return nil
 }
 
-// breakdownRoster decomposes roster entries into usable database records
+// breakdownRoster decomposes roster entries into usable data records
 func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []RosterEntry) {
 	records = make([]RosterEntry, len(r.Registry))
 
@@ -102,7 +102,7 @@ func (s *PostgreSQLStore) breakdownRoster(pid uuid.UUID, r *Roster) (records []R
 func (s *PostgreSQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 	r = NewRoster(len(records))
 
-	// transforming database records into the roster object
+	// transforming data records into the roster object
 	for _, _r := range records {
 		switch _r.ActorKind {
 		case AKEveryone:
@@ -314,7 +314,7 @@ func (s *PostgreSQLStore) UpdatePolicy(ctx context.Context, p Policy, r *Roster)
 			return ErrNothingChanged
 		}
 
-		// applying roster changes to the database
+		// applying roster changes to the data
 		if err = s.applyRosterChanges(tx, p.ID, r); err != nil {
 			return errors.Wrapf(err, "failed to apply accesspolicy policy roster changes during policy update: policy_id=%s", p.ID)
 		}

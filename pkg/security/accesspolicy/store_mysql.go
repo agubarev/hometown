@@ -1,7 +1,7 @@
 package accesspolicy
 
 /*
-// RosterEntry represents a single database row
+// RosterEntry represents a single data row
 type RosterEntry struct {
 	PolicyID        uint32      `db:"policy_id"`
 	ActorID       uint32      `db:"subject_id"`
@@ -53,7 +53,7 @@ func (s *DefaultMySQLStore) getMany(ctx context.Context, q string, args ...inter
 	return aps, nil
 }
 
-// breakdownRoster decomposes roster entries into usable database records
+// breakdownRoster decomposes roster entries into usable data records
 func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records []RosterEntry) {
 	records = make([]RosterEntry, len(r.Registry))
 
@@ -94,7 +94,7 @@ func (s *DefaultMySQLStore) breakdownRoster(policyID uint32, r *Roster) (records
 func (s *DefaultMySQLStore) buildRoster(records []RosterEntry) (r *Roster) {
 	r = NewRoster(len(records))
 
-	// transforming database records into the roster object
+	// transforming data records into the roster object
 	for _, _r := range records {
 		switch _r.ActorKind {
 		case AKEveryone:
@@ -249,7 +249,7 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Rost
 		return errors.Wrap(err, "failed to update accesspolicy policy")
 	}
 
-	// applying roster changes to the database
+	// applying roster changes to the data
 	if err = s.applyRosterChanges(tx, ap.ActorID, r); err != nil {
 		return errors.Wrap(err, "failed to apply accesspolicy policy roster changes during policy update")
 	}
@@ -258,7 +258,7 @@ func (s *DefaultMySQLStore) UpdatePolicy(ctx context.Context, ap Policy, r *Rost
 	// commiting transaction
 	//---------------------------------------------------------------------------
 	if err = tx.Commit(); err != nil {
-		return errors.Wrap(err, "failed to commit database transaction")
+		return errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return nil
@@ -287,7 +287,7 @@ func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap Policy) (err er
 
 	tx, err := s.db.NewSession(nil).Begin()
 	if err != nil {
-		return errors.Wrap(err, "failed to begin database transaction")
+		return errors.Wrap(err, "failed to begin data transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
 
@@ -305,7 +305,7 @@ func (s *DefaultMySQLStore) DeletePolicy(ctx context.Context, ap Policy) (err er
 	// commiting transaction
 	//---------------------------------------------------------------------------
 	if err := tx.Commit(); err != nil {
-		return errors.Wrap(err, "failed to commit database transaction")
+		return errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return nil
@@ -336,7 +336,7 @@ func (s *DefaultMySQLStore) CreateRoster(ctx context.Context, policyID uint32, r
 	}
 
 	if err := tx.Commit(); err != nil {
-		return errors.Wrap(err, "failed to commit database transaction")
+		return errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return nil
@@ -371,7 +371,7 @@ func (s *DefaultMySQLStore) UpdateRoster(ctx context.Context, policyID uint32, r
 	}
 	defer tx.RollbackUnlessCommitted()
 
-	// applying roster changes to the database
+	// applying roster changes to the data
 	if err = s.applyRosterChanges(tx, policyID, r); err != nil {
 		return errors.Wrap(err, "failed to apply accesspolicy policy roster changes during roster update")
 	}
@@ -380,7 +380,7 @@ func (s *DefaultMySQLStore) UpdateRoster(ctx context.Context, policyID uint32, r
 	// commiting transaction
 	//---------------------------------------------------------------------------
 	if err = tx.Commit(); err != nil {
-		return errors.Wrap(err, "failed to commit database transaction")
+		return errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return nil
@@ -393,7 +393,7 @@ func (s *DefaultMySQLStore) DeleteRoster(ctx context.Context, policyID uint32) (
 
 	tx, err := s.db.NewSession(nil).Begin()
 	if err != nil {
-		return errors.Wrap(err, "failed to begin database transaction")
+		return errors.Wrap(err, "failed to begin data transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
 
@@ -403,7 +403,7 @@ func (s *DefaultMySQLStore) DeleteRoster(ctx context.Context, policyID uint32) (
 	}
 
 	if err := tx.Commit(); err != nil {
-		return errors.Wrap(err, "failed to commit database transaction")
+		return errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return nil

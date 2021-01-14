@@ -21,7 +21,7 @@ import (
 func TestAuthenticator_AuthenticateUserByPasswordNormal(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -85,7 +85,7 @@ func TestAuthenticator_AuthenticateUserByPasswordNormal(t *testing.T) {
 func TestAuthenticator_AuthenticateSuspendedUserByPassword(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -150,7 +150,7 @@ func TestAuthenticator_AuthenticateSuspendedUserByPassword(t *testing.T) {
 func TestAuthenticateByRefreshTokenNormalFlow(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -267,7 +267,7 @@ func TestAuthenticateByRefreshTokenNormalFlow(t *testing.T) {
 func TestAuthenticateByRevokedRefreshToken(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -363,7 +363,7 @@ func TestAuthenticateByRevokedRefreshToken(t *testing.T) {
 func TestAuthenticateSuspendedUserByValidRefreshToken(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -458,7 +458,7 @@ func TestAuthenticateSuspendedUserByValidRefreshToken(t *testing.T) {
 func TestAuthenticator_AuthenticateUserByRefreshTokenWithInvalidatedClient(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -553,7 +553,7 @@ func TestAuthenticator_AuthenticateUserByRefreshTokenWithInvalidatedClient(t *te
 func TestAuthenticator_RevokeSessionMustRevokeActualRefreshToken(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -636,7 +636,7 @@ func TestAuthenticator_RevokeSessionMustRevokeActualRefreshToken(t *testing.T) {
 func TestAuthenticator_CreateAndExchangeAuthorizationCode(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 

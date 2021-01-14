@@ -3,19 +3,19 @@ package database
 /*
 var connPool *pgxpool.Pool
 
-// Connection returns database singleton instance
+// Connection returns data singleton instance
 func Connection() *pgxpool.Pool {
 	// using a package global variable
 	if connPool == nil {
 		// checking whether it's called during `go test`
 		testMode := flag.Lookup("test.v") != nil
 
-		// describing database connPool config
+		// describing data connPool config
 		// NOTE: a quirky way to initialize blank config, otherwise
 		// pgx panics with "panic: config must be created by ParseConfig"
 		connConfig, err := pgxpool.ParseConfig("")
 		if err != nil {
-			panic(errors.Wrap(err, "failed to initialize database connection config"))
+			panic(errors.Wrap(err, "failed to initialize data connection config"))
 		}
 
 		// telling viper to be aware of its environment
@@ -44,10 +44,10 @@ func Connection() *pgxpool.Pool {
 			os.Exit(0)
 		}
 
-		// connecting to postgres database
+		// connecting to postgres data
 		pool, err := pgxpool.ConnectConfig(context.Background(), connConfig)
 		if err != nil {
-			log.Fatalf("failed to connect to database: %s", err)
+			log.Fatalf("failed to connect to data: %s", err)
 		}
 
 		connPool = pool
@@ -56,7 +56,7 @@ func Connection() *pgxpool.Pool {
 	return connPool
 }
 
-// ConnectionForTesting simply returns a database mysqlConn
+// ConnectionForTesting simply returns a data mysqlConn
 func ConnectionForTesting() (conn *pgxpool.Pool, err error) {
 	if !util.IsTestMode() {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
@@ -70,12 +70,12 @@ func ConnectionForTesting() (conn *pgxpool.Pool, err error) {
 		os.Exit(0)
 	}
 
-	// describing database connPool config
+	// describing data connPool config
 	// NOTE: a quirky way to initialize blank config, otherwise
 	// pgx panics with "panic: config must be created by ParseConfig"
 	connConfig, err := pgxpool.ParseConfig("")
 	if err != nil {
-		panic(errors.Wrap(err, "failed to initialize database connPool config"))
+		panic(errors.Wrap(err, "failed to initialize data connPool config"))
 	}
 
 	// telling viper to be aware of its environment
@@ -101,10 +101,10 @@ func ConnectionForTesting() (conn *pgxpool.Pool, err error) {
 	connConfig.ConnConfig.User = viper.GetString("")
 	connConfig.ConnConfig.Password = viper.GetString("")
 
-	// connecting to postgres database
+	// connecting to postgres data
 	conn, err = pgxpool.ConnectConfig(context.Background(), connConfig)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %s", err)
+		log.Fatalf("failed to connect to data: %s", err)
 	}
 
 	tx, err := conn.Begin(ctx)

@@ -70,7 +70,7 @@ func (s *MySQLStore) BulkCreateProfile(ctx context.Context, profiles []Profile) 
 
 	tx, err := s.connection.NewSession(nil).Begin()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize database transaction")
+		return nil, errors.Wrap(err, "failed to initialize data transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
 
@@ -100,7 +100,7 @@ func (s *MySQLStore) BulkCreateProfile(ctx context.Context, profiles []Profile) 
 	}
 
 	if err = tx.Commit(); err != nil {
-		return nil, errors.Wrap(err, "failed to commit database transaction")
+		return nil, errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return profiles, nil

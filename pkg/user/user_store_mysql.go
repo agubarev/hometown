@@ -92,7 +92,7 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 
 	tx, err := s.db.NewSession(nil).Begin()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize database transaction")
+		return nil, errors.Wrap(err, "failed to initialize data transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
 
@@ -128,7 +128,7 @@ func (s *MySQLStore) BulkCreateUser(ctx context.Context, us []User) (_ []User, e
 	}
 
 	if err = tx.Commit(); err != nil {
-		return nil, errors.Wrap(err, "failed to commit database transaction")
+		return nil, errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	// distributing new IDs in their sequential order

@@ -15,7 +15,7 @@ import (
 
 var postgresConn *pgx.Conn
 
-// PostgreSQLConnection returns database singleton instance
+// PostgreSQLConnection returns data singleton instance
 func PostgreSQLConnection(logger *zap.Logger) *pgx.Conn {
 	// using a package global variable
 	if postgresConn == nil {
@@ -35,16 +35,16 @@ func PostgreSQLConnection(logger *zap.Logger) *pgx.Conn {
 			log.Fatalf("failed to parse DSN: %s", err)
 		}
 
-		// injecting logger into database instance
+		// injecting logger into data instance
 		if logger != nil {
 			conf.Logger = zapadapter.NewLogger(logger)
 			conf.LogLevel = pgx.LogLevelDebug
 		}
 
-		// initializing connection to postgres database
+		// initializing connection to postgres data
 		conn, err := pgx.Connect(conf)
 		if err != nil {
-			log.Fatalf("failed to connect to database: %s", err)
+			log.Fatalf("failed to connect to data: %s", err)
 		}
 
 		postgresConn = conn
@@ -53,7 +53,7 @@ func PostgreSQLConnection(logger *zap.Logger) *pgx.Conn {
 	return postgresConn
 }
 
-// PostgreSQLForTesting simply returns a database mysqlConn
+// PostgreSQLForTesting simply returns a data mysqlConn
 func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn) {
 	if !util.IsTestMode() {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
@@ -75,16 +75,16 @@ func PostgreSQLForTesting(logger *zap.Logger) (conn *pgx.Conn) {
 		log.Fatalf("failed to parse DSN: %s", err)
 	}
 
-	// injecting logger into database instance
+	// injecting logger into data instance
 	if logger != nil {
 		conf.Logger = zapadapter.NewLogger(logger)
 		conf.LogLevel = pgx.LogLevelDebug
 	}
 
-	// initializing connection to postgres database
+	// initializing connection to postgres data
 	conn, err = pgx.Connect(conf)
 	if err != nil {
-		log.Fatalf("failed to connect to database: %s", err)
+		log.Fatalf("failed to connect to data: %s", err)
 	}
 
 	postgresConn = conn

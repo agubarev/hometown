@@ -27,7 +27,7 @@ import (
 func TestMiddlewareAuthenticatorNormal(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -160,7 +160,7 @@ func TestMiddlewareAuthenticatorNormal(t *testing.T) {
 func TestMiddlewareAuthenticatorExpiredSession(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -295,7 +295,7 @@ func TestMiddlewareAuthenticatorExpiredSession(t *testing.T) {
 func TestMiddlewareAuthenticatorUserSuspended(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -430,7 +430,7 @@ func TestMiddlewareAuthenticatorUserSuspended(t *testing.T) {
 func TestMiddlewareAuthenticatorInvalidAccessToken(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 

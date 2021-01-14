@@ -12,7 +12,7 @@ import (
 
 // errors
 var (
-	ErrNilDatabase                  = errors.New("database is nil")
+	ErrNilDatabase                  = errors.New("data is nil")
 	ErrZeroPolicyID                 = errors.New("id is zero")
 	ErrNonZeroID                    = errors.New("id is not zero")
 	ErrNilStore                     = errors.New("accesspolicy policy store is nil")

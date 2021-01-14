@@ -27,7 +27,7 @@ import (
 func TestPolicy(t *testing.T) {
 	a := assert.New(t)
 
-	// obtaining and truncating a test database
+	// obtaining and truncating a test data
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 

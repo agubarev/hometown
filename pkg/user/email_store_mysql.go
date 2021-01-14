@@ -71,7 +71,7 @@ func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email
 
 	tx, err := s.db.NewSession(nil).Begin()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize database transaction")
+		return nil, errors.Wrap(err, "failed to initialize data transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
 
@@ -101,7 +101,7 @@ func (s *MySQLStore) BulkCreateEmail(ctx context.Context, es []Email) (_ []Email
 	}
 
 	if err = tx.Commit(); err != nil {
-		return nil, errors.Wrap(err, "failed to commit database transaction")
+		return nil, errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return es, nil

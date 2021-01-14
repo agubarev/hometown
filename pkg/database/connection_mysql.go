@@ -15,7 +15,7 @@ import (
 
 var mysqlConn *dbr.Connection
 
-// MySQLConnection returns database singleton instance
+// MySQLConnection returns data singleton instance
 func MySQLConnection() *dbr.Connection {
 	// using a package global variable
 	if mysqlConn == nil {
@@ -29,7 +29,7 @@ func MySQLConnection() *dbr.Connection {
 
 		conn, err := dbr.Open("mysql", strings.TrimSpace(dsn), nil)
 		if err != nil {
-			log.Fatalf("failed to connect to database: %s", err)
+			log.Fatalf("failed to connect to data: %s", err)
 		}
 
 		mysqlConn = conn
@@ -38,7 +38,7 @@ func MySQLConnection() *dbr.Connection {
 	return mysqlConn
 }
 
-// MySQLForTesting simply returns a database mysqlConn
+// MySQLForTesting simply returns a data mysqlConn
 func MySQLForTesting() (conn *dbr.Connection, err error) {
 	if !util.IsTestMode() {
 		log.Fatal("TruncateTestDatabase() can only be called during testing")
@@ -47,7 +47,7 @@ func MySQLForTesting() (conn *dbr.Connection, err error) {
 
 	conn, err = dbr.Open("mysql", os.Getenv("HOMETOWN_TEST_DATABASE"), nil)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to connect to test database")
+		return nil, errors.Wrap(err, "failed to connect to test data")
 	}
 
 	tx, err := conn.NewSession(nil).Begin()

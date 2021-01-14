@@ -16,7 +16,7 @@ import (
 
 // errors
 var (
-	ErrNilDatabase            = errors.New("database is nil")
+	ErrNilDatabase            = errors.New("data is nil")
 	ErrNoParent               = errors.New("no parent group")
 	ErrNilGroupID             = errors.New("role group id is zero")
 	ErrZeroRoleID             = errors.New("role id is zero")

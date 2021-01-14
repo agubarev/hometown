@@ -17,7 +17,7 @@ import (
 
 // errors
 var (
-	ErrNilDatabase              = errors.New("database is nil")
+	ErrNilDatabase              = errors.New("data is nil")
 	ErrNilTokenStore            = errors.New("token store is nil")
 	ErrEmptyTokenHash           = errors.New("token hash is empty")
 	ErrTokenNotFound            = errors.New("token not found")

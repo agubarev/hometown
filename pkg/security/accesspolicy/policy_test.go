@@ -17,7 +17,7 @@ func TestNewAccessPolicy(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -150,7 +150,7 @@ func TestSetPublicRights(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -291,7 +291,7 @@ func TestSetGroupRights(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -425,7 +425,7 @@ func TestSetRoleRights(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -559,7 +559,7 @@ func TestSetUserRights(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -672,7 +672,7 @@ func TestIsOwner(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -741,7 +741,7 @@ func TestAccessPolicyTestRosterBackup(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -848,7 +848,7 @@ func TestAccessPolicyUnsetRights(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 
@@ -981,7 +981,7 @@ func TestHasGroupRights(t *testing.T) {
 	// test context
 	ctx := context.Background()
 
-	// database instance
+	// data instance
 	db := database.PostgreSQLForTesting(nil)
 	a.NotNil(db)
 

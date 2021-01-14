@@ -71,7 +71,7 @@ func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []Phone) (_ []Phone
 
 	tx, err := s.connection.NewSession(nil).Begin()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize database transaction")
+		return nil, errors.Wrap(err, "failed to initialize data transaction")
 	}
 	defer tx.RollbackUnlessCommitted()
 
@@ -101,7 +101,7 @@ func (s *MySQLStore) BulkCreatePhone(ctx context.Context, ps []Phone) (_ []Phone
 	}
 
 	if err = tx.Commit(); err != nil {
-		return nil, errors.Wrap(err, "failed to commit database transaction")
+		return nil, errors.Wrap(err, "failed to commit data transaction")
 	}
 
 	return ps, nil

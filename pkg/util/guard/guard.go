@@ -135,8 +135,8 @@ func ListEditable(obj interface{}) []string {
 // ProcureDBChangesFromChangelog produces a map of changes
 // based on a given object and a changelog
 // NOTE: this function does not check whether any of the changed fields are protected
-// NOTE: returned keys are the database column names mapped with `db`
-// TODO: move to database package
+// NOTE: returned keys are the data column names mapped with `db`
+// TODO: move to data package
 func ProcureDBChangesFromChangelog(obj interface{}, changelog diff.Changelog) (changes map[string]interface{}, err error) {
 	metadata, err := instance.inspectObject(obj)
 	if err != nil {
@@ -165,14 +165,14 @@ func ProcureDBChangesFromChangelog(obj interface{}, changelog diff.Changelog) (c
 			field = c.Path[l-2]
 		}
 
-		// checking whether this field has a database
+		// checking whether this field has a data
 		// column name mapped
 		dbColumn, ok := metadata.dbColumns[field]
 		if !ok {
 			continue
 		}
 
-		// mapping database column to a new value
+		// mapping data column to a new value
 		changes[dbColumn] = c.To
 
 		// appending a changed object field name for further checking
@@ -182,7 +182,7 @@ func ProcureDBChangesFromChangelog(obj interface{}, changelog diff.Changelog) (c
 	return changes, nil
 }
 
-// DBColumnsFrom returns a slice of database field
+// DBColumnsFrom returns a slice of data field
 // names declared via `db` tag
 // NOTE: will only include fields with explicit `db` tag
 func DBColumnsFrom(obj interface{}) (columns []string) {

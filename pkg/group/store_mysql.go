@@ -56,7 +56,7 @@ func (s *MySQLStore) UpsertGroup(ctx context.Context, g Group) (Group, error) {
 	return s.Create(ctx, g)
 }
 
-// Upsert creates a new database record
+// Upsert creates a new data record
 func (s *MySQLStore) Create(ctx context.Context, g Group) (Group, error) {
 	// if object id is not nil, then it's not considered as new
 	if g.ActorID != uuid.Nil {
@@ -163,7 +163,7 @@ func (s *MySQLStore) DeleteClientByID(ctx context.Context, id uuid.UUID) (err er
 	// TODO: delete group relations
 
 	if err := tx.Commit(); err != nil {
-		return errors.Wrapf(err, "failed to commit database transaction")
+		return errors.Wrapf(err, "failed to commit data transaction")
 	}
 
 	return nil
