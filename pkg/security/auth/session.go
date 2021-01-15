@@ -209,7 +209,7 @@ func (s *Session) LastActiveAt() time.Time {
 func (s *Session) IsValid() bool {
 	s.RLock()
 	defer s.RUnlock()
-	return s.RevokedAt.IsZero() && s.ExpireAt.Before(time.Now())
+	return s.RevokedAt.IsZero() && time.Now().Before(s.ExpireAt)
 }
 
 func (s *Session) IsRevoked() bool {
